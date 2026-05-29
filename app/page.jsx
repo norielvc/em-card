@@ -45,7 +45,6 @@ export default function Home() {
           <div className="hero-overlay" />
           <div className="container hero-grid">
             <div className="hero-content">
-              <span className="hero-accent">NON-GOVERNMENT ORGANIZATION</span>
               <h1>
                 <span className="hero-line hero-white">EPEKTIBONG</span>
                 <span className="hero-line hero-green">MAMAMAYAN</span>
