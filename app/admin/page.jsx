@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
+import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText } from 'lucide-react';
 
 export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -16,6 +17,8 @@ export default function AdminPage() {
   const [totalResidents, setTotalResidents] = useState(0);
   const [totalRegistrations, setTotalRegistrations] = useState(0);
   const [recentRegistrations, setRecentRegistrations] = useState([]);
+  const [votersByBarangay, setVotersByBarangay] = useState([]);
+  const [regsByBarangay, setRegsByBarangay] = useState([]);
   const [dashLoading, setDashLoading] = useState(true);
 
   const [allResidents, setAllResidents] = useState([]);
@@ -23,6 +26,9 @@ export default function AdminPage() {
   const [residentsLoading, setResidentsLoading] = useState(false);
   const [regsLoading, setRegsLoading] = useState(false);
   const [residentSearch, setResidentSearch] = useState('');
+  const [residentsPage, setResidentsPage] = useState(1);
+  const [residentsCount, setResidentsCount] = useState(0);
+  const residentsPerPage = 50;
 
   // Modals & Forms
   const [showAddModal, setShowAddModal] = useState(false);
@@ -43,6 +49,19 @@ export default function AdminPage() {
   const [toast, setToast] = useState(null);
   const [networkSearch, setNetworkSearch] = useState('');
   const [expandedNodes, setExpandedNodes] = useState(new Set());
+
+  // Messages
+  const [messages, setMessages] = useState([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [msgTab, setMsgTab] = useState('compose'); // compose | history
+  const [msgForm, setMsgForm] = useState({
+    title: '', body: '', type: 'broadcast', targetType: 'all', targetValue: ''
+  });
+  const [msgSending, setMsgSending] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [msgRecipients, setMsgRecipients] = useState([]);
+  const [msgUserSearch, setMsgUserSearch] = useState('');
+  const [msgUserResults, setMsgUserResults] = useState([]);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -78,24 +97,44 @@ export default function AdminPage() {
     }
   }, [toast]);
 
+  // Reset residents page and refetch when search changes
+  useEffect(() => {
+    setResidentsPage(1);
+    if (activeTab === 'residents') {
+      fetchAllResidents(1, residentSearch);
+    }
+  }, [residentSearch]);
+
+  // Auto-fetch messages when switching to history tab
+  useEffect(() => {
+    if (activeTab === 'messages' && msgTab === 'history') {
+      fetchMessages();
+    }
+  }, [activeTab, msgTab]);
+
   const showToast = (message, type = 'success') => setToast({ message, type });
 
   const fetchDashboardData = async () => {
     setDashLoading(true);
     try {
-      const { count: residentsCount } = await supabase
-        .from('ValidResidents').select('*', { count: 'exact', head: true });
-      const { count: regCount } = await supabase
-        .from('registrations').select('*', { count: 'exact', head: true });
+      // Fetch analytics from server-side API (uses service role key, no row limit)
+      const analyticsRes = await fetch('/api/analytics');
+      const analytics = await analyticsRes.json();
+
+      if (analytics.error) throw new Error(analytics.error);
+
+      // Recent registrations (still fetch directly — small data)
       const { data: recentData } = await supabase
         .from('registrations')
         .select('*, ValidResidents(first_name, last_name, middle_name)')
         .order('created_at', { ascending: false })
         .limit(10);
 
-      setTotalResidents(residentsCount || 0);
-      setTotalRegistrations(regCount || 0);
+      setTotalResidents(analytics.totalResidents || 0);
+      setTotalRegistrations(analytics.totalRegistrations || 0);
       setRecentRegistrations(recentData || []);
+      setVotersByBarangay(analytics.votersByBarangay || []);
+      setRegsByBarangay(analytics.regsByBarangay || []);
     } catch (err) {
       console.error('Dashboard fetch error:', err);
     } finally {
@@ -103,14 +142,28 @@ export default function AdminPage() {
     }
   };
 
-  const fetchAllResidents = async () => {
+  const fetchAllResidents = async (page = residentsPage, search = residentSearch) => {
     setResidentsLoading(true);
     try {
-      const { data } = await supabase
+      const start = (page - 1) * residentsPerPage;
+      const end = start + residentsPerPage - 1;
+
+      let query = supabase
         .from('ValidResidents')
-        .select('*')
-        .order('last_name', { ascending: true });
+        .select('*', { count: 'exact' })
+        .order('last_name', { ascending: true })
+        .range(start, end);
+
+      if (search.trim()) {
+        const q = search.trim();
+        query = query.or(`last_name.ilike.%${q}%,first_name.ilike.%${q}%,middle_name.ilike.%${q}%,barangay.ilike.%${q}%,precinct.ilike.%${q}%`);
+      }
+
+      const { data, count, error } = await query;
+      if (error) throw error;
+
       setAllResidents(data || []);
+      setResidentsCount(count || 0);
     } catch (err) {
       console.error('Residents fetch error:', err);
     } finally {
@@ -199,7 +252,7 @@ export default function AdminPage() {
   const handleNavClick = (tab) => {
     setActiveTab(tab);
     setSidebarOpen(false);
-    if (tab === 'residents') fetchAllResidents();
+    if (tab === 'residents') fetchAllResidents(residentsPage, residentSearch);
     if (tab === 'registrations') fetchAllRegistrations();
   };
 
@@ -347,24 +400,17 @@ export default function AdminPage() {
     }
   };
 
-  const filteredResidents = allResidents.filter(r => {
-    const q = residentSearch.toLowerCase();
-    return (
-      r.last_name?.toLowerCase().includes(q) ||
-      r.first_name?.toLowerCase().includes(q) ||
-      r.middle_name?.toLowerCase().includes(q) ||
-      r.barangay?.toLowerCase().includes(q) ||
-      r.precinct?.toLowerCase().includes(q)
-    );
-  });
+  // Server-side filtering: allResidents already contains the paginated + filtered results
+  const filteredResidents = allResidents;
 
   // NAV ITEMS
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '⊞' },
-    { id: 'residents', label: 'Valid Residents', icon: '👥' },
-    { id: 'registrations', label: 'Registrations', icon: '📋' },
-    { id: 'network', label: 'Network', icon: '🔺' },
-    { id: 'reports', label: 'Reports', icon: '📊' },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} strokeWidth={1.8} /> },
+    { id: 'residents', label: 'Registered Voters', icon: <Users size={20} strokeWidth={1.8} /> },
+    { id: 'registrations', label: 'Registrations', icon: <ClipboardList size={20} strokeWidth={1.8} /> },
+    { id: 'network', label: 'Network', icon: <Network size={20} strokeWidth={1.8} /> },
+    { id: 'messages', label: 'Messages', icon: <MessageSquare size={20} strokeWidth={1.8} /> },
+    { id: 'reports', label: 'Reports', icon: <BarChart3 size={20} strokeWidth={1.8} /> },
   ];
 
   // LOGIN SCREEN
@@ -415,39 +461,209 @@ export default function AdminPage() {
     return `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}`.trim();
   };
 
+  // MESSAGE HANDLERS (top-level, no hooks inside renderMessages)
+  const fetchMessages = async () => {
+    setMessagesLoading(true);
+    try {
+      const res = await fetch('/api/send-sms');
+      const data = await res.json();
+      setMessages(data.messages || []);
+    } catch (err) {
+      console.error('Fetch messages error:', err);
+    } finally {
+      setMessagesLoading(false);
+    }
+  };
+
+  const fetchMsgRecipients = async (msgId) => {
+    try {
+      const res = await fetch(`/api/send-sms?message_id=${msgId}`);
+      const data = await res.json();
+      setMsgRecipients(data.recipients || []);
+      setSelectedMessage(msgId);
+    } catch (err) {
+      console.error('Fetch recipients error:', err);
+    }
+  };
+
+  const searchSpecificUser = async (query) => {
+    if (!query || query.length < 2) { setMsgUserResults([]); return; }
+    try {
+      const { data } = await supabase
+        .from('registrations')
+        .select('id, resident_id, contact, barangay, sector_category, referral_name, ValidResidents(first_name, last_name, middle_name)')
+        .not('contact', 'is', null)
+        .neq('contact', '')
+        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`, { foreignTable: 'ValidResidents' })
+        .limit(8);
+      // Filter out entries without a valid name
+      const valid = (data || []).filter(reg => reg.ValidResidents && (reg.ValidResidents.first_name || reg.ValidResidents.last_name));
+      setMsgUserResults(valid);
+    } catch (err) {
+      console.error('User search error:', err);
+      setMsgUserResults([]);
+    }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!msgForm.body.trim()) { showToast('Message body is required', 'error'); return; }
+    setMsgSending(true);
+    try {
+      const res = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: msgForm.title,
+          messageBody: msgForm.body,
+          type: msgForm.type,
+          targetType: msgForm.targetType,
+          targetValue: msgForm.targetValue,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`SMS campaign sent to ${data.totalRecipients} recipients`, 'success');
+        setMsgForm({ title: '', body: '', type: 'broadcast', targetType: 'all', targetValue: '' });
+        fetchMessages();
+      } else {
+        showToast(data.error || 'Failed to send', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Network error', 'error');
+    } finally {
+      setMsgSending(false);
+    }
+  };
+
   // RENDER VIEWS
   const renderDashboard = () => (
     <>
-      <div className="admin-stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon stat-green">👥</div>
-          <div className="stat-info">
-            <span className="stat-value">{dashLoading ? '...' : totalResidents.toLocaleString()}</span>
-            <span className="stat-label">Valid Residents</span>
+      {/* KPI Stat Cards — boardr style */}
+      <div className="kpi-grid">
+        <div className="kpi-card">
+          <div className="kpi-icon kpi-green"><Users size={18} strokeWidth={2} /></div>
+          <div className="kpi-body">
+            <span className="kpi-label">Registered Voters</span>
+            <span className="kpi-value">{dashLoading ? '...' : totalResidents.toLocaleString()}</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-blue">📋</div>
-          <div className="stat-info">
-            <span className="stat-value">{dashLoading ? '...' : totalRegistrations.toLocaleString()}</span>
-            <span className="stat-label">Total Registrations</span>
+        <div className="kpi-card">
+          <div className="kpi-icon kpi-blue"><ClipboardList size={18} strokeWidth={2} /></div>
+          <div className="kpi-body">
+            <span className="kpi-label">EM Card Members</span>
+            <span className="kpi-value">{dashLoading ? '...' : totalRegistrations.toLocaleString()}</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-amber">✓</div>
-          <div className="stat-info">
-            <span className="stat-value">{dashLoading ? '...' : Math.round((totalRegistrations / (totalResidents || 1)) * 100)}%</span>
-            <span className="stat-label">Registration Rate</span>
+        <div className="kpi-card">
+          <div className="kpi-icon kpi-amber"><CheckCircle size={18} strokeWidth={2} /></div>
+          <div className="kpi-body">
+            <span className="kpi-label">Registration Rate</span>
+            <span className="kpi-value">{dashLoading ? '...' : Math.round((totalRegistrations / (totalResidents || 1)) * 100)}%</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon stat-purple">📅</div>
-          <div className="stat-info">
-            <span className="stat-value">{dashLoading ? '...' : recentRegistrations.length}</span>
-            <span className="stat-label">Recent Entries</span>
+        <div className="kpi-card">
+          <div className="kpi-icon kpi-purple"><Calendar size={18} strokeWidth={2} /></div>
+          <div className="kpi-body">
+            <span className="kpi-label">New This Month</span>
+            <span className="kpi-value">{dashLoading ? '...' : recentRegistrations.length}</span>
           </div>
         </div>
       </div>
+
+      {/* Analytics 3-Column Grid */}
+      <div className="dashboard-main-grid three-col">
+        {/* Left: Voters by Barangay */}
+        {votersByBarangay.length > 0 && (
+          <div className="admin-panel dash-panel">
+            <div className="panel-header">
+              <div className="panel-header-left">
+                <h3>Registered Voters by Barangay</h3>
+                <span className="panel-subtitle">{votersByBarangay.length} barangays · {totalResidents.toLocaleString()} total</span>
+              </div>
+            </div>
+            <div className="analytics-chart-wrap">
+              {votersByBarangay.map(({ barangay, count }, index) => {
+                const total = totalResidents || 1;
+                const pct = ((count / total) * 100).toFixed(1);
+                const barWidth = total > 0 ? Math.max((count / total) * 100, 1.5) : 0;
+                const colors = ['#10b981', '#059669', '#34d399', '#6ee7b7', '#047857', '#14b8a6', '#0d9488', '#2dd4bf'];
+                const barColor = colors[index % colors.length];
+                return (
+                  <div key={barangay} className="analytics-bar-row">
+                    <span className="analytics-bar-name">{barangay}</span>
+                    <div className="analytics-bar-track">
+                      <div className="analytics-bar-fill" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
+                    </div>
+                    <span className="analytics-bar-count">{count.toLocaleString()}</span>
+                    <span className="analytics-bar-pct">{pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Middle: EM Card Members by Barangay */}
+        <div className="admin-panel dash-panel">
+          <div className="panel-header">
+            <div className="panel-header-left">
+              <h3>EM Card Members by Barangay</h3>
+              <span className="panel-subtitle">{regsByBarangay.length || votersByBarangay.length} barangays · {totalRegistrations.toLocaleString()} total</span>
+            </div>
+          </div>
+          <div className="analytics-chart-wrap">
+            {(regsByBarangay.length > 0 ? regsByBarangay : votersByBarangay.map(v => ({ barangay: v.barangay, count: 0 }))).map(({ barangay, count }, index) => {
+              const total = totalRegistrations || 1;
+              const pct = totalRegistrations > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
+              const barWidth = totalRegistrations > 0 ? Math.max((count / total) * 100, 1.5) : 0;
+              const colors = ['#3b82f6', '#2563eb', '#60a5fa', '#93c5fd', '#1d4ed8', '#0ea5e9', '#0284c7', '#38bdf8'];
+              const barColor = colors[index % colors.length];
+              return (
+                <div key={barangay} className="analytics-bar-row">
+                  <span className="analytics-bar-name">{barangay}</span>
+                  <div className="analytics-bar-track">
+                    <div className="analytics-bar-fill" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
+                  </div>
+                  <span className="analytics-bar-count">{count}</span>
+                  <span className="analytics-bar-pct">{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right: Member Received Aid by Barangay */}
+        <div className="admin-panel dash-panel">
+          <div className="panel-header">
+            <div className="panel-header-left">
+              <h3>Member Received Aid by Barangay</h3>
+              <span className="panel-subtitle">{votersByBarangay.length} barangays · 0 total</span>
+            </div>
+          </div>
+          <div className="analytics-chart-wrap">
+            {votersByBarangay.map(({ barangay, count }, index) => {
+              const total = totalResidents || 1;
+              const pct = '0.0';
+              const barWidth = 0;
+              const colors = ['#f59e0b', '#d97706', '#fbbf24', '#fcd34d', '#b45309', '#f97316', '#fb923c', '#fdba74'];
+              const barColor = colors[index % colors.length];
+              return (
+                <div key={barangay} className="analytics-bar-row">
+                  <span className="analytics-bar-name">{barangay}</span>
+                  <div className="analytics-bar-track">
+                    <div className="analytics-bar-fill" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
+                  </div>
+                  <span className="analytics-bar-count">0</span>
+                  <span className="analytics-bar-pct">{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Registrations Table */}
       <div className="admin-panel">
         <div className="panel-header"><h3>Recent Registrations</h3><span className="panel-badge">Live Data</span></div>
         <div className="table-wrap">
@@ -473,71 +689,110 @@ export default function AdminPage() {
           </table>
         </div>
       </div>
-      <div className="admin-actions-grid">
-        <a href="/register" className="action-card"><span className="action-icon">📝</span><span className="action-label">New Registration</span></a>
-        <div className="action-card" onClick={fetchDashboardData}><span className="action-icon">🔄</span><span className="action-label">Refresh Data</span></div>
-      </div>
     </>
   );
 
-  const renderResidents = () => (
-    <>
-      {/* Action Bar */}
-      <div className="residents-action-bar">
-        <div className="action-bar-left">
-          <div className="search-input-wrap">
-            <svg className="search-icon-svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input
-              type="text"
-              placeholder="Search residents by name, barangay, or precinct..."
-              value={residentSearch}
-              onChange={(e) => setResidentSearch(e.target.value)}
-              className="residents-search"
-            />
+  const renderResidents = () => {
+    const totalFiltered = residentsCount;
+    const totalPages = Math.ceil(totalFiltered / residentsPerPage) || 1;
+    const safePage = Math.min(residentsPage, totalPages);
+    const startIndex = (safePage - 1) * residentsPerPage;
+    const endIndex = Math.min(startIndex + residentsPerPage, totalFiltered);
+    const pageResidents = filteredResidents;
+
+    const goToPage = (p) => {
+      const newPage = Math.max(1, Math.min(p, totalPages));
+      setResidentsPage(newPage);
+      fetchAllResidents(newPage, residentSearch);
+    };
+
+    return (
+      <>
+        {/* Action Bar */}
+        <div className="residents-action-bar">
+          <div className="action-bar-left">
+            <div className="search-input-wrap">
+              <svg className="search-icon-svg" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input
+                type="text"
+                placeholder="Search residents by name, barangay, or precinct..."
+                value={residentSearch}
+                onChange={(e) => setResidentSearch(e.target.value)}
+                className="residents-search"
+              />
+            </div>
+          </div>
+          <div className="action-bar-right">
+            <button className="btn btn-action-outline" onClick={downloadSampleCSV}>
+              <span>⬇</span> Sample CSV
+            </button>
+            <button className="btn btn-action-outline" onClick={() => { setShowBulkModal(true); setUploadError(''); setCsvFile(null); setCsvPreview([]); }}>
+              <span>📤</span> Bulk Upload
+            </button>
+            <button className="btn btn-action-primary" onClick={() => { setShowAddModal(true); setAddError(''); }}>
+              <span>+</span> Add Resident
+            </button>
           </div>
         </div>
-        <div className="action-bar-right">
-          <button className="btn btn-action-outline" onClick={downloadSampleCSV}>
-            <span>⬇</span> Sample CSV
-          </button>
-          <button className="btn btn-action-outline" onClick={() => { setShowBulkModal(true); setUploadError(''); setCsvFile(null); setCsvPreview([]); }}>
-            <span>📤</span> Bulk Upload
-          </button>
-          <button className="btn btn-action-primary" onClick={() => { setShowAddModal(true); setAddError(''); }}>
-            <span>+</span> Add Resident
-          </button>
-        </div>
-      </div>
 
-      <div className="admin-panel">
-        <div className="panel-header">
-          <h3>All Valid Residents</h3>
-          <span className="panel-badge">{filteredResidents.length} Records</span>
+        <div className="admin-panel">
+          <div className="panel-header">
+            <h3>All Registered Voters</h3>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span className="panel-badge">Total: {totalResidents.toLocaleString()}</span>
+              <span className="panel-badge">{totalFiltered.toLocaleString()} Records</span>
+            </div>
+          </div>
+          <div className="table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr><th>Last Name</th><th>First Name</th><th>Middle Name</th><th>Barangay</th><th>Precinct</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {residentsLoading ? <tr><td colSpan={6} className="table-loading">Loading residents...</td></tr>
+                  : pageResidents.length === 0 ? <tr><td colSpan={6} className="table-empty">{residentSearch ? 'No residents match your search.' : 'No residents found.'}</td></tr>
+                    : pageResidents.map(res => (
+                      <tr key={res.id}>
+                        <td><strong>{res.last_name}</strong></td>
+                        <td>{res.first_name}</td>
+                        <td>{res.middle_name || '-'}</td>
+                        <td>{res.barangay}</td>
+                        <td>{res.precinct}</td>
+                        <td><span className={`status-tag ${res.status === 'Registered' ? 'registered' : 'verified'}`}>{res.status}</span></td>
+                      </tr>
+                    ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalFiltered > residentsPerPage && (
+            <div className="residents-pagination">
+              <span className="pagination-info">Showing {startIndex + 1}–{endIndex} of {totalFiltered}</span>
+              <div className="pagination-buttons">
+                <button className="page-btn" onClick={() => goToPage(safePage - 1)} disabled={safePage === 1}>← Prev</button>
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  let p;
+                  if (totalPages <= 5) { p = i + 1; }
+                  else if (safePage <= 3) { p = i + 1; }
+                  else if (safePage >= totalPages - 2) { p = totalPages - 4 + i; }
+                  else { p = safePage - 2 + i; }
+                  return (
+                    <button
+                      key={p}
+                      className={`page-btn ${p === safePage ? 'page-btn-active' : ''}`}
+                      onClick={() => goToPage(p)}
+                    >{p}</button>
+                  );
+                })}
+                <button className="page-btn" onClick={() => goToPage(safePage + 1)} disabled={safePage === totalPages}>Next →</button>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr><th>Last Name</th><th>First Name</th><th>Middle Name</th><th>Barangay</th><th>Precinct</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              {residentsLoading ? <tr><td colSpan={6} className="table-loading">Loading residents...</td></tr>
-                : filteredResidents.length === 0 ? <tr><td colSpan={6} className="table-empty">{residentSearch ? 'No residents match your search.' : 'No residents found.'}</td></tr>
-                  : filteredResidents.map(res => (
-                    <tr key={res.id}>
-                      <td><strong>{res.last_name}</strong></td>
-                      <td>{res.first_name}</td>
-                      <td>{res.middle_name || '-'}</td>
-                      <td>{res.barangay}</td>
-                      <td>{res.precinct}</td>
-                      <td><span className={`status-tag ${res.status === 'Registered' ? 'registered' : 'verified'}`}>{res.status}</span></td>
-                    </tr>
-                  ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </>
-  );
+      </>
+    );
+  };
 
   const getPhotoSize = (base64) => {
     if (!base64) return '-';
@@ -774,6 +1029,211 @@ export default function AdminPage() {
     );
   };
 
+  const renderMessages = () => {
+    const typeLabels = { announcement: '📢 Announcement', event_reminder: '📅 Event Reminder', emergency: '🚨 Emergency', broadcast: '📣 Broadcast' };
+    const typeColors = { announcement: '#3b82f6', event_reminder: '#f59e0b', emergency: '#ef4444', broadcast: '#10b981' };
+
+    return (
+      <div className="admin-panel">
+        <div className="panel-header">
+          <h3>SMS Messages</h3>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className={`msg-tab-btn ${msgTab === 'compose' ? 'active' : ''}`} onClick={() => setMsgTab('compose')}>✏️ Compose</button>
+            <button className={`msg-tab-btn ${msgTab === 'history' ? 'active' : ''}`} onClick={() => { setMsgTab('history'); fetchMessages(); }}>📜 History</button>
+          </div>
+        </div>
+
+        {msgTab === 'compose' && (
+          <div className="msg-compose-wrap">
+            <form onSubmit={handleSendMessage} className="msg-compose-form">
+              <div className="msg-type-selector">
+                {Object.entries(typeLabels).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`msg-type-chip ${msgForm.type === key ? 'active' : ''}`}
+                    onClick={() => setMsgForm(f => ({ ...f, type: key }))}
+                    style={{ '--chip-color': typeColors[key] }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="msg-form-row">
+                <label className="msg-label">Title / Subject</label>
+                <input
+                  type="text"
+                  className="msg-input"
+                  placeholder="e.g. Barangay Assembly Meeting"
+                  value={msgForm.title}
+                  onChange={e => setMsgForm(f => ({ ...f, title: e.target.value }))}
+                  maxLength={100}
+                />
+              </div>
+
+              <div className="msg-form-row">
+                <label className="msg-label">Target Audience</label>
+                <div className="msg-target-row">
+                  <select
+                    className="msg-select"
+                    value={msgForm.targetType}
+                    onChange={e => setMsgForm(f => ({ ...f, targetType: e.target.value, targetValue: '' }))}
+                  >
+                    <option value="all">All Registered Members</option>
+                    <option value="sector">By Sector / Organization</option>
+                    <option value="barangay">By Barangay</option>
+                    <option value="leader">By Referral Leader</option>
+                    <option value="specific">👤 Specific User</option>
+                    <option value="test">🧪 Test: Send to me only</option>
+                  </select>
+                  {msgForm.targetType === 'sector' && (
+                    <select className="msg-select" value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))}>
+                      <option value="">Select Sector...</option>
+                      <option value="Senior Citizens">Senior Citizens</option>
+                      <option value="PWD">PWD</option>
+                      <option value="Solo Parent">Solo Parent</option>
+                      <option value="Youth">Youth</option>
+                      <option value="Women">Women</option>
+                      <option value="Farmers">Farmers</option>
+                      <option value="Fisherfolk">Fisherfolk</option>
+                      <option value="Workers / Labor">Workers / Labor</option>
+                      <option value="Religious">Religious</option>
+                      <option value="Transport">Transport</option>
+                      <option value="Indigenous People">Indigenous People</option>
+                    </select>
+                  )}
+                  {msgForm.targetType === 'barangay' && (
+                    <input type="text" className="msg-input" placeholder="Enter barangay name..." value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))} />
+                  )}
+                  {msgForm.targetType === 'leader' && (
+                    <input type="text" className="msg-input" placeholder="Enter leader name..." value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))} />
+                  )}
+                  {msgForm.targetType === 'specific' && (
+                    <div className="msg-user-search-wrap">
+                      <input
+                        type="text"
+                        className="msg-input"
+                        placeholder="Search user by name..."
+                        value={msgUserSearch}
+                        onChange={e => { setMsgUserSearch(e.target.value); searchSpecificUser(e.target.value); }}
+                      />
+                      {msgUserResults.length > 0 && (
+                        <div className="msg-user-results">
+                          {msgUserResults.map(reg => {
+                            const name = getResidentName(reg);
+                            return (
+                              <div
+                                key={reg.id}
+                                className="msg-user-result-item"
+                                onClick={() => {
+                                  setMsgForm(f => ({ ...f, targetValue: reg.id }));
+                                  setMsgUserSearch(name);
+                                  setMsgUserResults([]);
+                                }}
+                              >
+                                <span className="msg-user-result-name">{name}</span>
+                                <span className="msg-user-result-phone">{reg.contact || 'No phone'}</span>
+                                <span className="msg-user-result-meta">{reg.sector_category || '-'} · {reg.barangay || '-'}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {msgForm.targetType === 'test' && (
+                    <input type="tel" className="msg-input" placeholder="Your phone number (e.g. 09171234567)" value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))} maxLength={11} />
+                  )}
+                </div>
+              </div>
+
+              <div className="msg-form-row">
+                <label className="msg-label">Message Body</label>
+                <textarea
+                  className="msg-textarea"
+                  placeholder="Type your SMS message here..."
+                  value={msgForm.body}
+                  onChange={e => setMsgForm(f => ({ ...f, body: e.target.value }))}
+                  maxLength={480}
+                  rows={5}
+                  required
+                />
+                <div className="msg-char-count">{msgForm.body.length}/480 characters</div>
+              </div>
+
+              <div className="msg-form-footer">
+                <div className="msg-preview-box">
+                  <span className="msg-preview-label">Preview:</span>
+                  <p className="msg-preview-text">{msgForm.body || 'Your message will appear here...'}</p>
+                </div>
+                <button type="submit" className="btn btn-msg-send" disabled={msgSending || !msgForm.body.trim()}>
+                  {msgSending ? 'Sending...' : 'Send SMS'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {msgTab === 'history' && (
+          <div className="msg-history-wrap">
+            {messagesLoading ? <div className="table-loading">Loading messages...</div>
+              : messages.length === 0 ? <div className="table-empty">No messages sent yet.</div>
+                : (
+                  <div className="msg-list">
+                    {messages.map(msg => (
+                      <div key={msg.id} className={`msg-card msg-status-${msg.status}`} onClick={() => fetchMsgRecipients(msg.id)}>
+                        <div className="msg-card-header">
+                          <span className="msg-card-type" style={{ background: typeColors[msg.type] || '#6b7280' }}>{typeLabels[msg.type]?.split(' ')[0] || msg.type}</span>
+                          <span className="msg-card-date">{new Date(msg.created_at).toLocaleString()}</span>
+                        </div>
+                        <h4 className="msg-card-title">{msg.title}</h4>
+                        <p className="msg-card-body">{msg.body}</p>
+                        <div className="msg-card-stats">
+                          <span className="msg-stat"><strong>{msg.total_recipients}</strong> total</span>
+                          <span className="msg-stat success"><strong>{msg.sent_count}</strong> sent</span>
+                          {msg.failed_count > 0 && <span className="msg-stat error"><strong>{msg.failed_count}</strong> failed</span>}
+                          <span className={`msg-status-pill status-${msg.status}`}>{msg.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+            {/* Recipients Detail Modal */}
+            {selectedMessage && (
+              <div className="modal-overlay" onClick={() => setSelectedMessage(null)}>
+                <div className="modal-card msg-recipients-modal" onClick={e => e.stopPropagation()}>
+                  <div className="modal-header">
+                    <h3>Delivery Status</h3>
+                    <button className="modal-close-x" onClick={() => setSelectedMessage(null)}>✕</button>
+                  </div>
+                  <div className="modal-body">
+                    <div className="msg-recipients-summary">
+                      <span className="msg-recipients-count">{msgRecipients.length} recipients</span>
+                      <span className="msg-recipients-sent">{msgRecipients.filter(r => r.status === 'sent').length} delivered</span>
+                      <span className="msg-recipients-failed">{msgRecipients.filter(r => r.status === 'failed').length} failed</span>
+                    </div>
+                    <div className="msg-recipients-list">
+                      {msgRecipients.map(rec => (
+                        <div key={rec.id} className={`msg-recipient-row status-${rec.status}`}>
+                          <span className="msg-recipient-name">{rec.resident_name || 'Unknown'}</span>
+                          <span className="msg-recipient-phone">{rec.phone_number}</span>
+                          <span className={`msg-recipient-badge ${rec.status}`}>{rec.status}</span>
+                          {rec.error_message && <span className="msg-recipient-error" title={rec.error_message}>⚠️</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderReports = () => (
     <div className="admin-panel">
       <div className="panel-header"><h3>Reports</h3><span className="panel-badge">Coming Soon</span></div>
@@ -840,6 +1300,7 @@ export default function AdminPage() {
           {activeTab === 'residents' && renderResidents()}
           {activeTab === 'registrations' && renderRegistrations()}
           {activeTab === 'network' && renderNetwork()}
+          {activeTab === 'messages' && renderMessages()}
           {activeTab === 'reports' && renderReports()}
         </div>
       </main>
