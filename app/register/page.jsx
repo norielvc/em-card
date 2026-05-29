@@ -329,22 +329,31 @@ export default function RegisterPage() {
       setIsLoading(true);
       setHasSearched(true);
       try {
-        const { data, error } = await supabase
-          .from('registered_voters')
-          .select('*');
+        const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+        let sbQuery = supabase.from('ValidResidents').select('*');
+        if (tokens.length === 1) {
+          const t = tokens[0];
+          sbQuery = sbQuery.or(`first_name.ilike.%${t}%,last_name.ilike.%${t}%,middle_name.ilike.%${t}%`);
+        } else {
+          // Build OR chain for each token across all name fields
+          const conditions = tokens.map(t => [
+            `first_name.ilike.%${t}%`,
+            `last_name.ilike.%${t}%`,
+            `middle_name.ilike.%${t}%`
+          ]).flat().join(',');
+          sbQuery = sbQuery.or(conditions);
+        }
+        sbQuery = sbQuery.order('last_name', { ascending: true });
+
+        const { data, error } = await sbQuery;
 
         if (error || !data) {
           setSearchResults([]);
         } else {
-          // Construct full name for search and filter dynamically using smartMatchesName
-          const results = data
-            .map(p => ({
-              ...p,
-              name: `${p.first_name} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name}`.trim(),
-              barangay: p.barangay,
-              id: p.id
-            }))
-            .filter((p) => smartMatchesName(p.name, query));
+          const results = data.map(p => ({
+            ...p,
+            name: `${p.first_name} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name}`.trim(),
+          })).filter((p) => smartMatchesName(p.name, query));
           setSearchResults(results);
         }
       } catch (err) {
@@ -503,11 +512,11 @@ export default function RegisterPage() {
       if (referral) {
         const { data: parentCandidates } = await supabase
           .from('registrations')
-          .select('id, resident_id, registered_voters(first_name, last_name, middle_name)')
+          .select('id, resident_id, ValidResidents(first_name, last_name, middle_name)')
           .neq('id', selectedPerson.id);
         if (parentCandidates) {
           const match = parentCandidates.find(p => {
-            const vr = p.registered_voters;
+            const vr = p.ValidResidents;
             if (!vr) return false;
             const pname = `${vr.first_name || ''} ${vr.middle_name ? vr.middle_name + ' ' : ''}${vr.last_name || ''}`.trim();
             return pname.toLowerCase() === referral.toLowerCase();
@@ -531,7 +540,7 @@ export default function RegisterPage() {
       });
 
       await supabase
-        .from('registered_voters')
+        .from('ValidResidents')
         .update({ status: 'Registered' })
         .eq('id', selectedPerson.id);
 
@@ -847,9 +856,16 @@ export default function RegisterPage() {
                         const trimmedVal = val.trim();
                         if (trimmedVal.length >= 2) {
                           try {
-                            const { data, error } = await supabase
-                              .from('registered_voters')
-                              .select('*');
+                            const rtokens = trimmedVal.toLowerCase().split(/\s+/).filter(Boolean);
+                            let sbq = supabase.from('ValidResidents').select('*');
+                            if (rtokens.length === 1) {
+                              const t = rtokens[0];
+                              sbq = sbq.or(`first_name.ilike.%${t}%,last_name.ilike.%${t}%,middle_name.ilike.%${t}%`);
+                            } else {
+                              const conds = rtokens.map(t => [`first_name.ilike.%${t}%`,`last_name.ilike.%${t}%`,`middle_name.ilike.%${t}%`]).flat().join(',');
+                              sbq = sbq.or(conds);
+                            }
+                            const { data, error } = await sbq.order('last_name', { ascending: true });
 
                             if (error || !data) {
                               setReferralResults([]);
