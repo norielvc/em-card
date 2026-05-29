@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import HeroSlideshow from './HeroSlideshow';
-import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark } from 'lucide-react';
+import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark, PlayCircle, Calendar } from 'lucide-react';
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
@@ -45,14 +45,39 @@ export default function Home() {
           <div className="hero-overlay" />
           <div className="container hero-grid">
             <div className="hero-content">
+              <span className="hero-accent">NON-GOVERNMENT ORGANIZATION</span>
               <h1>
                 <span className="hero-line hero-white">EPEKTIBONG</span>
                 <span className="hero-line hero-green">MAMAMAYAN</span>
               </h1>
-              <p className="hero-copy">EM Card is dedicated to helping communities and promoting unity, support, and progress for every Filipino family.</p>
+              <p className="hero-copy">EM Card is dedicated to helping communities and promoting unity, support, and progress for every family in Balagtas.</p>
               <div className="hero-actions">
-                <a className="btn hero-btn-solid" href="#about">Learn More About Us →</a>
-                <button className="btn btn-outline hero-btn-outline">▶ Watch Video</button>
+                <a className="btn hero-btn-solid" href="#about"><Sprout size={16} strokeWidth={2} /> Learn More About Us →</a>
+                <button className="btn btn-outline hero-btn-outline"><PlayCircle size={16} strokeWidth={2} /> Watch Video</button>
+              </div>
+
+              {/* Stats strip — mobile only */}
+              <div className="hero-stats">
+                <div className="hero-stat">
+                  <Users size={20} strokeWidth={1.5} />
+                  <span className="hero-stat-value">54,258</span>
+                  <span className="hero-stat-label">Total Voters</span>
+                </div>
+                <div className="hero-stat">
+                  <Landmark size={20} strokeWidth={1.5} />
+                  <span className="hero-stat-value">0</span>
+                  <span className="hero-stat-label">EM Card Members</span>
+                </div>
+                <div className="hero-stat">
+                  <TrendingUp size={20} strokeWidth={1.5} />
+                  <span className="hero-stat-value">0%</span>
+                  <span className="hero-stat-label">Registration Rate</span>
+                </div>
+                <div className="hero-stat">
+                  <Calendar size={20} strokeWidth={1.5} />
+                  <span className="hero-stat-value">0</span>
+                  <span className="hero-stat-label">New This Month</span>
+                </div>
               </div>
             </div>
 
@@ -93,8 +118,8 @@ export default function Home() {
           </div>
         </section>
 
-        {/* WHAT WE DO */}
-        <section className="section section-light" id="programs">
+        {/* WHAT WE DO — Desktop */}
+        <section className="section section-light programs-desktop" id="programs">
           <div className="container">
             <div className="section-center-header">
               <span className="section-label">WHAT WE DO</span>
@@ -124,6 +149,51 @@ export default function Home() {
                 <h3>Community Development</h3>
                 <p>Building resilient and self-sustaining communities.</p>
                 <a href="#programs" className="program-link">Learn More →</a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* OUR MISSION — Mobile */}
+        <section className="section section-light programs-mobile" id="mission">
+          <div className="container">
+            <div className="section-center-header">
+              <span className="section-label">OUR MISSION</span>
+              <h2 className="section-title">Building Stronger Communities</h2>
+              <p className="section-subtitle">We work together with communities to create meaningful impact and a better future for all.</p>
+            </div>
+            <div className="feature-cards-grid">
+              <div className="feature-card">
+                <div className="feature-card-icon"><Users size={24} strokeWidth={1.5} /></div>
+                <div className="feature-card-body">
+                  <h4>Stronger Communities</h4>
+                  <p>Building unity and empowering every citizen.</p>
+                </div>
+                <span className="feature-card-arrow">→</span>
+              </div>
+              <div className="feature-card">
+                <div className="feature-card-icon"><Heart size={24} strokeWidth={1.5} /></div>
+                <div className="feature-card-body">
+                  <h4>Social Support</h4>
+                  <p>Providing assistance and resources to those in need.</p>
+                </div>
+                <span className="feature-card-arrow">→</span>
+              </div>
+              <div className="feature-card">
+                <div className="feature-card-icon"><TrendingUp size={24} strokeWidth={1.5} /></div>
+                <div className="feature-card-body">
+                  <h4>Sustainable Progress</h4>
+                  <p>Creating long-term solutions for a better tomorrow.</p>
+                </div>
+                <span className="feature-card-arrow">→</span>
+              </div>
+              <div className="feature-card">
+                <div className="feature-card-icon"><Shield size={24} strokeWidth={1.5} /></div>
+                <div className="feature-card-body">
+                  <h4>Accountable & Transparent</h4>
+                  <p>Ensuring integrity and transparency in every action.</p>
+                </div>
+                <span className="feature-card-arrow">→</span>
               </div>
             </div>
           </div>
