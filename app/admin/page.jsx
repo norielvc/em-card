@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck } from 'lucide-react';
 
 export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -27,6 +27,8 @@ export default function AdminPage() {
   const [allRegs, setAllRegs] = useState([]);
   const [residentsLoading, setResidentsLoading] = useState(false);
   const [regsLoading, setRegsLoading] = useState(false);
+  const [approvedMembers, setApprovedMembers] = useState([]);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [residentSearch, setResidentSearch] = useState('');
   const [residentsPage, setResidentsPage] = useState(1);
   const [residentsCount, setResidentsCount] = useState(0);
@@ -188,16 +190,40 @@ export default function AdminPage() {
     }
   };
 
+  const fetchApprovedMembers = async () => {
+    setMembersLoading(true);
+    try {
+      const { data } = await supabase
+        .from('registrations')
+        .select('*, ValidResidents(first_name, last_name, middle_name, barangay, purok)')
+        .eq('status', 'Approved')
+        .order('created_at', { ascending: false });
+      setApprovedMembers(data || []);
+    } catch (err) {
+      console.error('Members fetch error:', err);
+    } finally {
+      setMembersLoading(false);
+    }
+  };
+
+  const generateQRToken = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let token = '';
+    for (let i = 0; i < 24; i++) token += chars.charAt(Math.floor(Math.random() * chars.length));
+    return 'EM' + token;
+  };
+
   const approveRegistration = async (id) => {
     try {
+      const qrToken = generateQRToken();
       const { error } = await supabase
         .from('registrations')
-        .update({ status: 'Approved' })
+        .update({ status: 'Approved', qr_token: qrToken })
         .eq('id', id);
       if (error) {
         showToast(error.message, 'error');
       } else {
-        showToast('Registration approved successfully.', 'success');
+        showToast(`Registration approved. QR: ${qrToken}`, 'success');
         fetchAllRegistrations();
       }
     } catch (err) {
@@ -256,6 +282,7 @@ export default function AdminPage() {
     setSidebarOpen(false);
     if (tab === 'residents') fetchAllResidents(residentsPage, residentSearch);
     if (tab === 'registrations') fetchAllRegistrations();
+    if (tab === 'members') fetchApprovedMembers();
   };
 
   // CSV Parser (handles quoted fields)
@@ -410,6 +437,7 @@ export default function AdminPage() {
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} strokeWidth={1.8} /> },
     { id: 'residents', label: 'Registered Voters', icon: <Users size={20} strokeWidth={1.8} /> },
     { id: 'registrations', label: 'Registrations', icon: <ClipboardList size={20} strokeWidth={1.8} /> },
+    { id: 'members', label: 'Members', icon: <UserCheck size={20} strokeWidth={1.8} /> },
     { id: 'network', label: 'Network', icon: <Network size={20} strokeWidth={1.8} /> },
     { id: 'messages', label: 'Messages', icon: <MessageSquare size={20} strokeWidth={1.8} /> },
     { id: 'reports', label: 'Reports', icon: <BarChart3 size={20} strokeWidth={1.8} /> },
@@ -968,6 +996,59 @@ export default function AdminPage() {
     );
   };
 
+  const renderMembers = () => {
+    const total = approvedMembers.length;
+    return (
+      <div className="admin-panel">
+        <div className="panel-header">
+          <h3>Approved Members</h3>
+          <span className="panel-badge">{total} TOTAL</span>
+        </div>
+
+        {membersLoading ? (
+          <div className="table-loading">Loading members...</div>
+        ) : total === 0 ? (
+          <div className="table-empty">No approved members yet.</div>
+        ) : (
+          <div className="table-responsive">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Barangay</th>
+                  <th>Purok</th>
+                  <th>Sector</th>
+                  <th>QR Token</th>
+                  <th>Contact</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {approvedMembers.map((reg) => {
+                  const r = reg.ValidResidents || {};
+                  const name = `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}`.trim();
+                  return (
+                    <tr key={reg.id}>
+                      <td><strong>{name}</strong></td>
+                      <td>{r.barangay || '-'}</td>
+                      <td>{reg.purok || r.purok || '-'}</td>
+                      <td><span className="sector-badge">{reg.sector_category || '-'}</span></td>
+                      <td>
+                        <code className="qr-token-code">{reg.qr_token || '—'}</code>
+                      </td>
+                      <td>{reg.contact || '-'}</td>
+                      <td>{new Date(reg.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderNetwork = () => {
     // Build children map: referral_name -> registrations[]
     const childrenMap = new Map();
@@ -1419,6 +1500,7 @@ export default function AdminPage() {
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'residents' && renderResidents()}
           {activeTab === 'registrations' && renderRegistrations()}
+          {activeTab === 'members' && renderMembers()}
           {activeTab === 'network' && renderNetwork()}
           {activeTab === 'messages' && renderMessages()}
           {activeTab === 'reports' && renderReports()}
