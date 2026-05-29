@@ -153,44 +153,43 @@ export default function Home() {
           </div>
         </section>
 
-        {/* OUR MISSION — Mobile */}
-        <section className="section section-light programs-mobile" id="mission">
+        {/* WHAT WE DO — Mobile */}
+        <section className="section section-light programs-mobile" id="programs">
           <div className="container">
             <div className="section-center-header">
-              <span className="section-label">OUR MISSION</span>
-              <h2 className="section-title">Building Stronger Communities</h2>
-              <p className="section-subtitle">We work together with communities to create meaningful impact and a better future for all.</p>
+              <span className="section-label">WHAT WE DO</span>
+              <h2 className="section-title">Programs and Initiatives</h2>
             </div>
             <div className="feature-cards-grid">
               <div className="feature-card">
-                <div className="feature-card-icon"><Users size={24} strokeWidth={1.5} /></div>
+                <div className="feature-card-icon"><GraduationCap size={24} strokeWidth={1.5} /></div>
                 <div className="feature-card-body">
-                  <h4>Stronger Communities</h4>
-                  <p>Building unity and empowering every citizen.</p>
+                  <h4>Education</h4>
+                  <p>Supporting quality education and lifelong learning.</p>
                 </div>
                 <span className="feature-card-arrow">→</span>
               </div>
               <div className="feature-card">
-                <div className="feature-card-icon"><Heart size={24} strokeWidth={1.5} /></div>
+                <div className="feature-card-icon"><HeartPulse size={24} strokeWidth={1.5} /></div>
                 <div className="feature-card-body">
-                  <h4>Social Support</h4>
-                  <p>Providing assistance and resources to those in need.</p>
+                  <h4>Health & Wellness</h4>
+                  <p>Promoting healthy communities and well-being.</p>
                 </div>
                 <span className="feature-card-arrow">→</span>
               </div>
               <div className="feature-card">
-                <div className="feature-card-icon"><TrendingUp size={24} strokeWidth={1.5} /></div>
+                <div className="feature-card-icon"><Sprout size={24} strokeWidth={1.5} /></div>
                 <div className="feature-card-body">
-                  <h4>Sustainable Progress</h4>
-                  <p>Creating long-term solutions for a better tomorrow.</p>
+                  <h4>Livelihood</h4>
+                  <p>Empowering individuals through livelihood programs.</p>
                 </div>
                 <span className="feature-card-arrow">→</span>
               </div>
               <div className="feature-card">
-                <div className="feature-card-icon"><Shield size={24} strokeWidth={1.5} /></div>
+                <div className="feature-card-icon"><Landmark size={24} strokeWidth={1.5} /></div>
                 <div className="feature-card-body">
-                  <h4>Accountable & Transparent</h4>
-                  <p>Ensuring integrity and transparency in every action.</p>
+                  <h4>Community Development</h4>
+                  <p>Building resilient and self-sustaining communities.</p>
                 </div>
                 <span className="feature-card-arrow">→</span>
               </div>
