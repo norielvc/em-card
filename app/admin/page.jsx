@@ -1745,9 +1745,9 @@ export default function AdminPage() {
                     <>
                       <code className="member-qr-big">{selectedMember.qr_token}</code>
                       <div className="member-qr-image">
-                        <QRCodeSVG value={`https://em-card.com/card/${selectedMember.qr_token}`} size={180} level="H" includeMargin={true} />
+                        <QRCodeSVG value={`https://www.em-card.com/card/${selectedMember.qr_token}`} size={180} level="H" includeMargin={true} />
                       </div>
-                      <p className="member-qr-hint">📱 Member scans QR → <strong>https://em-card.com/card/{selectedMember.qr_token}</strong></p>
+                      <p className="member-qr-hint">📱 Member scans QR → <strong>https://www.em-card.com/card/{selectedMember.qr_token}</strong></p>
                     </>
                   ) : (
                     <div className="member-qr-missing">
@@ -1775,8 +1775,8 @@ export default function AdminPage() {
                 {/* Action Buttons */}
                 {hasQR && (
                   <div className="member-detail-links">
-                    <a href={`https://em-card.com/card/${selectedMember.qr_token}`} target="_blank" rel="noreferrer" className="btn btn-member-link">🌐 Open Citizen Dashboard</a>
-                    <button className="btn btn-member-copy" onClick={() => { navigator.clipboard.writeText(`https://em-card.com/card/${selectedMember.qr_token}`); showToast('Card URL copied!', 'success'); }}>📋 Copy Card URL</button>
+                    <a href={`https://www.em-card.com/card/${selectedMember.qr_token}`} target="_blank" rel="noreferrer" className="btn btn-member-link">🌐 Open Citizen Dashboard</a>
+                    <button className="btn btn-member-copy" onClick={() => { navigator.clipboard.writeText(`https://www.em-card.com/card/${selectedMember.qr_token}`); showToast('Card URL copied!', 'success'); }}>📋 Copy Card URL</button>
                   </div>
                 )}
               </div>
