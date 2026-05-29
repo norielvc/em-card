@@ -330,7 +330,7 @@ export default function RegisterPage() {
       setHasSearched(true);
       try {
         const { data, error } = await supabase
-          .from('valiresident')
+          .from('registered_voters')
           .select('*');
 
         if (error || !data) {
@@ -503,11 +503,11 @@ export default function RegisterPage() {
       if (referral) {
         const { data: parentCandidates } = await supabase
           .from('registrations')
-          .select('id, resident_id, valiresident(first_name, last_name, middle_name)')
+          .select('id, resident_id, registered_voters(first_name, last_name, middle_name)')
           .neq('id', selectedPerson.id);
         if (parentCandidates) {
           const match = parentCandidates.find(p => {
-            const vr = p.valiresident;
+            const vr = p.registered_voters;
             if (!vr) return false;
             const pname = `${vr.first_name || ''} ${vr.middle_name ? vr.middle_name + ' ' : ''}${vr.last_name || ''}`.trim();
             return pname.toLowerCase() === referral.toLowerCase();
@@ -531,7 +531,7 @@ export default function RegisterPage() {
       });
 
       await supabase
-        .from('valiresident')
+        .from('registered_voters')
         .update({ status: 'Registered' })
         .eq('id', selectedPerson.id);
 
@@ -848,7 +848,7 @@ export default function RegisterPage() {
                         if (trimmedVal.length >= 2) {
                           try {
                             const { data, error } = await supabase
-                              .from('valiresident')
+                              .from('registered_voters')
                               .select('*');
 
                             if (error || !data) {
