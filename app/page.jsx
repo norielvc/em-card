@@ -1,9 +1,22 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import HeroSlideshow from './HeroSlideshow';
+import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark } from 'lucide-react';
 
 export default function Home() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
     <>
-      <header className="site-header">
+      <header className={`site-header ${scrolled ? 'scrolled' : ''}`}>
         <nav className="nav container">
           <a className="brand" href="#home">
             <span className="brand-mark">EM</span>
@@ -20,7 +33,7 @@ export default function Home() {
             <a href="#news">News</a>
             <a href="#contact">Contact</a>
           </div>
-          <a href="/register" className="btn btn-primary nav-btn">Get Involved</a>
+          <a href="/register" className="btn btn-primary nav-btn">Get Involved →</a>
           <a href="/admin" className="btn btn-outline nav-login">Login</a>
         </nav>
       </header>
@@ -29,11 +42,89 @@ export default function Home() {
         {/* HERO */}
         <section className="hero" id="home">
           <HeroSlideshow />
+          <div className="hero-overlay" />
           <div className="container hero-grid">
             <div className="hero-content">
-              <h1>Empowering communities.<br />Building a better future.</h1>
-              <p className="hero-copy">EM Card (Epektibong Mamamayan) is a non-government organization dedicated to promoting transparency, accountability, and active citizenship.</p>
-              <a className="btn btn-primary" href="#about">Learn More About Us</a>
+              <h1>
+                <span className="hero-line hero-white">EPEKTIBONG</span>
+                <span className="hero-line hero-green">MAMAMAYAN</span>
+              </h1>
+              <p className="hero-copy">EM Card is dedicated to helping communities and promoting unity, support, and progress for every Filipino family.</p>
+              <div className="hero-actions">
+                <a className="btn hero-btn-solid" href="#about">Learn More About Us →</a>
+                <button className="btn btn-outline hero-btn-outline">▶ Watch Video</button>
+              </div>
+            </div>
+
+            {/* Hero Bottom Cards — single card with 4 items */}
+            <div className="hero-cards">
+              <div className="hero-card-item">
+                <div className="hero-card-icon"><Users size={22} strokeWidth={1.5} /></div>
+                <div className="hero-card-body">
+                  <h4>Stronger Communities</h4>
+                  <p>Building unity and empowering every citizen.</p>
+                </div>
+              </div>
+              <div className="hero-card-divider" />
+              <div className="hero-card-item">
+                <div className="hero-card-icon"><Heart size={22} strokeWidth={1.5} /></div>
+                <div className="hero-card-body">
+                  <h4>Social Support</h4>
+                  <p>Providing assistance and resources to those in need.</p>
+                </div>
+              </div>
+              <div className="hero-card-divider" />
+              <div className="hero-card-item">
+                <div className="hero-card-icon"><TrendingUp size={22} strokeWidth={1.5} /></div>
+                <div className="hero-card-body">
+                  <h4>Sustainable Progress</h4>
+                  <p>Creating long-term solutions for a better tomorrow.</p>
+                </div>
+              </div>
+              <div className="hero-card-divider" />
+              <div className="hero-card-item">
+                <div className="hero-card-icon"><Shield size={22} strokeWidth={1.5} /></div>
+                <div className="hero-card-body">
+                  <h4>Accountable & Transparent</h4>
+                  <p>Ensuring integrity and transparency in every action.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* WHAT WE DO */}
+        <section className="section section-light" id="programs">
+          <div className="container">
+            <div className="section-center-header">
+              <span className="section-label">WHAT WE DO</span>
+              <h2 className="section-title">Programs and Initiatives</h2>
+            </div>
+            <div className="programs-grid">
+              <div className="program-card">
+                <div className="program-icon"><GraduationCap size={28} strokeWidth={1.5} /></div>
+                <h3>Education</h3>
+                <p>Supporting quality education and lifelong learning.</p>
+                <a href="#programs" className="program-link">Learn More →</a>
+              </div>
+              <div className="program-card">
+                <div className="program-icon"><HeartPulse size={28} strokeWidth={1.5} /></div>
+                <h3>Health & Wellness</h3>
+                <p>Promoting healthy communities and well-being.</p>
+                <a href="#programs" className="program-link">Learn More →</a>
+              </div>
+              <div className="program-card">
+                <div className="program-icon"><Sprout size={28} strokeWidth={1.5} /></div>
+                <h3>Livelihood</h3>
+                <p>Empowering individuals through livelihood programs.</p>
+                <a href="#programs" className="program-link">Learn More →</a>
+              </div>
+              <div className="program-card">
+                <div className="program-icon"><Landmark size={28} strokeWidth={1.5} /></div>
+                <h3>Community Development</h3>
+                <p>Building resilient and self-sustaining communities.</p>
+                <a href="#programs" className="program-link">Learn More →</a>
+              </div>
             </div>
           </div>
         </section>

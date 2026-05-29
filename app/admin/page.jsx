@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck } from 'lucide-react';
 
 export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -539,34 +539,38 @@ export default function AdminPage() {
   // RENDER VIEWS
   const renderDashboard = () => (
     <>
-      {/* KPI Stat Cards — boardr style */}
+      {/* KPI Stat Cards */}
       <div className="kpi-grid">
         <div className="kpi-card">
-          <div className="kpi-icon kpi-green"><Users size={18} strokeWidth={2} /></div>
+          <div className="kpi-icon kpi-green"><Users size={20} strokeWidth={1.5} /></div>
           <div className="kpi-body">
             <span className="kpi-label">Registered Voters</span>
             <span className="kpi-value">{dashLoading ? '...' : totalResidents.toLocaleString()}</span>
+            <span className="kpi-change up">↑ 12.5% vs last month</span>
           </div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-icon kpi-blue"><ClipboardList size={18} strokeWidth={2} /></div>
+          <div className="kpi-icon kpi-blue"><ClipboardList size={20} strokeWidth={1.5} /></div>
           <div className="kpi-body">
             <span className="kpi-label">EM Card Members</span>
             <span className="kpi-value">{dashLoading ? '...' : totalRegistrations.toLocaleString()}</span>
+            <span className="kpi-change down">− 0% vs last month</span>
           </div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-icon kpi-amber"><CheckCircle size={18} strokeWidth={2} /></div>
+          <div className="kpi-icon kpi-amber"><CheckCircle size={20} strokeWidth={1.5} /></div>
           <div className="kpi-body">
             <span className="kpi-label">Registration Rate</span>
             <span className="kpi-value">{dashLoading ? '...' : Math.round((totalRegistrations / (totalResidents || 1)) * 100)}%</span>
+            <span className="kpi-change down">− 0% vs last month</span>
           </div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-icon kpi-purple"><Calendar size={18} strokeWidth={2} /></div>
+          <div className="kpi-icon kpi-purple"><Calendar size={20} strokeWidth={1.5} /></div>
           <div className="kpi-body">
             <span className="kpi-label">New This Month</span>
             <span className="kpi-value">{dashLoading ? '...' : recentRegistrations.length}</span>
+            <span className="kpi-change down">− 0% vs last month</span>
           </div>
         </div>
       </div>
@@ -1272,6 +1276,19 @@ export default function AdminPage() {
             </button>
           ))}
         </nav>
+
+        {/* Promo Card */}
+        <div className="sidebar-promo">
+          <div className="sidebar-promo-icon"><ShieldCheck size={24} /></div>
+          <h4>Building a stronger community together</h4>
+          <p>Your work helps empower thousands of families.</p>
+          <div className="sidebar-promo-dots">
+            <span className="sidebar-promo-dot active"></span>
+            <span className="sidebar-promo-dot"></span>
+            <span className="sidebar-promo-dot"></span>
+          </div>
+        </div>
+
         <div className="sidebar-footer">
           <div className="sidebar-user">
             <div className="sidebar-user-avatar">{username.charAt(0).toUpperCase()}</div>
@@ -1293,6 +1310,19 @@ export default function AdminPage() {
           <div className="admin-topbar-title">{navItems.find(n => n.id === activeTab)?.label}</div>
           <div className="admin-topbar-right">
             <span className="topbar-date">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+
+            <div className="topbar-notify">
+              <Bell size={18} />
+              <span className="topbar-notify-badge"></span>
+            </div>
+
+            <div className="topbar-user">
+              <div className="topbar-user-info">
+                <span className="topbar-user-name">{username || 'Admin'}</span>
+                <span className="topbar-user-role">Administrator</span>
+              </div>
+              <div className="topbar-user-avatar">{(username || 'A').charAt(0).toUpperCase()}</div>
+            </div>
           </div>
         </header>
         <div className="admin-content">
