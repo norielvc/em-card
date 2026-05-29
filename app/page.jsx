@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import HeroSlideshow from './HeroSlideshow';
-import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark, PlayCircle, Calendar } from 'lucide-react';
+import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark, PlayCircle, Calendar, Menu, X } from 'lucide-react';
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -25,16 +26,20 @@ export default function Home() {
               <small>Epektibong Mamamayan</small>
             </span>
           </a>
-          <div className="nav-links">
-            <a href="#home">Home</a>
-            <a href="#about">About Us</a>
-            <a href="#programs">Programs</a>
-            <a href="#projects">Projects</a>
-            <a href="#news">News</a>
-            <a href="#contact">Contact</a>
+          <div className={`nav-links ${menuOpen ? 'open' : ''}`}>
+            <a href="#home" onClick={() => setMenuOpen(false)}>Home</a>
+            <a href="#about" onClick={() => setMenuOpen(false)}>About Us</a>
+            <a href="#programs" onClick={() => setMenuOpen(false)}>Programs</a>
+            <a href="#projects" onClick={() => setMenuOpen(false)}>Projects</a>
+            <a href="#news" onClick={() => setMenuOpen(false)}>News</a>
+            <a href="#contact" onClick={() => setMenuOpen(false)}>Contact</a>
+            <a href="/admin" className="btn btn-outline nav-login-mobile">Login</a>
           </div>
           <a href="/register" className="btn btn-primary nav-btn">Get Involved →</a>
           <a href="/admin" className="btn btn-outline nav-login">Login</a>
+          <button className="nav-menu-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">
+            {menuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </nav>
       </header>
 
@@ -52,6 +57,7 @@ export default function Home() {
               <p className="hero-copy">EM Card is dedicated to helping communities and promoting unity, support, and progress for every family in Balagtas.</p>
               <div className="hero-actions">
                 <a className="btn hero-btn-solid" href="#about"><Sprout size={16} strokeWidth={2} /> Learn More About Us →</a>
+                <a href="/register" className="btn btn-primary hero-btn-mobile">Get Involved →</a>
                 <button className="btn btn-outline hero-btn-outline"><PlayCircle size={16} strokeWidth={2} /> Watch Video</button>
               </div>
 
