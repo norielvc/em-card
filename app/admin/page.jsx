@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp } from 'lucide-react';
 
 export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -11,6 +11,8 @@ export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -428,28 +430,116 @@ export default function AdminPage() {
   if (!isLoggedIn) {
     return (
       <div className="admin-login-page">
-        <div className="admin-login-card">
-          <div className="admin-brand">
-            <span className="brand-mark">EM</span>
-            <div><strong>EM Card</strong><small>Admin Portal</small></div>
+        {/* LEFT PANEL */}
+        <div className="admin-login-left">
+          <div className="admin-login-left-overlay" />
+          <div className="admin-login-left-content">
+            <a href="/" className="admin-login-brand">
+              <span className="brand-mark">EM</span>
+              <div>
+                <strong>EM Card</strong>
+                <small>Epektibong Mamamayan</small>
+              </div>
+            </a>
+
+            <div className="admin-login-left-hero">
+              <h1>
+                <span className="login-hero-white">Empowering</span>
+                <span className="login-hero-green"> Communities.</span>
+                <span className="login-hero-white"> Building a</span>
+                <span className="login-hero-green"> Better Tomorrow.</span>
+              </h1>
+              <p className="login-hero-copy">
+                EM Card is dedicated to helping communities and promoting unity, support, and progress for every family in Balagtas.
+              </p>
+            </div>
+
+            <div className="admin-login-features">
+              <div className="admin-login-feature">
+                <div className="admin-login-feature-icon"><Users size={20} strokeWidth={1.5} /></div>
+                <div>
+                  <h4>Stronger Communities</h4>
+                  <p>Building unity and empowering every citizen.</p>
+                </div>
+              </div>
+              <div className="admin-login-feature">
+                <div className="admin-login-feature-icon"><Heart size={20} strokeWidth={1.5} /></div>
+                <div>
+                  <h4>Social Support</h4>
+                  <p>Providing assistance and resources to those in need.</p>
+                </div>
+              </div>
+              <div className="admin-login-feature">
+                <div className="admin-login-feature-icon"><TrendingUp size={20} strokeWidth={1.5} /></div>
+                <div>
+                  <h4>Sustainable Progress</h4>
+                  <p>Creating long-term solutions for a better tomorrow.</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <h2>Administrator Login</h2>
-          <p className="login-subtitle">Secure access to the EM Card management dashboard.</p>
-          <form onSubmit={handleLogin} className="admin-login-form">
-            <div className="form-group">
-              <label>Username / Email</label>
-              <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter admin username" required disabled={loginLoading} />
-            </div>
-            <div className="form-group">
-              <label>Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter admin password" required disabled={loginLoading} />
-            </div>
-            {loginError && <p className="login-error">{loginError}</p>}
-            <button type="submit" className="btn btn-admin-login" disabled={loginLoading}>
-              {loginLoading ? 'Signing In...' : 'Sign In'}
+        </div>
+
+        {/* RIGHT PANEL */}
+        <div className="admin-login-right">
+          <div className="admin-login-right-top">
+            <a href="/" className="admin-login-home"><ArrowRight size={16} style={{ transform: 'rotate(180deg)' }} /> Back to Homepage</a>
+            <a href="/" className="admin-login-help"><HelpCircle size={16} /> Need help?</a>
+          </div>
+
+          <div className="admin-login-right-content">
+            <h2>Welcome Back</h2>
+            <p className="login-right-subtitle">Sign in to your EM Card Admin Portal</p>
+
+            <form onSubmit={handleLogin} className="admin-login-form-right">
+              <div className="form-group">
+                <label>Email Address</label>
+                <div className="login-input-wrap-right">
+                  <Mail size={18} strokeWidth={1.5} />
+                  <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter your email address" required disabled={loginLoading} />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <div className="login-label-row">
+                  <label>Password</label>
+                  <a href="#" className="login-forgot">Forgot Password?</a>
+                </div>
+                <div className="login-input-wrap-right">
+                  <Lock size={18} strokeWidth={1.5} />
+                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" required disabled={loginLoading} />
+                  <button type="button" className="login-eye-btn" onClick={() => setShowPassword(!showPassword)}>
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <label className="login-remember">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+                <span className="login-check-box"></span>
+                Remember me
+              </label>
+
+              {loginError && <p className="login-error">{loginError}</p>}
+
+              <button type="submit" className="btn btn-admin-login-right" disabled={loginLoading}>
+                <Lock size={18} strokeWidth={2} /> {loginLoading ? 'Signing In...' : 'Sign In'}
+              </button>
+            </form>
+
+            <div className="login-divider"><span>or</span></div>
+
+            <button className="btn btn-google-signin" onClick={() => alert('Google Sign In coming soon!')}>
+              <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+              Sign in with Google
             </button>
-          </form>
-          <a href="/" className="back-to-home">← Back to Homepage</a>
+
+            <p className="login-contact-admin">
+              Don't have an account? <a href="#">Contact System Administrator</a>
+            </p>
+          </div>
+
+          <p className="login-footer">© 2026 EM Card. All rights reserved.</p>
         </div>
       </div>
     );
