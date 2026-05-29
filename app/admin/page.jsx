@@ -27,8 +27,6 @@ export default function AdminPage() {
   const [allRegs, setAllRegs] = useState([]);
   const [residentsLoading, setResidentsLoading] = useState(false);
   const [regsLoading, setRegsLoading] = useState(false);
-  const [approvedMembers, setApprovedMembers] = useState([]);
-  const [membersLoading, setMembersLoading] = useState(false);
   const [residentSearch, setResidentSearch] = useState('');
   const [residentsPage, setResidentsPage] = useState(1);
   const [residentsCount, setResidentsCount] = useState(0);
@@ -190,22 +188,6 @@ export default function AdminPage() {
     }
   };
 
-  const fetchApprovedMembers = async () => {
-    setMembersLoading(true);
-    try {
-      const { data } = await supabase
-        .from('registrations')
-        .select('*, ValidResidents(first_name, last_name, middle_name, barangay, purok)')
-        .eq('status', 'Approved')
-        .order('created_at', { ascending: false });
-      setApprovedMembers(data || []);
-    } catch (err) {
-      console.error('Members fetch error:', err);
-    } finally {
-      setMembersLoading(false);
-    }
-  };
-
   const generateQRToken = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let token = '';
@@ -282,7 +264,7 @@ export default function AdminPage() {
     setSidebarOpen(false);
     if (tab === 'residents') fetchAllResidents(residentsPage, residentSearch);
     if (tab === 'registrations') fetchAllRegistrations();
-    if (tab === 'members') fetchApprovedMembers();
+    if (tab === 'members' && allRegs.length === 0) fetchAllRegistrations();
   };
 
   // CSV Parser (handles quoted fields)
@@ -997,7 +979,8 @@ export default function AdminPage() {
   };
 
   const renderMembers = () => {
-    const total = approvedMembers.length;
+    const members = allRegs.filter(r => r.status === 'Approved');
+    const total = members.length;
     return (
       <div className="admin-panel">
         <div className="panel-header">
@@ -1005,7 +988,7 @@ export default function AdminPage() {
           <span className="panel-badge">{total} TOTAL</span>
         </div>
 
-        {membersLoading ? (
+        {regsLoading ? (
           <div className="table-loading">Loading members...</div>
         ) : total === 0 ? (
           <div className="table-empty">No approved members yet.</div>
@@ -1024,7 +1007,7 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {approvedMembers.map((reg) => {
+                {members.map((reg) => {
                   const r = reg.ValidResidents || {};
                   const name = `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}`.trim();
                   return (
