@@ -27,7 +27,7 @@ export default function CardDashboardPage() {
     try {
       const { data: reg, error: regErr } = await supabase
         .from('registrations')
-        .select('*, ValidResidents(first_name, last_name, middle_name, barangay, purok, photo_base64, birth_date)')
+        .select('*, ValidResidents(first_name, last_name, middle_name, barangay)')
         .eq('qr_token', token)
         .eq('status', 'Approved')
         .single();
@@ -44,10 +44,10 @@ export default function CardDashboardPage() {
       setData({
         name: fullName,
         barangay: person.barangay || '-',
-        purok: reg.purok || person.purok || '-',
+        purok: reg.purok || '-',
         contact: reg.contact || '-',
-        photo: reg.photo_base64 || person.photo_base64,
-        birthDate: person.birth_date,
+        photo: reg.photo_base64,
+        birthDate: reg.birthday,
         scanCount: reg.scan_count || 0,
         lastScanned: reg.last_scanned_at,
         id: reg.id,
