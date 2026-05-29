@@ -3,9 +3,10 @@
 -- Run this in your Supabase SQL Editor (safe to re-run)
 -- ============================================================
 
--- Add QR token + scan tracking columns to registrations
+-- Add QR token + scan tracking + EM Card Number columns to registrations
 ALTER TABLE registrations
   ADD COLUMN IF NOT EXISTS qr_token TEXT UNIQUE,
+  ADD COLUMN IF NOT EXISTS em_card_no TEXT UNIQUE,
   ADD COLUMN IF NOT EXISTS last_scanned_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS scan_count INTEGER DEFAULT 0,
   ADD COLUMN IF NOT EXISTS scan_event TEXT;

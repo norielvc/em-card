@@ -70,7 +70,9 @@ const TRANSLATIONS = {
     modalClose: 'Understood & Close',
     alertPhoto: 'Please capture or upload your photo.',
     alertReferral: 'Please select a valid referral from the database.',
+    duplicateRegistration: 'You already have an existing registration request (Pending or Approved). Duplicate submissions are not allowed.',
     alreadyRegistered: 'This person has already completed registration. Each resident can only register once.',
+    alreadyRegisteredTitle: 'Already Registered',
     faceNotDetected: 'No clear face detected. Please ensure your face is centered, well-lit, and unobstructed.',
     faceWarningTitle: 'Face Not Detected',
     noFaceAlert: 'No face was detected in the uploaded image. Please upload a clear photo of your face.',
@@ -152,7 +154,9 @@ const TRANSLATIONS = {
     modalClose: 'Naintindihan ko at Isara',
     alertPhoto: 'Mangyaring kumuha o mag-upload ng iyong larawan.',
     alertReferral: 'Mangyaring pumili ng wastong referral mula sa database.',
+    duplicateRegistration: 'Mayroon ka nang kasalukuyang registration request (Pending o Approved). Hindi pinapayagan ang duplicate na pag-submit.',
     alreadyRegistered: 'Ang taong ito ay nakapagrehistro na. Ang bawat residente ay maaari lamang magrehistro nang isang beses.',
+    alreadyRegisteredTitle: 'Nakapagrehistro Na',
     faceNotDetected: 'Walang malinaw na mukha na nakita. Mangyaring siguraduhin na ang iyong mukha ay naka-center, maliwanag, at walang harang.',
     faceWarningTitle: 'Hindi Nakita ang Mukha',
     noFaceAlert: 'Walang mukhang nakita sa na-upload na larawan. Mangyaring mag-upload ng malinaw na larawan ng iyong mukha.',
@@ -203,6 +207,7 @@ export default function RegisterPage() {
   const [submitted, setSubmitted] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [showAlreadyRegistered, setShowAlreadyRegistered] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -390,7 +395,7 @@ export default function RegisterPage() {
 
   const handleSelect = (person) => {
     if (isAlreadyRegistered(person.id)) {
-      alert(t.alreadyRegistered);
+      setShowAlreadyRegistered(true);
       return;
     }
     setSelectedPerson(person);
@@ -507,6 +512,19 @@ export default function RegisterPage() {
 
   const submitRegistration = async () => {
     try {
+      // Check for existing registration (Pending or Approved) — Rejected allows re-register
+      const { data: existingReg } = await supabase
+        .from('registrations')
+        .select('id, status')
+        .eq('resident_id', selectedPerson.id)
+        .in('status', ['Pending', 'Approved'])
+        .maybeSingle();
+
+      if (existingReg) {
+        alert(t.duplicateRegistration || 'You already have an existing registration request. Duplicate submissions are not allowed.');
+        return;
+      }
+
       // Look up parent registration by referral name
       let parentId = null;
       if (referral) {
@@ -1024,6 +1042,25 @@ export default function RegisterPage() {
             <div className="modal-footer review-footer">
               <button type="button" className="btn btn-premium-outline" onClick={() => setShowReview(false)}>{t.editDetails}</button>
               <button type="button" className="btn btn-premium-solid" onClick={submitRegistration}>{t.confirmSubmit}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Already Registered Modal */}
+      {showAlreadyRegistered && (
+        <div className="modal-overlay" onClick={() => setShowAlreadyRegistered(false)}>
+          <div className="modal-card already-registered-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{t.alreadyRegisteredTitle}</h3>
+              <button type="button" className="modal-close-x" onClick={() => setShowAlreadyRegistered(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ textAlign: 'center', padding: '32px 24px' }}>
+              <div className="already-reg-icon">🚫</div>
+              <p style={{ fontSize: '1rem', color: 'var(--text)', margin: '16px 0', lineHeight: 1.6 }}>{t.alreadyRegistered}</p>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-premium-solid btn-full" onClick={() => setShowAlreadyRegistered(false)}>OK</button>
             </div>
           </div>
         </div>

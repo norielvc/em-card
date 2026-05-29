@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -27,6 +28,7 @@ export default function AdminPage() {
   const [allRegs, setAllRegs] = useState([]);
   const [residentsLoading, setResidentsLoading] = useState(false);
   const [regsLoading, setRegsLoading] = useState(false);
+  const [regStatusFilter, setRegStatusFilter] = useState('Pending');
   const [residentSearch, setResidentSearch] = useState('');
   const [residentsPage, setResidentsPage] = useState(1);
   const [residentsCount, setResidentsCount] = useState(0);
@@ -36,6 +38,7 @@ export default function AdminPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [selectedRegDetail, setSelectedRegDetail] = useState(null);
+  const [selectedMember, setSelectedMember] = useState(null);
   const [newResident, setNewResident] = useState({
     last_name: '', first_name: '', middle_name: '', barangay: 'Borol 1st', precinct: ''
   });
@@ -178,7 +181,7 @@ export default function AdminPage() {
     try {
       const { data } = await supabase
         .from('registrations')
-        .select('*, ValidResidents(first_name, last_name, middle_name)')
+        .select('id, resident_id, house_no, purok, barangay, contact, status, sector_category, referral_name, photo_base64, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, barangay)')
         .order('created_at', { ascending: false });
       setAllRegs(data || []);
     } catch (err) {
@@ -195,17 +198,43 @@ export default function AdminPage() {
     return 'EM' + token;
   };
 
+  const generateEMCardNo = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // omit confusing chars like 0/O, 1/I
+    let part1 = '', part2 = '';
+    for (let i = 0; i < 4; i++) part1 += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 4; i++) part2 += chars.charAt(Math.floor(Math.random() * chars.length));
+    return `EM-${part1}-${part2}`;
+  };
+
+  const generateQRForMember = async (reg) => {
+    const newToken = generateQRToken();
+    const newCardNo = reg.em_card_no || generateEMCardNo();
+    try {
+      const { error } = await supabase
+        .from('registrations')
+        .update({ qr_token: newToken, em_card_no: newCardNo })
+        .eq('id', reg.id);
+      if (error) throw error;
+      showToast(`QR Token generated: ${newToken}`, 'success');
+      fetchAllRegistrations();
+      setSelectedMember({ ...reg, qr_token: newToken, em_card_no: newCardNo });
+    } catch (err) {
+      showToast('Failed to generate QR token.', 'error');
+    }
+  };
+
   const approveRegistration = async (id) => {
     try {
       const qrToken = generateQRToken();
+      const emCardNo = generateEMCardNo();
       const { error } = await supabase
         .from('registrations')
-        .update({ status: 'Approved', qr_token: qrToken })
+        .update({ status: 'Approved', qr_token: qrToken, em_card_no: emCardNo })
         .eq('id', id);
       if (error) {
         showToast(error.message, 'error');
       } else {
-        showToast(`Registration approved. QR: ${qrToken}`, 'success');
+        showToast(`Approved. EM Card: ${emCardNo}`, 'success');
         fetchAllRegistrations();
       }
     } catch (err) {
@@ -907,15 +936,45 @@ export default function AdminPage() {
 
   const renderRegistrations = () => {
     const pendingCount = allRegs.filter(r => r.status === 'Pending').length;
+
+    // Duplicate detection: key = name + barangay + contact
+    const dupMap = new Map();
+    allRegs.forEach(reg => {
+      const key = `${getResidentName(reg)}|${reg.barangay || ''}|${reg.contact || ''}`;
+      dupMap.set(key, (dupMap.get(key) || 0) + 1);
+    });
+    const dupKeys = new Set([...dupMap.entries()].filter(([, count]) => count > 1).map(([k]) => k));
+    const dupCount = allRegs.filter(reg => dupKeys.has(`${getResidentName(reg)}|${reg.barangay || ''}|${reg.contact || ''}`)).length;
+
+    const filteredRegs = allRegs.filter(r => r.status === regStatusFilter);
+    const rejectedCount = allRegs.filter(r => r.status === 'Rejected').length;
+
     return (
       <div className="admin-panel">
         <div className="panel-header">
           <h3>Registration Requests</h3>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {pendingCount > 0 && <span className="panel-badge badge-warn">{pendingCount} Pending</span>}
+            {dupCount > 0 && <span className="panel-badge badge-error">{dupCount} Duplicate</span>}
             <span className="panel-badge">{allRegs.length} Total</span>
           </div>
         </div>
+
+        {/* Status Tabs */}
+        <div className="reg-status-tabs">
+          <button
+            className={regStatusFilter === 'Pending' ? 'active' : ''}
+            onClick={() => setRegStatusFilter('Pending')}
+          >
+            Pending <span className="tab-count">{pendingCount}</span>
+          </button>
+          <button
+            className={regStatusFilter === 'Rejected' ? 'active' : ''}
+            onClick={() => setRegStatusFilter('Rejected')}
+          >
+            Rejected <span className="tab-count">{rejectedCount}</span>
+          </button>
+        </div>
+
         <div className="table-wrap">
           <table className="admin-table">
             <thead>
@@ -934,43 +993,49 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {regsLoading ? <tr><td colSpan={10} className="table-loading">Loading...</td></tr>
-                : allRegs.length === 0 ? <tr><td colSpan={10} className="table-empty">No registrations found.</td></tr>
-                  : allRegs.map(reg => (
-                    <tr key={reg.id} className="reg-row-clickable" onClick={() => setSelectedRegDetail(reg)}>
-                      <td>
-                        {reg.photo_base64 ? (
-                          <img src={reg.photo_base64} alt="" className="reg-thumb" />
-                        ) : (
-                          <div className="reg-thumb-placeholder">👤</div>
-                        )}
-                      </td>
-                      <td><strong>{getResidentName(reg)}</strong></td>
-                      <td>{reg.barangay || '-'}</td>
-                      <td><span className="sector-tag">{reg.sector_category}</span></td>
-                      <td>{reg.referral_name}</td>
-                      <td>{reg.contact || '-'}</td>
-                      <td><span className="size-tag">{getPhotoSize(reg.photo_base64)}</span></td>
-                      <td>
-                        <span className={`status-badge status-${(reg.status || 'pending').toLowerCase()}`}>
-                          {reg.status || 'Pending'}
-                        </span>
-                      </td>
-                      <td>{new Date(reg.created_at).toLocaleDateString()}</td>
-                      <td>
-                        <div className="reg-actions">
-                          {reg.status === 'Pending' && (
-                            <>
-                              <button className="btn-action btn-approve" onClick={(e) => { e.stopPropagation(); approveRegistration(reg.id); }} title="Approve">✓</button>
-                              <button className="btn-action btn-reject" onClick={(e) => { e.stopPropagation(); rejectRegistration(reg.id); }} title="Reject">✕</button>
-                            </>
+                : filteredRegs.length === 0 ? <tr><td colSpan={10} className="table-empty">No {regStatusFilter.toLowerCase()} registrations found.</td></tr>
+                  : filteredRegs.map(reg => {
+                    const isDup = dupKeys.has(`${getResidentName(reg)}|${reg.barangay || ''}|${reg.contact || ''}`);
+                    return (
+                      <tr key={reg.id} className={`reg-row-clickable ${isDup ? 'reg-row-duplicate' : ''}`} onClick={() => setSelectedRegDetail(reg)}>
+                        <td>
+                          {reg.photo_base64 ? (
+                            <img src={reg.photo_base64} alt="" className="reg-thumb" />
+                          ) : (
+                            <div className="reg-thumb-placeholder">👤</div>
                           )}
-                          {reg.status === 'Approved' && (
-                            <button className="btn-action btn-print" onClick={(e) => e.stopPropagation()} title="Print Card">🖨️</button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td>
+                          <strong>{getResidentName(reg)}</strong>
+                          {isDup && <span className="dup-badge-inline">DUPLICATE</span>}
+                        </td>
+                        <td>{reg.barangay || '-'}</td>
+                        <td><span className="sector-tag">{reg.sector_category}</span></td>
+                        <td>{reg.referral_name}</td>
+                        <td>{reg.contact || '-'}</td>
+                        <td><span className="size-tag">{getPhotoSize(reg.photo_base64)}</span></td>
+                        <td>
+                          <span className={`status-badge status-${(reg.status || 'pending').toLowerCase()}`}>
+                            {reg.status || 'Pending'}
+                          </span>
+                        </td>
+                        <td>{new Date(reg.created_at).toLocaleDateString()}</td>
+                        <td>
+                          <div className="reg-actions">
+                            {reg.status === 'Pending' && (
+                              <>
+                                <button className="btn-action btn-approve" onClick={(e) => { e.stopPropagation(); approveRegistration(reg.id); }} title="Approve">✓</button>
+                                <button className="btn-action btn-reject" onClick={(e) => { e.stopPropagation(); rejectRegistration(reg.id); }} title="Reject">✕</button>
+                              </>
+                            )}
+                            {reg.status === 'Rejected' && (
+                              <button className="btn-action btn-approve" onClick={(e) => { e.stopPropagation(); approveRegistration(reg.id); }} title="Re-approve">↻</button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
             </tbody>
           </table>
         </div>
@@ -1001,7 +1066,7 @@ export default function AdminPage() {
                   <th>Barangay</th>
                   <th>Purok</th>
                   <th>Sector</th>
-                  <th>QR Token</th>
+                  <th>EM Card No</th>
                   <th>Contact</th>
                   <th>Date</th>
                 </tr>
@@ -1011,13 +1076,17 @@ export default function AdminPage() {
                   const r = reg.ValidResidents || {};
                   const name = `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}`.trim();
                   return (
-                    <tr key={reg.id}>
+                    <tr key={reg.id} className="member-row-clickable" onClick={() => setSelectedMember(reg)}>
                       <td><strong>{name}</strong></td>
                       <td>{r.barangay || '-'}</td>
                       <td>{reg.purok || r.purok || '-'}</td>
                       <td><span className="sector-badge">{reg.sector_category || '-'}</span></td>
                       <td>
-                        <code className="qr-token-code">{reg.qr_token || '—'}</code>
+                        {reg.em_card_no ? (
+                          <code className="em-card-code">{reg.em_card_no}</code>
+                        ) : (
+                          <span className="qr-token-missing">Needs QR</span>
+                        )}
                       </td>
                       <td>{reg.contact || '-'}</td>
                       <td>{new Date(reg.created_at).toLocaleDateString()}</td>
@@ -1633,6 +1702,91 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* MEMBER DETAIL MODAL */}
+      {selectedMember && (() => {
+        const r = selectedMember.ValidResidents || {};
+        const name = `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}`.trim();
+        const hasQR = !!selectedMember.qr_token;
+        const hasCardNo = !!selectedMember.em_card_no;
+        const fullAddress = `${selectedMember.house_no ? `House ${selectedMember.house_no}, ` : ''}${selectedMember.purok ? `Purok ${selectedMember.purok}, ` : ''}${r.barangay || ''}`.replace(/, $/, '');
+        return (
+          <div className="modal-overlay" onClick={() => setSelectedMember(null)}>
+            <div className="modal-card member-detail-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Member Profile</h3>
+                <button className="modal-close-x" onClick={() => setSelectedMember(null)}>✕</button>
+              </div>
+              <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                {/* Top: Photo + Name + EM Card No */}
+                <div className="member-detail-top">
+                  <div className="member-detail-photo">
+                    {selectedMember.photo_base64 ? <img src={selectedMember.photo_base64} alt="" /> : <span style={{fontSize:'2rem'}}>👤</span>}
+                  </div>
+                  <div className="member-detail-head">
+                    <h2>{name}</h2>
+                    <span className="member-detail-status">✓ Approved Member</span>
+                    {hasCardNo && (
+                      <p className="member-detail-cardno">EM Card: <strong>{selectedMember.em_card_no}</strong></p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Full Address */}
+                <div className="member-detail-address">
+                  <span className="member-detail-label">📍 Full Address</span>
+                  <span className="member-detail-value">{fullAddress || '—'}</span>
+                </div>
+
+                {/* QR Token Section */}
+                <div className="member-detail-qr-section">
+                  <span className="member-detail-label">QR Scan Token</span>
+                  {hasQR ? (
+                    <>
+                      <code className="member-qr-big">{selectedMember.qr_token}</code>
+                      <div className="member-qr-image">
+                        <QRCodeSVG value={`https://em-card.com/card/${selectedMember.qr_token}`} size={180} level="H" includeMargin={true} />
+                      </div>
+                      <p className="member-qr-hint">📱 Member scans QR → <strong>https://em-card.com/card/{selectedMember.qr_token}</strong></p>
+                    </>
+                  ) : (
+                    <div className="member-qr-missing">
+                      <span>No QR token generated yet.</span>
+                      <button className="btn btn-generate-qr" onClick={() => generateQRForMember(selectedMember)}>
+                        ⚡ Generate QR & Card
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Details Grid */}
+                <div className="member-detail-grid">
+                  <div className="member-detail-item"><span className="member-detail-label">House No</span><span className="member-detail-value">{selectedMember.house_no ? selectedMember.house_no : '-'}</span></div>
+                  <div className="member-detail-item"><span className="member-detail-label">Purok</span><span className="member-detail-value">{selectedMember.purok || '-'}</span></div>
+                  <div className="member-detail-item"><span className="member-detail-label">Barangay</span><span className="member-detail-value">{r.barangay || '-'}</span></div>
+                  <div className="member-detail-item"><span className="member-detail-label">Sector</span><span className="member-detail-value">{selectedMember.sector_category || '-'}</span></div>
+                  <div className="member-detail-item"><span className="member-detail-label">Contact</span><span className="member-detail-value">{selectedMember.contact || '-'}</span></div>
+                  <div className="member-detail-item"><span className="member-detail-label">Referral</span><span className="member-detail-value">{selectedMember.referral_name || '-'}</span></div>
+                  <div className="member-detail-item"><span className="member-detail-label">Approved On</span><span className="member-detail-value">{new Date(selectedMember.created_at).toLocaleDateString()}</span></div>
+                  <div className="member-detail-item"><span className="member-detail-label">Total Scans</span><span className="member-detail-value">{selectedMember.scan_count || 0}</span></div>
+                  <div className="member-detail-item full-width"><span className="member-detail-label">Last Scanned</span><span className="member-detail-value">{selectedMember.last_scanned_at ? new Date(selectedMember.last_scanned_at).toLocaleString() : 'Never'}</span></div>
+                </div>
+
+                {/* Action Buttons */}
+                {hasQR && (
+                  <div className="member-detail-links">
+                    <a href={`https://em-card.com/card/${selectedMember.qr_token}`} target="_blank" rel="noreferrer" className="btn btn-member-link">🌐 Open Citizen Dashboard</a>
+                    <button className="btn btn-member-copy" onClick={() => { navigator.clipboard.writeText(`https://em-card.com/card/${selectedMember.qr_token}`); showToast('Card URL copied!', 'success'); }}>📋 Copy Card URL</button>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-modal-secondary" onClick={() => setSelectedMember(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
