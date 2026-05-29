@@ -208,6 +208,7 @@ export default function RegisterPage() {
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [showAlreadyRegistered, setShowAlreadyRegistered] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -511,18 +512,45 @@ export default function RegisterPage() {
   };
 
   const submitRegistration = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
-      // Check for existing registration (Pending or Approved) — Rejected allows re-register
-      const { data: existingReg } = await supabase
+      // Check 1: by resident_id
+      const { data: existingById, error: errById } = await supabase
         .from('registrations')
         .select('id, status')
         .eq('resident_id', selectedPerson.id)
         .in('status', ['Pending', 'Approved'])
         .maybeSingle();
 
-      if (existingReg) {
+      if (errById) {
+        console.error('Duplicate check by ID error:', errById);
+      }
+
+      if (existingById) {
         alert(t.duplicateRegistration || 'You already have an existing registration request. Duplicate submissions are not allowed.');
+        setIsSubmitting(false);
         return;
+      }
+
+      // Check 2: by contact (catches same person under different ValidResidents record)
+      if (contact) {
+        const { data: existingByContact, error: errByContact } = await supabase
+          .from('registrations')
+          .select('id, status')
+          .eq('contact', contact)
+          .in('status', ['Pending', 'Approved'])
+          .maybeSingle();
+
+        if (errByContact) {
+          console.error('Duplicate check by contact error:', errByContact);
+        }
+
+        if (existingByContact) {
+          alert(t.duplicateRegistration || 'You already have an existing registration request. Duplicate submissions are not allowed.');
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Look up parent registration by referral name
@@ -557,22 +585,33 @@ export default function RegisterPage() {
         parent_id: parentId,
       });
 
+      if (error) {
+        console.warn('Supabase Insert Warning:', error.message);
+        // Check for unique constraint violation (duplicate active registration)
+        if (error.message && error.message.includes('duplicate key')) {
+          alert(t.duplicateRegistration || 'You already have an existing registration request. Duplicate submissions are not allowed.');
+        } else {
+          alert('Failed to submit registration. Please try again.');
+        }
+        setIsSubmitting(false);
+        return;
+      }
+
       await supabase
         .from('ValidResidents')
         .update({ status: 'Registered' })
         .eq('id', selectedPerson.id);
 
-      if (error) {
-        console.warn('Supabase Insert Warning:', error.message);
-      }
+      markAsRegistered(selectedPerson.id);
+      setShowReview(false);
+      setSubmitted(true);
+      stopCamera();
     } catch (err) {
-      console.warn('Offline Mode.');
+      console.warn('Offline Mode.', err);
+      alert('Failed to submit. Please check your connection and try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    markAsRegistered(selectedPerson.id);
-    setShowReview(false);
-    setSubmitted(true);
-    stopCamera();
   };
 
   const getFormattedBirthday = () => {
@@ -1041,7 +1080,7 @@ export default function RegisterPage() {
             </div>
             <div className="modal-footer review-footer">
               <button type="button" className="btn btn-premium-outline" onClick={() => setShowReview(false)}>{t.editDetails}</button>
-              <button type="button" className="btn btn-premium-solid" onClick={submitRegistration}>{t.confirmSubmit}</button>
+              <button type="button" className="btn btn-premium-solid" onClick={submitRegistration} disabled={isSubmitting}>{isSubmitting ? 'Submitting...' : t.confirmSubmit}</button>
             </div>
           </div>
         </div>

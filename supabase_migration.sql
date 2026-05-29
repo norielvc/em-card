@@ -31,6 +31,12 @@ CREATE TABLE IF NOT EXISTS scan_events (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Prevent duplicate active registrations (race condition fix)
+-- One resident can only have ONE Pending or Approved registration
+CREATE UNIQUE INDEX IF NOT EXISTS idx_registrations_unique_active
+ON registrations(resident_id)
+WHERE status IN ('Pending', 'Approved');
+
 -- Verify columns
 SELECT column_name, data_type
 FROM information_schema.columns

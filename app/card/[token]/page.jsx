@@ -25,12 +25,19 @@ export default function CardDashboardPage() {
   const fetchCardData = async () => {
     setLoading(true);
     try {
+      if (!token) {
+        setError('Invalid or unregistered EM Card.');
+        setLoading(false);
+        return;
+      }
+      
+      const cleanToken = token.trim().replace(/[\r\n\t]/g, '');
       const { data: reg, error: regErr } = await supabase
         .from('registrations')
         .select('*, ValidResidents(first_name, last_name, middle_name, barangay)')
-        .eq('qr_token', token)
+        .ilike('qr_token', cleanToken)
         .eq('status', 'Approved')
-        .single();
+        .maybeSingle();
 
       if (regErr || !reg) {
         setError('Invalid or unregistered EM Card.');

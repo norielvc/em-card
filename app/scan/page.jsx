@@ -41,13 +41,14 @@ export default function ScanPage() {
     setResult(null);
 
     try {
+      const cleanToken = scannedToken.trim().replace(/[\r\n\t]/g, '');
       // Look up the card by QR token
       const { data: reg, error: regErr } = await supabase
         .from('registrations')
         .select('*, ValidResidents(first_name, last_name, middle_name, barangay, purok, photo_base64)')
-        .eq('qr_token', scannedToken.trim())
+        .ilike('qr_token', cleanToken)
         .eq('status', 'Approved')
-        .single();
+        .maybeSingle();
 
       if (regErr || !reg) {
         setError('Invalid or unregistered EM Card. QR token not recognized.');
