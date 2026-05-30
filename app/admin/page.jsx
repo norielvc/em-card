@@ -85,6 +85,16 @@ export default function AdminPage() {
   const scannerRef = useRef(null);
   const scanInProgressRef = useRef(false);
   const fileInputRef = useRef(null);
+  const localScanCountRef = useRef(0); // optimistic counter for mass scanning (40k+ events)
+
+  // Background sync: reconcile true scan count every 30s during active scanning
+  useEffect(() => {
+    if (!selectedEvent) return;
+    const interval = setInterval(() => {
+      refreshScanCount(selectedEvent.id);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [selectedEvent]);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -1605,7 +1615,9 @@ export default function AdminPage() {
 
       if (!error) {
         setEventScans(data || []);
-        setScanStats({ total: count || (data || []).length, duplicates: 0 });
+        const trueCount = count || (data || []).length;
+        localScanCountRef.current = trueCount; // sync optimistic counter with truth
+        setScanStats({ total: trueCount, duplicates: 0 });
       }
     } catch (e) { console.error(e); }
   };
@@ -1647,6 +1659,7 @@ export default function AdminPage() {
   const resetScanState = () => {
     setScanResult(null);
     scanInProgressRef.current = false;
+    // NOTE: localScanCountRef is NOT reset — it persists across scans for the event
   };
 
   const handleEventScan = async (rawToken) => {
@@ -1786,8 +1799,9 @@ export default function AdminPage() {
         scanCount: (reg.scan_count || 0) + 1,
       });
 
-      // Refresh scan count only (fast) — full table fetch deferred for performance
-      refreshScanCount(selectedEvent.id);
+      // Optimistic local count — zero HTTP calls during mass scanning
+      localScanCountRef.current += 1;
+      setScanStats(prev => ({ ...prev, total: localScanCountRef.current }));
     } catch (err) {
       setScanResult({ type: 'error', message: err.message || 'Network error. Try again.' });
     } finally {
@@ -1822,7 +1836,7 @@ export default function AdminPage() {
           ) : (
             <div className="event-list-grid">
               {events.map(evt => (
-                <div key={evt.id} className="event-card" onClick={() => { setSelectedEvent(evt); setScannerMode('scan'); fetchEventScans(evt.id); }}>
+                <div key={evt.id} className="event-card" onClick={() => { setSelectedEvent(evt); setScannerMode('scan'); localScanCountRef.current = 0; fetchEventScans(evt.id); }}>
                   <div className="event-card-icon">📅</div>
                   <div className="event-card-body">
                     <h5>{evt.event_name}</h5>
@@ -1865,8 +1879,8 @@ export default function AdminPage() {
             <p>{selectedEvent.location || ''} {selectedEvent.event_date ? '• ' + new Date(selectedEvent.event_date).toLocaleDateString() : ''}</p>
           </div>
           <div className="event-scanner-actions">
-            <span className="scan-stat-badge">{eventScans.length} Scanned</span>
-            <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedEvent(null); setScannerMode('select'); resetScanState(); }}>← Change Event</button>
+            <span className="scan-stat-badge">{scanStats.total.toLocaleString()} Scanned</span>
+            <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedEvent(null); setScannerMode('select'); localScanCountRef.current = 0; resetScanState(); }}>← Change Event</button>
           </div>
         </div>
 
