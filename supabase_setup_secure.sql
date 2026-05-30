@@ -85,6 +85,13 @@ CREATE POLICY "Allow authenticated update registrations"
   USING (true)
   WITH CHECK (true);
 
+-- Allow anonymous users to view Approved registrations (QR scan / citizen dashboard)
+CREATE POLICY "Allow public select approved registrations"
+  ON registrations
+  FOR SELECT
+  TO anon
+  USING (status = 'Approved');
+
 -- ============================================================
 -- 3. PERFORMANCE INDEXES
 -- ============================================================

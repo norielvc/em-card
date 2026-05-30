@@ -37,6 +37,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_registrations_unique_active
 ON registrations(resident_id)
 WHERE status IN ('Pending', 'Approved');
 
+-- Allow anonymous QR scan / citizen dashboard to read Approved registrations
+-- (Fixes "Card Not Found" when scanning QR code while not logged in)
+CREATE POLICY IF NOT EXISTS "Allow public select approved registrations"
+  ON registrations
+  FOR SELECT
+  TO anon
+  USING (status = 'Approved');
+
 -- Verify columns
 SELECT column_name, data_type
 FROM information_schema.columns
