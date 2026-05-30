@@ -7497,3 +7497,55 @@ p {
   font-size: 1rem;
   margin: 20px 0;
 }
+
+/* Scanner Security: Lockout & Attempts */
+.scan-lockout-banner {
+  text-align: center;
+  padding: 48px 24px;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 2px solid #fecaca;
+  border-radius: 16px;
+  color: #991b1b;
+}
+
+.scan-lockout-banner svg {
+  margin-bottom: 16px;
+  color: #dc2626;
+}
+
+.scan-lockout-banner h4 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.scan-lockout-timer {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #dc2626;
+  margin: 16px 0;
+  padding: 12px 24px;
+  background: var(--white);
+  border-radius: 12px;
+  display: inline-block;
+}
+
+.scan-lockout-hint {
+  font-size: 0.85rem;
+  color: #7f1d1d;
+  margin-top: 12px;
+  opacity: 0.8;
+}
+
+.scan-attempts-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
