@@ -138,25 +138,30 @@ export default function AdminPage() {
   useEffect(() => {
     let html5QrCode;
     const startCamera = async () => {
-      if (scannerInputMode !== 'camera' || !selectedEvent) return;
+      if (scannerInputMode !== 'camera' || !selectedEvent || cameraActive) return;
       try {
         const { Html5Qrcode } = await import('html5-qrcode');
         html5QrCode = new Html5Qrcode('event-scanner-camera');
         scannerRef.current = html5QrCode;
         await html5QrCode.start(
           { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 250 } },
+          {
+            fps: 25,
+            qrbox: 320,
+            aspectRatio: 1.777,
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+            videoConstraints: {
+              focusMode: 'continuous',
+              advanced: [{ focusMode: 'continuous' }]
+            }
+          },
           (decodedText) => {
             if (scanInProgressRef.current) return;
             scanInProgressRef.current = true;
-            try {
-              if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.pause(true);
-              }
-            } catch (e) {}
+            // Keep camera running to preserve autofocus; additional frames are ignored by the lock
             handleEventScan(decodedText);
           },
-          () => {}
+          (_frameErr) => { /* ignore per-frame decode errors for performance */ }
         );
         setCameraActive(true);
       } catch (err) {
@@ -166,21 +171,22 @@ export default function AdminPage() {
     };
 
     const stopCamera = async () => {
-      if (html5QrCode) {
-        try { await html5QrCode.stop(); } catch (e) {}
-        try { await html5QrCode.clear(); } catch (e) {}
+      const instance = scannerRef.current;
+      if (instance) {
+        try { await instance.stop(); } catch (e) {}
+        try { await instance.clear(); } catch (e) {}
       }
       setCameraActive(false);
     };
 
-    if (scannerInputMode === 'camera' && selectedEvent && !scanResult) {
+    if (scannerInputMode === 'camera' && selectedEvent) {
       startCamera();
     } else {
       stopCamera();
     }
 
     return () => { stopCamera(); };
-  }, [scannerInputMode, selectedEvent, scanResult]);
+  }, [scannerInputMode, selectedEvent, cameraActive]);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -1608,6 +1614,7 @@ export default function AdminPage() {
         setScanResult({ type: 'invalid', message: 'SECURITY ALERT: Invalid QR format. This is NOT a valid EM Card.' });
         setScanLoading(false);
         setScanToken('');
+        scanInProgressRef.current = false;
         return;
       }
 
@@ -1623,6 +1630,7 @@ export default function AdminPage() {
         setScanResult({ type: 'invalid', message: 'SECURITY ALERT: Unregistered or unauthorized EM Card. This QR code is not in our system.' });
         setScanLoading(false);
         setScanToken('');
+        scanInProgressRef.current = false;
         return;
       }
 
@@ -1690,6 +1698,7 @@ export default function AdminPage() {
           });
           setScanLoading(false);
           setScanToken('');
+          scanInProgressRef.current = false;
           return;
         }
         throw insertErr;
@@ -1721,6 +1730,7 @@ export default function AdminPage() {
     } finally {
       setScanLoading(false);
       setScanToken('');
+      scanInProgressRef.current = false;
     }
   };
 
