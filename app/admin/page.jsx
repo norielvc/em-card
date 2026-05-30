@@ -22,6 +22,9 @@ export default function AdminPage() {
   const [recentRegistrations, setRecentRegistrations] = useState([]);
   const [votersByBarangay, setVotersByBarangay] = useState([]);
   const [regsByBarangay, setRegsByBarangay] = useState([]);
+  const [aidByBarangay, setAidByBarangay] = useState([]);
+  const [thisMonthRegs, setThisMonthRegs] = useState(0);
+  const [lastMonthRegs, setLastMonthRegs] = useState(0);
   const [dashLoading, setDashLoading] = useState(true);
 
   const [allResidents, setAllResidents] = useState([]);
@@ -56,7 +59,14 @@ export default function AdminPage() {
 
   const [toast, setToast] = useState(null);
   const [networkSearch, setNetworkSearch] = useState('');
+  const [networkSearchResults, setNetworkSearchResults] = useState([]);
+  const [selectedNetworkMember, setSelectedNetworkMember] = useState(null);
   const [expandedNodes, setExpandedNodes] = useState(new Set());
+  const [networkViewMode, setNetworkViewMode] = useState(null); // 'all' | 'month' | 'week' | null
+  const [networkMonthFilter, setNetworkMonthFilter] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   // Messages
   const [messages, setMessages] = useState([]);
@@ -87,7 +97,7 @@ export default function AdminPage() {
   const [scanLoading, setScanLoading] = useState(false);
   const [scannerMode, setScannerMode] = useState('select'); // select | scan | result
   const [showCreateEvent, setShowCreateEvent] = useState(false);
-  const [newEventForm, setNewEventForm] = useState({ event_name: '', event_date: '', location: '' });
+  const [newEventForm, setNewEventForm] = useState({ event_name: '', event_date: '', location: '', household_mode: false });
   const [eventScans, setEventScans] = useState([]);
   const [scanStats, setScanStats] = useState({ total: 0, duplicates: 0 });
   const [scannerInputMode, setScannerInputMode] = useState('camera'); // 'camera' | 'capture' | 'manual'
@@ -274,9 +284,12 @@ export default function AdminPage() {
 
       setTotalResidents(analytics.totalResidents || 0);
       setTotalRegistrations(analytics.totalRegistrations || 0);
+      setThisMonthRegs(analytics.thisMonthRegs || 0);
+      setLastMonthRegs(analytics.lastMonthRegs || 0);
       setRecentRegistrations(recentData || []);
       setVotersByBarangay(analytics.votersByBarangay || []);
       setRegsByBarangay(analytics.regsByBarangay || []);
+      setAidByBarangay(analytics.aidByBarangay || []);
     } catch (err) {
       console.error('Dashboard fetch error:', err);
     } finally {
@@ -497,6 +510,7 @@ export default function AdminPage() {
     if (tab === 'residents') fetchAllResidents(residentsPage, residentSearch);
     if (tab === 'registrations') fetchAllRegistrations();
     if (tab === 'members' && allRegs.length === 0) fetchAllRegistrations();
+    if (tab === 'network' && allRegs.length === 0) fetchAllRegistrations();
     if (tab === 'eventScanner') fetchEvents();
   };
 
@@ -937,7 +951,20 @@ export default function AdminPage() {
   };
 
   // RENDER VIEWS
-  const renderDashboard = () => (
+  const renderDashboard = () => {
+    const thisMonth = dashLoading ? 0 : thisMonthRegs;
+    const lastMonth = dashLoading ? 0 : lastMonthRegs;
+    const regChange = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth) * 100 : (thisMonth > 0 ? 100 : 0);
+    const regChangeStr = `${regChange >= 0 ? '↑' : '↓'} ${Math.abs(regChange).toFixed(1)}% vs last month`;
+    const regChangeClass = regChange >= 0 ? 'up' : 'down';
+
+    const currentRate = totalRegistrations / (totalResidents || 1);
+    const lastMonthRate = (totalRegistrations - thisMonth) / (totalResidents || 1);
+    const rateChange = (currentRate - lastMonthRate) * 100;
+    const rateChangeStr = `${rateChange >= 0 ? '↑' : '↓'} ${Math.abs(rateChange).toFixed(1)}pp vs last month`;
+    const rateChangeClass = rateChange >= 0 ? 'up' : 'down';
+
+    return (
     <>
       {/* KPI Stat Cards */}
       <div className="kpi-grid">
@@ -946,7 +973,7 @@ export default function AdminPage() {
           <div className="kpi-body">
             <span className="kpi-label">Registered Voters</span>
             <span className="kpi-value">{dashLoading ? '...' : totalResidents.toLocaleString()}</span>
-            <span className="kpi-change up">↑ 12.5% vs last month</span>
+            <span className={`kpi-change ${regChangeClass}`}>{regChangeStr}</span>
           </div>
         </div>
         <div className="kpi-card">
@@ -954,23 +981,23 @@ export default function AdminPage() {
           <div className="kpi-body">
             <span className="kpi-label">EM Card Members</span>
             <span className="kpi-value">{dashLoading ? '...' : totalRegistrations.toLocaleString()}</span>
-            <span className="kpi-change down">− 0% vs last month</span>
+            <span className={`kpi-change ${regChangeClass}`}>{regChangeStr}</span>
           </div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon kpi-amber"><CheckCircle size={20} strokeWidth={1.5} /></div>
           <div className="kpi-body">
             <span className="kpi-label">Registration Rate</span>
-            <span className="kpi-value">{dashLoading ? '...' : Math.round((totalRegistrations / (totalResidents || 1)) * 100)}%</span>
-            <span className="kpi-change down">− 0% vs last month</span>
+            <span className="kpi-value">{dashLoading ? '...' : Math.round(currentRate * 100)}%</span>
+            <span className={`kpi-change ${rateChangeClass}`}>{rateChangeStr}</span>
           </div>
         </div>
         <div className="kpi-card">
           <div className="kpi-icon kpi-purple"><Calendar size={20} strokeWidth={1.5} /></div>
           <div className="kpi-body">
             <span className="kpi-label">New This Month</span>
-            <span className="kpi-value">{dashLoading ? '...' : recentRegistrations.length}</span>
-            <span className="kpi-change down">− 0% vs last month</span>
+            <span className="kpi-value">{dashLoading ? '...' : thisMonth.toLocaleString()}</span>
+            <span className={`kpi-change ${regChangeClass}`}>{regChangeStr}</span>
           </div>
         </div>
       </div>
@@ -1013,14 +1040,16 @@ export default function AdminPage() {
           <div className="panel-header">
             <div className="panel-header-left">
               <h3>EM Card Members by Barangay</h3>
-              <span className="panel-subtitle">{regsByBarangay.length || votersByBarangay.length} barangays · {totalRegistrations.toLocaleString()} total</span>
+              <span className="panel-subtitle">{regsByBarangay.length || votersByBarangay.length} barangays · % vs own voters</span>
             </div>
           </div>
           <div className="analytics-chart-wrap">
             {(regsByBarangay.length > 0 ? regsByBarangay : votersByBarangay.map(v => ({ barangay: v.barangay, count: 0 }))).map(({ barangay, count }, index) => {
-              const total = totalRegistrations || 1;
-              const pct = totalRegistrations > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
-              const barWidth = totalRegistrations > 0 ? Math.max((count / total) * 100, 1.5) : 0;
+              const voterEntry = votersByBarangay.find(v => v.barangay === barangay);
+              const voterCount = voterEntry ? voterEntry.count : 0;
+              const pct = voterCount > 0 ? ((count / voterCount) * 100).toFixed(1) : '0.0';
+              const maxReg = Math.max(...regsByBarangay.map(r => r.count), 1);
+              const barWidth = Math.max((count / maxReg) * 100, 1.5);
               const colors = ['#3b82f6', '#2563eb', '#60a5fa', '#93c5fd', '#1d4ed8', '#0ea5e9', '#0284c7', '#38bdf8'];
               const barColor = colors[index % colors.length];
               return (
@@ -1042,14 +1071,16 @@ export default function AdminPage() {
           <div className="panel-header">
             <div className="panel-header-left">
               <h3>Member Received Aid by Barangay</h3>
-              <span className="panel-subtitle">{votersByBarangay.length} barangays · 0 total</span>
+              <span className="panel-subtitle">{votersByBarangay.length} barangays · {aidByBarangay.reduce((sum, a) => sum + a.count, 0)} total · % vs own voters</span>
             </div>
           </div>
           <div className="analytics-chart-wrap">
-            {votersByBarangay.map(({ barangay, count }, index) => {
-              const total = totalResidents || 1;
-              const pct = '0.0';
-              const barWidth = 0;
+            {(aidByBarangay.length > 0 ? aidByBarangay : votersByBarangay.map(v => ({ barangay: v.barangay, count: 0 }))).map(({ barangay, count }, index) => {
+              const voterEntry = votersByBarangay.find(v => v.barangay === barangay);
+              const voterCount = voterEntry ? voterEntry.count : 0;
+              const pct = voterCount > 0 ? ((count / voterCount) * 100).toFixed(1) : '0.0';
+              const maxAid = Math.max(...aidByBarangay.map(a => a.count), 1);
+              const barWidth = Math.max((count / maxAid) * 100, 1.5);
               const colors = ['#f59e0b', '#d97706', '#fbbf24', '#fcd34d', '#b45309', '#f97316', '#fb923c', '#fdba74'];
               const barColor = colors[index % colors.length];
               return (
@@ -1058,7 +1089,7 @@ export default function AdminPage() {
                   <div className="analytics-bar-track">
                     <div className="analytics-bar-fill" style={{ width: `${barWidth}%`, backgroundColor: barColor }} />
                   </div>
-                  <span className="analytics-bar-count">0</span>
+                  <span className="analytics-bar-count">{count}</span>
                   <span className="analytics-bar-pct">{pct}%</span>
                 </div>
               );
@@ -1095,6 +1126,7 @@ export default function AdminPage() {
       </div>
     </>
   );
+  };
 
   const renderResidents = () => {
     const totalFiltered = residentsCount;
@@ -1373,32 +1405,82 @@ export default function AdminPage() {
   };
 
   const renderNetwork = () => {
-    // Build children map: referral_name -> registrations[]
-    const childrenMap = new Map();
-    allRegs.forEach(reg => {
-      const parentName = reg.referral_name || 'No Referral';
-      if (!childrenMap.has(parentName)) childrenMap.set(parentName, []);
-      childrenMap.get(parentName).push(reg);
+    // Helper: build children map and compute leaders from any set of registrations
+    const computeLeadersFromRegs = (regs) => {
+      const map = new Map();
+      regs.forEach(reg => {
+        const parentName = reg.referral_name || 'No Referral';
+        if (!map.has(parentName)) map.set(parentName, []);
+        map.get(parentName).push(reg);
+      });
+      const getCh = (name) => map.get(name) || [];
+
+      const getCounts = (leaderName) => {
+        let l1 = 0, l2 = 0, l3 = 0, l4plus = 0;
+        const queue = [{ name: leaderName, depth: 0 }];
+        const visited = new Set();
+        while (queue.length > 0) {
+          const { name, depth } = queue.shift();
+          if (visited.has(name)) continue;
+          visited.add(name);
+          const children = getCh(name);
+          for (const child of children) {
+            const childName = getResidentName(child);
+            if (depth === 0) l1++;
+            else if (depth === 1) l2++;
+            else if (depth === 2) l3++;
+            else l4plus++;
+            queue.push({ name: childName, depth: depth + 1 });
+          }
+        }
+        return { l1, l2, l3, l4plus, total: l1 + l2 + l3 + l4plus };
+      };
+
+      return [...map.keys()]
+        .map(name => ({ name, ...getCounts(name) }))
+        .sort((a, b) => b.total - a.total);
+    };
+
+    const now = new Date();
+    const [filterYear, filterMonth] = networkMonthFilter.split('-').map(Number);
+    // Week: Sunday = start of week
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    const monthRegs = allRegs.filter(r => {
+      const d = new Date(r.created_at);
+      return d.getMonth() === filterMonth - 1 && d.getFullYear() === filterYear;
+    });
+    const weekRegs = allRegs.filter(r => {
+      const d = new Date(r.created_at);
+      return d >= startOfWeek && d <= endOfWeek;
     });
 
-    const getChildren = (name) => childrenMap.get(name) || [];
+    const allTimeLeaders = computeLeadersFromRegs(allRegs);
+    const monthLeaders = computeLeadersFromRegs(monthRegs);
+    const weekLeaders = computeLeadersFromRegs(weekRegs);
 
-    // All unique leader names (sorted by downline count desc)
-    let leaders = [...childrenMap.keys()]
-      .map(name => ({ name, count: childrenMap.get(name).length }))
-      .sort((a, b) => b.count - a.count);
-
-    const totalNetwork = allRegs.length;
-    const top3 = leaders.slice(0, 3);
-
-    // Filter by search
-    const q = networkSearch.trim().toLowerCase();
-    if (q) {
-      leaders = leaders.filter(l =>
-        l.name.toLowerCase().includes(q) ||
-        getChildren(l.name).some(r => getResidentName(r).toLowerCase().includes(q))
-      );
+    // Generate last 24 month options for dropdown
+    const monthOptions = [];
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      monthOptions.push({ value: val, label });
     }
+
+    // For the tree forest, use all-time
+    const allTimeMap = new Map();
+    allRegs.forEach(reg => {
+      const parentName = reg.referral_name || 'No Referral';
+      if (!allTimeMap.has(parentName)) allTimeMap.set(parentName, []);
+      allTimeMap.get(parentName).push(reg);
+    });
+    const getChildren = (name) => allTimeMap.get(name) || [];
 
     const toggleNode = (key) => {
       setExpandedNodes(prev => {
@@ -1443,86 +1525,322 @@ export default function AdminPage() {
       );
     };
 
+    const renderLeaderList = (leaders, limit = 10) => {
+      const display = leaders.slice(0, limit);
+      return (
+        <div className="leader-mini-list">
+          {display.map((l, i) => (
+            <div key={l.name} className="leader-mini-row">
+              <span className="leader-mini-rank">{i + 1}</span>
+              <span className="leader-mini-name">{l.name}</span>
+              <span className="leader-mini-badges">
+                <span className="lm-badge l1">L1 {l.l1}</span>
+                {l.l2 > 0 && <span className="lm-badge l2">L2 {l.l2}</span>}
+                {l.l3 > 0 && <span className="lm-badge l3">L3 {l.l3}</span>}
+                {l.l4plus > 0 && <span className="lm-badge l4">L4+ {l.l4plus}</span>}
+                <span className="lm-badge total">{l.total}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    const renderExpandedList = (leaders, title) => (
+      <div className="leader-expanded-panel">
+        <div className="leader-expanded-header">
+          <h4>{title}</h4>
+          <button className="btn btn-sm btn-secondary" onClick={() => setNetworkViewMode(null)}>Close</button>
+        </div>
+        {renderLeaderList(leaders, leaders.length)}
+      </div>
+    );
+
     return (
       <div className="admin-panel">
         {/* Header */}
         <div className="panel-header">
           <h3>Referral Network</h3>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span className="panel-badge badge-emerald">{leaders.length} Leaders</span>
-            <span className="panel-badge">{totalNetwork} Members</span>
+            <span className="panel-badge badge-emerald">{allTimeLeaders.length} Leaders</span>
+            <span className="panel-badge">{allRegs.length} Members</span>
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="network-stats-row">
-          <div className="network-stat-card">
-            <span className="network-stat-num">{leaders.length}</span>
-            <span className="network-stat-label">Leaders</span>
-          </div>
-          <div className="network-stat-card">
-            <span className="network-stat-num">{totalNetwork}</span>
-            <span className="network-stat-label">Total Members</span>
-          </div>
-          <div className="network-stat-card highlight">
-            <span className="network-stat-num">{top3[0]?.count || 0}</span>
-            <span className="network-stat-label">Top Recruiter</span>
-            <span className="network-stat-sub">{top3[0]?.name || '-'}</span>
-          </div>
-        </div>
+        {/* Leader Cards */}
+        {networkViewMode === null ? (
+          <div className="leader-cards-row">
+            {/* All Time */}
+            <div className="leader-card">
+              <div className="leader-card-header">
+                <h4>🏆 All Time Leaders</h4>
+                <span className="leader-card-sub">Top recruiters overall</span>
+              </div>
+              {allTimeLeaders.length === 0 ? (
+                <div className="leader-card-empty">No leaders yet</div>
+              ) : (
+                <>
+                  {renderLeaderList(allTimeLeaders, 10)}
+                  {allTimeLeaders.length > 10 && (
+                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('all')}>View All ({allTimeLeaders.length})</button>
+                  )}
+                </>
+              )}
+            </div>
 
-        {/* Search */}
-        <div className="network-search-wrap">
-          <input
-            type="text"
-            placeholder="Search leader or member name..."
-            value={networkSearch}
-            onChange={(e) => setNetworkSearch(e.target.value)}
-            className="network-search-input"
-          />
-        </div>
+            {/* This Month */}
+            <div className="leader-card">
+              <div className="leader-card-header">
+                <h4>📅 This Month Leaders</h4>
+                <select
+                  className="leader-month-picker"
+                  value={networkMonthFilter}
+                  onChange={e => setNetworkMonthFilter(e.target.value)}
+                >
+                  {monthOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              {monthLeaders.length === 0 ? (
+                <div className="leader-card-empty">No new recruits this month</div>
+              ) : (
+                <>
+                  {renderLeaderList(monthLeaders, 10)}
+                  {monthLeaders.length > 10 && (
+                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('month')}>View All ({monthLeaders.length})</button>
+                  )}
+                </>
+              )}
+            </div>
 
-        {/* Top Recruiters Bar */}
-        {top3.length > 0 && (
-          <div className="top-recruiters-bar">
-            <span className="top-recruiters-title">🏆 Top Recruiters</span>
-            <div className="top-recruiters-list">
-              {top3.map((l, i) => (
-                <div key={l.name} className="top-recruiter-chip" style={{ animationDelay: `${i * 0.1}s` }}>
-                  <span className="top-recruiter-rank">#{i + 1}</span>
-                  <span className="top-recruiter-name">{l.name}</span>
-                  <span className="top-recruiter-count">{l.count}</span>
-                </div>
-              ))}
+            {/* This Week */}
+            <div className="leader-card">
+              <div className="leader-card-header">
+                <h4>📆 This Week Leaders</h4>
+                <span className="leader-card-sub">{startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              </div>
+              {weekLeaders.length === 0 ? (
+                <div className="leader-card-empty">No new recruits this week</div>
+              ) : (
+                <>
+                  {renderLeaderList(weekLeaders, 10)}
+                  {weekLeaders.length > 10 && (
+                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('week')}>View All ({weekLeaders.length})</button>
+                  )}
+                </>
+              )}
             </div>
           </div>
+        ) : (
+          <>
+            {networkViewMode === 'all' && renderExpandedList(allTimeLeaders, 'All Time Leaders')}
+            {networkViewMode === 'month' && renderExpandedList(monthLeaders, `This Month Leaders — ${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`)}
+            {networkViewMode === 'week' && renderExpandedList(weekLeaders, `This Week Leaders — ${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)}
+          </>
         )}
 
-        {/* Recursive Tree Forest */}
-        <div className="tree-forest">
-          {regsLoading ? <div className="table-loading">Loading...</div>
-            : allRegs.length === 0 ? <div className="table-empty">No registrations yet to build network.</div>
-              : leaders.map(({ name, count }) => {
-                  const rootKey = `root:${name}`;
-                  const isOpen = expandedNodes.has(rootKey);
-                  const members = getChildren(name);
+        {/* Search with dropdown */}
+        <div className="network-search-wrap">
+          <div className="network-search-dropdown">
+            <input
+              type="text"
+              placeholder="Search member name to see full network history..."
+              value={networkSearch}
+              onChange={(e) => {
+                const q = e.target.value;
+                setNetworkSearch(q);
+                setSelectedNetworkMember(null);
+                if (q.trim().length < 2) { setNetworkSearchResults([]); return; }
+                const matches = allRegs.filter(r => getResidentName(r).toLowerCase().includes(q.toLowerCase()));
+                setNetworkSearchResults(matches.slice(0, 8));
+              }}
+              className="network-search-input"
+            />
+            {networkSearchResults.length > 0 && (
+              <div className="network-search-results">
+                {networkSearchResults.map(reg => {
+                  const name = getResidentName(reg);
                   return (
-                    <div key={name} className="tree-root">
-                      <div className="tree-root-header" onClick={() => toggleNode(rootKey)}>
-                        <span className={`tree-root-chevron ${isOpen ? 'open' : ''}`}>▸</span>
-                        <span className="tree-root-icon">🔺</span>
-                        <span className="tree-root-name">{name}</span>
-                        <span className="tree-root-badge">{count} direct · {members.reduce((sum, m) => sum + 1 + getChildren(getResidentName(m)).length, 0)} total</span>
-                      </div>
-                      {isOpen && (
-                        <div className="tree-root-children">
-                          {members.map(reg => renderTreeNode(reg, 0))}
-                        </div>
-                      )}
+                    <div
+                      key={reg.id}
+                      className="network-search-result-item"
+                      onClick={() => {
+                        setSelectedNetworkMember(reg);
+                        setNetworkSearch(name);
+                        setNetworkSearchResults([]);
+                        // Auto-expand all nodes for this member's tree
+                        const newExpanded = new Set();
+                        // Build upline keys
+                        let curr = reg;
+                        while (curr) {
+                          newExpanded.add(curr.id);
+                          const parentName = curr.referral_name;
+                          if (!parentName) break;
+                          const parent = allRegs.find(r => getResidentName(r) === parentName);
+                          if (!parent || newExpanded.has(parent.id)) break;
+                          curr = parent;
+                        }
+                        setExpandedNodes(newExpanded);
+                      }}
+                    >
+                      <span className="nsr-name">{name}</span>
+                      <span className="nsr-meta">{reg.barangay || '-'} · {reg.sector_category || '-'} · {reg.contact || 'No phone'}</span>
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+          {selectedNetworkMember && (
+            <button className="btn btn-sm btn-network-clear" onClick={() => { setSelectedNetworkMember(null); setNetworkSearch(''); }}>✕ Clear</button>
+          )}
         </div>
+
+        {/* Member Network History View */}
+        {selectedNetworkMember && (() => {
+          const reg = selectedNetworkMember;
+          const name = getResidentName(reg);
+
+          // Build upline chain (ancestors)
+          const upline = [];
+          let currReg = reg;
+          const visitedUpline = new Set();
+          while (currReg) {
+            const parentName = currReg.referral_name;
+            if (!parentName || parentName === 'No Referral') break;
+            const parent = allRegs.find(r => getResidentName(r) === parentName);
+            if (!parent || visitedUpline.has(parent.id)) break;
+            visitedUpline.add(parent.id);
+            upline.unshift(parent);
+            currReg = parent;
+          }
+
+          // Build downline tree starting from selected member
+          const renderDownline = (member, depth) => {
+            const mName = getResidentName(member);
+            const children = getChildren(mName);
+            const hasChildren = children.length > 0;
+            const nodeKey = member.id;
+            const isOpen = expandedNodes.has(nodeKey);
+            const levelLabel = depth === 0 ? 'Direct' : `L${depth + 1}`;
+            return (
+              <div key={nodeKey} className="tree-branch" style={{ marginLeft: depth * 20 }}>
+                <div className={`tree-node ${hasChildren ? 'has-children' : ''}`} onClick={() => { if (hasChildren) toggleNode(nodeKey); }}>
+                  {hasChildren ? (
+                    <span className={`tree-chevron ${isOpen ? 'open' : ''}`}>▸</span>
+                  ) : (
+                    <span className="tree-chevron-spacer" />
+                  )}
+                  {member.photo_base64 ? (
+                    <img src={member.photo_base64} alt="" className="tree-node-photo" />
+                  ) : (
+                    <div className="tree-node-placeholder">👤</div>
+                  )}
+                  <div className="tree-node-info">
+                    <span className="tree-node-name">{mName}</span>
+                    <span className="tree-node-meta">{member.barangay || '-'} · {member.sector_category} · <span className="tree-level-tag">{levelLabel}</span></span>
+                  </div>
+                  {hasChildren && <span className="tree-node-count">{children.length} downline</span>}
+                  <span className={`status-badge status-${(member.status || 'pending').toLowerCase()}`}>{member.status || 'Pending'}</span>
+                </div>
+                {isOpen && children.map(child => renderDownline(child, depth + 1))}
+              </div>
+            );
+          };
+
+          return (
+            <div className="network-history-view">
+              {/* Upline */}
+              {upline.length > 0 && (
+                <div className="network-history-section">
+                  <h4 className="network-history-title">⬆️ Upline ({upline.length})</h4>
+                  <div className="network-upline-chain">
+                    {upline.map((ancestor, i) => (
+                      <div key={ancestor.id} className="network-upline-item" style={{ marginLeft: i * 20 }}>
+                        <span className="nu-connector">{i > 0 ? '└─ ' : ''}</span>
+                        {ancestor.photo_base64 ? (
+                          <img src={ancestor.photo_base64} alt="" className="nu-photo" />
+                        ) : (
+                          <div className="nu-photo-placeholder">👤</div>
+                        )}
+                        <div className="nu-info">
+                          <span className="nu-name">{getResidentName(ancestor)}</span>
+                          <span className="nu-meta">{ancestor.barangay || '-'} · {ancestor.sector_category || '-'} · {ancestor.contact || '-'}</span>
+                        </div>
+                        <span className="nu-badge">L{i + 1} Up</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Member (Center) */}
+              <div className="network-history-section highlight">
+                <h4 className="network-history-title">👤 Selected Member</h4>
+                <div className="network-selected-card">
+                  {reg.photo_base64 ? (
+                    <img src={reg.photo_base64} alt="" className="ns-photo" />
+                  ) : (
+                    <div className="ns-photo-placeholder">👤</div>
+                  )}
+                  <div className="ns-info">
+                    <span className="ns-name">{name}</span>
+                    <span className="ns-meta">{reg.barangay || '-'} · {reg.sector_category || '-'} · {reg.contact || '-'}</span>
+                    {reg.referral_name && <span className="ns-referral">Referred by: {reg.referral_name}</span>}
+                  </div>
+                  <span className="ns-badge">Selected</span>
+                </div>
+              </div>
+
+              {/* Downline */}
+              <div className="network-history-section">
+                <h4 className="network-history-title">⬇️ Downline</h4>
+                <div className="network-downline-tree">
+                  {getChildren(name).length === 0 ? (
+                    <div className="leader-card-empty">No downline referrals</div>
+                  ) : (
+                    getChildren(name).map(child => renderDownline(child, 0))
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Recursive Tree Forest (default view when no member selected) */}
+        {!selectedNetworkMember && (
+          <div className="tree-forest">
+            {regsLoading ? <div className="table-loading">Loading...</div>
+              : allRegs.length === 0 ? <div className="table-empty">No registrations yet to build network.</div>
+                : allTimeLeaders.map(({ name, l1, l2, l3, l4plus, total }) => {
+                    const rootKey = `root:${name}`;
+                    const isOpen = expandedNodes.has(rootKey);
+                    const members = getChildren(name);
+                    return (
+                      <div key={name} className="tree-root">
+                        <div className="tree-root-header" onClick={() => toggleNode(rootKey)}>
+                          <span className={`tree-root-chevron ${isOpen ? 'open' : ''}`}>▸</span>
+                          <span className="tree-root-icon">🔺</span>
+                          <span className="tree-root-name">{name}</span>
+                          <span className="tree-root-badges">
+                            <span className="level-badge l1">L1 {l1}</span>
+                            {l2 > 0 && <span className="level-badge l2">L2 {l2}</span>}
+                            {l3 > 0 && <span className="level-badge l3">L3 {l3}</span>}
+                            {l4plus > 0 && <span className="level-badge l4">L4+ {l4plus}</span>}
+                            <span className="level-badge total">Total {total}</span>
+                          </span>
+                        </div>
+                        {isOpen && (
+                          <div className="tree-root-children">
+                            {members.map(reg => renderTreeNode(reg, 0))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+          </div>
+        )}
       </div>
     );
   };
@@ -1899,13 +2217,14 @@ export default function AdminPage() {
         event_name: newEventForm.event_name.trim(),
         event_date: newEventForm.event_date || null,
         location: newEventForm.location.trim() || null,
+        household_mode: newEventForm.household_mode || false,
         status: 'Active',
         created_by: username,
       }).select().single();
       if (error) throw error;
       showToast('Event created: ' + data.event_name, 'success');
       setShowCreateEvent(false);
-      setNewEventForm({ event_name: '', event_date: '', location: '' });
+      setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false });
       setEvents(prev => [data, ...prev]);
     } catch (err) {
       showToast('Failed to create event: ' + err.message, 'error');
@@ -1997,6 +2316,57 @@ export default function AdminPage() {
         setScanLoading(false);
         setScanToken('');
         return;
+      }
+
+      // 2b. HOUSEHOLD duplicate check — only for events in household mode (same address only)
+      if (selectedEvent.household_mode) {
+        let householdQuery = supabase
+          .from('registrations')
+          .select('id, house_no, purok, barangay, ValidResidents(first_name, last_name, middle_name)')
+          .eq('barangay', reg.barangay || '');
+        if (reg.house_no) householdQuery = householdQuery.eq('house_no', reg.house_no);
+        if (reg.purok) householdQuery = householdQuery.eq('purok', reg.purok);
+        householdQuery = householdQuery.not('id', 'eq', reg.id);
+
+        const { data: householdMembers } = await householdQuery;
+        const householdIds = (householdMembers || []).map(m => m.id);
+
+        if (householdIds.length > 0) {
+          const { data: householdScan, error: hhErr } = await supabase
+            .from('event_scans')
+            .select('scanned_at, scanned_by, registration_id')
+            .eq('event_id', selectedEvent.id)
+            .in('registration_id', householdIds)
+            .order('scanned_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (hhErr) console.warn('Household check error:', hhErr);
+
+          if (householdScan) {
+            const hhReg = householdMembers.find(m => m.id === householdScan.registration_id);
+            const hhPerson = hhReg?.ValidResidents || {};
+            const hhName = `${hhPerson.first_name || ''} ${hhPerson.middle_name ? hhPerson.middle_name + ' ' : ''}${hhPerson.last_name || ''}`.trim() || 'Family member';
+
+            setScanResult({
+              type: 'household_duplicate',
+              name: fullName,
+              barangay: person.barangay || '-',
+              purok: reg.purok || person.purok || '-',
+              houseNo: reg.house_no || '-',
+              contact: reg.contact || '-',
+              photo: reg.photo_base64 || person.photo_base64,
+              emCardNo: reg.em_card_no || '-',
+              qrToken: reg.qr_token,
+              scannedAt: householdScan.scanned_at,
+              scannedBy: householdScan.scanned_by,
+              claimedBy: hhName,
+            });
+            setScanLoading(false);
+            setScanToken('');
+            return;
+          }
+        }
       }
 
       // 3. Record the scan in event_scans (permanent lock)
@@ -2095,7 +2465,7 @@ export default function AdminPage() {
                 <div key={evt.id} className="event-card" onClick={() => { setSelectedEvent(evt); setScannerMode('scan'); localScanCountRef.current = 0; fetchEventScans(evt.id); }}>
                   <div className="event-card-icon">📅</div>
                   <div className="event-card-body">
-                    <h5>{evt.event_name}</h5>
+                    <h5>{evt.event_name} {evt.household_mode && <span className="event-badge-hh">🏠 HH</span>}</h5>
                     <p>{evt.location || 'No location'}</p>
                     <small>{evt.event_date ? new Date(evt.event_date).toLocaleDateString() : 'No date'}</small>
                   </div>
@@ -2114,6 +2484,14 @@ export default function AdminPage() {
                 <input type="text" placeholder="Event Name *" required value={newEventForm.event_name} onChange={e => setNewEventForm(p => ({ ...p, event_name: e.target.value }))} />
                 <input type="date" value={newEventForm.event_date} onChange={e => setNewEventForm(p => ({ ...p, event_date: e.target.value }))} />
                 <input type="text" placeholder="Location" value={newEventForm.location} onChange={e => setNewEventForm(p => ({ ...p, location: e.target.value }))} />
+                <label className="event-form-toggle">
+                  <input
+                    type="checkbox"
+                    checked={newEventForm.household_mode}
+                    onChange={e => setNewEventForm(p => ({ ...p, household_mode: e.target.checked }))}
+                  />
+                  <span className="toggle-label">🏠 Household Mode — One aid per household (same address only)</span>
+                </label>
                 <div className="form-actions">
                   <button type="button" className="btn btn-secondary" onClick={() => setShowCreateEvent(false)}>Cancel</button>
                   <button type="submit" className="btn btn-primary">Create Event</button>
@@ -2131,7 +2509,7 @@ export default function AdminPage() {
         {/* Scanner Header */}
         <div className="event-scanner-header">
           <div>
-            <h3><ScanLine size={22} /> {selectedEvent.event_name}</h3>
+            <h3><ScanLine size={22} /> {selectedEvent.event_name} {selectedEvent.household_mode && <span className="event-badge-hh">🏠 Household</span>}</h3>
             <p>{selectedEvent.location || ''} {selectedEvent.event_date ? '• ' + new Date(selectedEvent.event_date).toLocaleDateString() : ''}</p>
           </div>
           <div className="event-scanner-actions">
@@ -2192,6 +2570,36 @@ export default function AdminPage() {
                     <p>At <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
                     {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
                     <p className="duplicate-stop">❌ DO NOT DISTRIBUTE — This resident has already received items.</p>
+                  </div>
+                  <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
+                </div>
+              </>
+            )}
+
+            {scanResult.type === 'household_duplicate' && (
+              <>
+                <div className="scan-result-badge household-duplicate"><AlertTriangle size={32} /> HOUSEHOLD ALREADY CLAIMED — STOP</div>
+                <div className="scan-result-profile">
+                  <div className="scan-result-photo">
+                    {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
+                  </div>
+                  <div className="scan-result-info">
+                    <h2>{scanResult.name}</h2>
+                    <div className="scan-result-meta-grid">
+                      <span><MapPin size={14} /> {scanResult.barangay}</span>
+                      <span>🏠 {scanResult.houseNo}</span>
+                      <span>📍 {scanResult.purok}</span>
+                      <span><Phone size={14} /> {scanResult.contact}</span>
+                      <span>💳 {scanResult.emCardNo}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="scan-result-footer duplicate-footer">
+                  <div className="duplicate-warning">
+                    <strong>🏠 HOUSEHOLD AID ALREADY CLAIMED</strong>
+                    <p>Claimed by <strong>{scanResult.claimedBy}</strong> at <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
+                    {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
+                    <p className="duplicate-stop">❌ DO NOT DISTRIBUTE — Another household member already received items.</p>
                   </div>
                   <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
                 </div>
@@ -2305,6 +2713,36 @@ export default function AdminPage() {
                               <p>At <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
                               {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
                               <p className="duplicate-stop">❌ DO NOT DISTRIBUTE</p>
+                            </div>
+                            <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
+                          </div>
+                        </>
+                      )}
+
+                      {scanResult.type === 'household_duplicate' && (
+                        <>
+                          <div className="scan-result-badge household-duplicate"><AlertTriangle size={32} /> HOUSEHOLD CLAIMED — STOP</div>
+                          <div className="scan-result-profile">
+                            <div className="scan-result-photo">
+                              {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
+                            </div>
+                            <div className="scan-result-info">
+                              <h2>{scanResult.name}</h2>
+                              <div className="scan-result-meta-grid">
+                                <span><MapPin size={14} /> {scanResult.barangay}</span>
+                                <span>🏠 {scanResult.houseNo}</span>
+                                <span>📍 {scanResult.purok}</span>
+                                <span><Phone size={14} /> {scanResult.contact}</span>
+                                <span>💳 {scanResult.emCardNo}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="scan-result-footer duplicate-footer">
+                            <div className="duplicate-warning">
+                              <strong>🏠 HOUSEHOLD AID ALREADY CLAIMED</strong>
+                              <p>Claimed by <strong>{scanResult.claimedBy}</strong> at <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
+                              {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
+                              <p className="duplicate-stop">❌ DO NOT DISTRIBUTE — Another household member already received items.</p>
                             </div>
                             <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
                           </div>
@@ -2491,18 +2929,6 @@ export default function AdminPage() {
             </button>
           ))}
         </nav>
-
-        {/* Promo Card */}
-        <div className="sidebar-promo">
-          <div className="sidebar-promo-icon"><ShieldCheck size={24} /></div>
-          <h4>Building a stronger community together</h4>
-          <p>Your work helps empower thousands of families.</p>
-          <div className="sidebar-promo-dots">
-            <span className="sidebar-promo-dot active"></span>
-            <span className="sidebar-promo-dot"></span>
-            <span className="sidebar-promo-dot"></span>
-          </div>
-        </div>
 
         <div className="sidebar-footer">
           <div className="sidebar-user">

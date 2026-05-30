@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS scan_events (
   event_date DATE,
   location TEXT,
   status TEXT DEFAULT 'Active' CHECK (status IN ('Active', 'Closed')),
+  household_mode BOOLEAN DEFAULT false,
   created_by TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
