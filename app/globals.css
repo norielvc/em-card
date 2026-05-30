@@ -7549,3 +7549,95 @@ p {
   font-weight: 600;
   margin-bottom: 16px;
 }
+
+/* Camera Scanner UI */
+.scanner-mode-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.scanner-mode-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--white);
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.scanner-mode-toggle button.active {
+  background: var(--emerald);
+  color: var(--white);
+  border-color: var(--emerald);
+}
+
+.scanner-mode-toggle button:hover:not(.active) {
+  border-color: var(--emerald);
+  color: var(--green-deep);
+}
+
+.camera-scanner-container {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto 16px;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--green-black);
+  border: 3px solid var(--emerald);
+}
+
+.camera-viewport {
+  width: 100%;
+  height: 100%;
+}
+
+.camera-viewport video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+.camera-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  text-align: center;
+  padding: 24px;
+}
+
+.camera-placeholder svg {
+  margin-bottom: 16px;
+  opacity: 0.7;
+}
+
+.camera-placeholder p {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.camera-placeholder small {
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.camera-hint {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 8px;
+}

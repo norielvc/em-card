@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine, Camera } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function AdminPage() {
@@ -80,6 +80,9 @@ export default function AdminPage() {
   const [newEventForm, setNewEventForm] = useState({ event_name: '', event_date: '', location: '' });
   const [eventScans, setEventScans] = useState([]);
   const [scanStats, setScanStats] = useState({ total: 0, duplicates: 0 });
+  const [scannerInputMode, setScannerInputMode] = useState('camera'); // 'camera' | 'manual'
+  const [cameraActive, setCameraActive] = useState(false);
+  const scannerRef = useRef(null);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -129,6 +132,47 @@ export default function AdminPage() {
       fetchMessages();
     }
   }, [activeTab, msgTab]);
+
+  // Camera QR Scanner initialization
+  useEffect(() => {
+    let html5QrCode;
+    const startCamera = async () => {
+      if (scannerInputMode !== 'camera' || !selectedEvent) return;
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        html5QrCode = new Html5Qrcode('event-scanner-camera');
+        scannerRef.current = html5QrCode;
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            handleEventScan(decodedText);
+          },
+          () => {}
+        );
+        setCameraActive(true);
+      } catch (err) {
+        console.warn('Camera init failed:', err);
+        setCameraActive(false);
+      }
+    };
+
+    const stopCamera = async () => {
+      if (html5QrCode) {
+        try { await html5QrCode.stop(); } catch (e) {}
+        try { await html5QrCode.clear(); } catch (e) {}
+      }
+      setCameraActive(false);
+    };
+
+    if (scannerInputMode === 'camera' && selectedEvent && !scanResult) {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+
+    return () => { stopCamera(); };
+  }, [scannerInputMode, selectedEvent, scanResult]);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -1813,21 +1857,56 @@ export default function AdminPage() {
         {/* Scan Input */}
         {!scanResult && (
           <div className="scan-input-panel">
-            <div className="scan-input-icon"><ScanLine size={40} /></div>
-            <h4>Scan EM Card QR Code</h4>
-            <p>Point the QR scanner at the resident's EM Card</p>
-            <form onSubmit={e => { e.preventDefault(); handleEventScan(scanToken); }}>
-              <input
-                type="text"
-                value={scanToken}
-                onChange={e => setScanToken(e.target.value)}
-                placeholder="Tap here and scan QR code..."
-                className="scan-token-input"
-                autoFocus
-                autoComplete="off"
-              />
-              {scanLoading && <div className="scan-spinner">Verifying...</div>}
-            </form>
+            {/* Mode Toggle */}
+            <div className="scanner-mode-toggle">
+              <button
+                className={scannerInputMode === 'camera' ? 'active' : ''}
+                onClick={() => setScannerInputMode('camera')}
+              >
+                <Camera size={16} /> Camera
+              </button>
+              <button
+                className={scannerInputMode === 'manual' ? 'active' : ''}
+                onClick={() => setScannerInputMode('manual')}
+              >
+                <ScanLine size={16} /> Manual
+              </button>
+            </div>
+
+            {scannerInputMode === 'camera' ? (
+              <>
+                <div className="camera-scanner-container">
+                  <div id="event-scanner-camera" className="camera-viewport"></div>
+                  {!cameraActive && (
+                    <div className="camera-placeholder">
+                      <Camera size={48} />
+                      <p>Allow camera access to scan QR codes</p>
+                      <small>If camera doesn't start, switch to Manual mode</small>
+                    </div>
+                  )}
+                </div>
+                <p className="camera-hint">Point camera at the resident's EM Card QR code</p>
+              </>
+            ) : (
+              <>
+                <div className="scan-input-icon"><ScanLine size={40} /></div>
+                <h4>Manual QR Entry</h4>
+                <p>Type or paste the QR token from the EM Card</p>
+                <form onSubmit={e => { e.preventDefault(); handleEventScan(scanToken); }}>
+                  <input
+                    type="text"
+                    value={scanToken}
+                    onChange={e => setScanToken(e.target.value)}
+                    placeholder="Enter QR token (e.g., EM...)"
+                    className="scan-token-input"
+                    autoFocus
+                    autoComplete="off"
+                  />
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: 12 }}>Verify</button>
+                </form>
+                {scanLoading && <div className="scan-spinner">Verifying...</div>}
+              </>
+            )}
           </div>
         )}
 
