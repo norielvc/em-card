@@ -6,6 +6,15 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
+// Log provider config at startup (key masked)
+const semaphoreKey = process.env.SEMAPHORE_API_KEY;
+console.log('[SMS] Provider config:', {
+  SMS_PROVIDER: process.env.SMS_PROVIDER,
+  SEMAPHORE_API_KEY: semaphoreKey ? `${semaphoreKey.slice(0, 4)}...${semaphoreKey.slice(-4)}` : 'NOT SET',
+  SEMAPHORE_SENDER_NAME: process.env.SEMAPHORE_SENDER_NAME || 'NOT SET',
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ? 'SET' : 'NOT SET',
+});
+
 /**
  * Send SMS via Twilio
  */
@@ -46,6 +55,8 @@ async function sendSemaphore(phone, body) {
   const apiKey = process.env.SEMAPHORE_API_KEY;
   const senderName = process.env.SEMAPHORE_SENDER_NAME || 'SEMAPHORE';
 
+  console.log('[Semaphore] Starting send. API key present:', !!apiKey, '| Sender:', senderName);
+
   if (!apiKey) {
     throw new Error('Semaphore API key not configured');
   }
@@ -58,31 +69,51 @@ async function sendSemaphore(phone, body) {
     formattedPhone = '63' + formattedPhone;
   }
 
+  const payload = {
+    apikey: apiKey,
+    number: formattedPhone,
+    message: body,
+    sendername: senderName,
+  };
+  console.log('[Semaphore] Request payload:', JSON.stringify({ ...payload, apikey: '***MASKED***' }));
+
   const response = await fetch('https://api.semaphore.co/api/v4/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      apikey: apiKey,
-      number: formattedPhone,
-      message: body,
-      sendername: senderName,
-    }),
+    body: JSON.stringify(payload),
   });
 
-  const data = await response.json();
-  console.log('[Semaphore] API response:', JSON.stringify(data));
+  const responseText = await response.text();
+  console.log('[Semaphore] Raw response text:', responseText);
+  console.log('[Semaphore] HTTP status:', response.status, response.statusText);
+
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch (e) {
+    console.error('[Semaphore] Failed to parse JSON response:', e.message);
+    throw new Error(`Semaphore returned non-JSON: ${responseText.slice(0, 200)}`);
+  }
 
   // Semaphore may return 200 but with error in body
   if (!response.ok) {
-    throw new Error(data.message || data.error || `Semaphore HTTP error: ${response.status}`);
-  }
-  // Check for API-level errors even with 200 status
-  if (data && (data.error || data.status === 'error' || data.message === 'Invalid API Key')) {
-    throw new Error(data.message || data.error || 'Semaphore API error');
+    const errMsg = data?.message || data?.error || `Semaphore HTTP error: ${response.status}`;
+    console.error('[Semaphore] HTTP error:', errMsg);
+    throw new Error(errMsg);
   }
 
-  const sid = data.message_id || (Array.isArray(data) ? data[0]?.message_id : null);
-  return { sid: sid || 'unknown', status: data.status || 'sent' };
+  // Check for API-level errors even with 200 status
+  if (data && (data.error || data.status === 'error' || data.message === 'Invalid API Key')) {
+    const errMsg = data.message || data.error || 'Semaphore API error';
+    console.error('[Semaphore] API error in body:', errMsg);
+    throw new Error(errMsg);
+  }
+
+  // Semaphore returns array on success: [{ message_id, status, ... }]
+  const sid = data?.message_id || (Array.isArray(data) ? data[0]?.message_id : null);
+  const status = data?.status || (Array.isArray(data) ? data[0]?.status : 'sent') || 'sent';
+  console.log('[Semaphore] Success — sid:', sid, '| status:', status);
+  return { sid: sid || 'unknown', status };
 }
 
 /**
@@ -99,16 +130,17 @@ async function sendMock(phone, body) {
  * Determine which provider to use
  */
 function getProvider() {
-  if (process.env.SMS_PROVIDER === 'mock') {
-    return 'mock';
-  }
-  if (process.env.SMS_PROVIDER === 'semaphore' || process.env.SEMAPHORE_API_KEY) {
-    return 'semaphore';
-  }
-  if (process.env.TWILIO_ACCOUNT_SID) {
-    return 'twilio';
-  }
-  return null;
+  const providerEnv = process.env.SMS_PROVIDER;
+  const hasSemaphoreKey = !!process.env.SEMAPHORE_API_KEY;
+  const hasTwilio = !!process.env.TWILIO_ACCOUNT_SID;
+
+  let chosen = null;
+  if (providerEnv === 'mock') chosen = 'mock';
+  else if (providerEnv === 'semaphore' || hasSemaphoreKey) chosen = 'semaphore';
+  else if (hasTwilio) chosen = 'twilio';
+
+  console.log('[SMS] getProvider() =>', chosen, { providerEnv, hasSemaphoreKey, hasTwilio });
+  return chosen;
 }
 
 /**
@@ -116,10 +148,12 @@ function getProvider() {
  */
 async function sendSMS(phone, body) {
   const provider = getProvider();
+  console.log('[SMS] sendSMS() provider:', provider, '| phone:', phone);
   if (!provider) {
     throw new Error('No SMS provider configured. Add Twilio or Semaphore credentials.');
   }
   if (provider === 'mock') {
+    console.log('[SMS] Using MOCK provider — NO REAL SMS SENT');
     return sendMock(phone, body);
   }
   if (provider === 'semaphore') {
@@ -283,6 +317,7 @@ export async function POST(request) {
 
     // 4. Send SMS in background (non-blocking)
     // We don't await this - it runs in background
+    console.log('[SMS] Starting background send for message:', messageRecord.id, '| recipients:', (recipientRecords || []).length, '| provider:', getProvider());
     sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody);
 
     return Response.json({
@@ -290,6 +325,7 @@ export async function POST(request) {
       messageId: messageRecord.id,
       totalRecipients: validRecipients.length,
       status: 'sending',
+      provider: getProvider(),
     });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
@@ -303,9 +339,13 @@ async function sendMessagesAsync(messageId, recipients, body) {
   let sentCount = 0;
   let failedCount = 0;
 
+  console.log('[SMS] Background send started. Message:', messageId, '| Recipients:', recipients.length);
+
   for (const recipient of recipients) {
+    console.log('[SMS] Sending to:', recipient.phone_number, '| name:', recipient.resident_name);
     try {
       const result = await sendSMS(recipient.phone_number, body);
+      console.log('[SMS] Success for', recipient.phone_number, '| result:', JSON.stringify(result));
 
       // Update recipient status
       await supabase
@@ -319,6 +359,7 @@ async function sendMessagesAsync(messageId, recipients, body) {
 
       sentCount++;
     } catch (err) {
+      console.error('[SMS] FAILED for', recipient.phone_number, '| error:', err.message);
       await supabase
         .from('message_recipients')
         .update({
@@ -331,6 +372,8 @@ async function sendMessagesAsync(messageId, recipients, body) {
       failedCount++;
     }
   }
+
+  console.log('[SMS] Background send complete. sent:', sentCount, '| failed:', failedCount);
 
   // Update message summary
   await supabase
