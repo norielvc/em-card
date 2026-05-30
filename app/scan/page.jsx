@@ -45,7 +45,7 @@ export default function ScanPage() {
       // Look up the card by QR token
       const { data: reg, error: regErr } = await supabase
         .from('registrations')
-        .select('*, ValidResidents(first_name, last_name, middle_name, barangay, purok, photo_base64)')
+        .select('*, ValidResidents(first_name, last_name, middle_name, barangay)')
         .ilike('qr_token', cleanToken)
         .eq('status', 'Approved')
         .maybeSingle();

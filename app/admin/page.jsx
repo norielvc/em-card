@@ -188,7 +188,7 @@ export default function AdminPage() {
       // Recent registrations (still fetch directly — small data)
       const { data: recentData } = await supabase
         .from('registrations')
-        .select('*, ValidResidents(first_name, last_name, middle_name)')
+        .select('id, resident_id, house_no, purok, barangay, contact, status, sector_category, referral_name, photo_base64, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, barangay)')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -238,7 +238,7 @@ export default function AdminPage() {
     try {
       const { data } = await supabase
         .from('registrations')
-        .select('id, resident_id, house_no, purok, barangay, contact, status, sector_category, referral_name, photo_base64, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, barangay)')
+        .select('id, resident_id, house_no, purok, barangay, contact, status, sector_category, referral_name, photo_base64, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, barangay)')
         .order('created_at', { ascending: false });
       setAllRegs(data || []);
     } catch (err) {
@@ -1600,7 +1600,7 @@ export default function AdminPage() {
       // 1. Look up registration by QR token
       const { data: reg, error: regErr } = await supabase
         .from('registrations')
-        .select('*, ValidResidents(first_name, last_name, middle_name, barangay, purok, photo_base64)')
+        .select('*, ValidResidents(first_name, last_name, middle_name, barangay)')
         .ilike('qr_token', cleanToken)
         .eq('status', 'Approved')
         .maybeSingle();
