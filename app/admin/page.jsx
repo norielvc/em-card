@@ -144,26 +144,40 @@ export default function AdminPage() {
         const { Html5Qrcode } = await import('html5-qrcode');
         html5QrCode = new Html5Qrcode('event-scanner-camera');
         scannerRef.current = html5QrCode;
-        await html5QrCode.start(
-          { facingMode: 'environment' },
-          {
-            fps: 25,
-            qrbox: 320,
-            aspectRatio: 1.777,
-            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-            videoConstraints: {
-              focusMode: 'continuous',
-              advanced: [{ focusMode: 'continuous' }]
-            }
-          },
-          (decodedText) => {
-            if (scanInProgressRef.current) return;
-            scanInProgressRef.current = true;
-            // Keep camera running to preserve autofocus; additional frames are ignored by the lock
-            handleEventScan(decodedText);
-          },
-          (_frameErr) => { /* ignore per-frame decode errors for performance */ }
-        );
+        // Prefer back camera when available
+        let backCamId = null;
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (Array.isArray(cameras) && cameras.length > 0) {
+            const backCandidate = cameras.find(c => /back|rear|environment|world/i.test(c.label || ''));
+            backCamId = (backCandidate || cameras[cameras.length - 1]).id;
+          }
+        } catch (_) {}
+
+        const commonConfig = {
+          fps: 25,
+          qrbox: 320,
+          aspectRatio: 1.777,
+          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+          videoConstraints: {
+            focusMode: 'continuous',
+            advanced: [{ focusMode: 'continuous' }]
+          }
+        };
+
+        const onDecode = (decodedText) => {
+          if (scanInProgressRef.current) return;
+          scanInProgressRef.current = true;
+          handleEventScan(decodedText);
+        };
+
+        const onErrorFrame = (_frameErr) => {};
+
+        if (backCamId) {
+          await html5QrCode.start(backCamId, commonConfig, onDecode, onErrorFrame);
+        } else {
+          await html5QrCode.start({ facingMode: 'environment' }, commonConfig, onDecode, onErrorFrame);
+        }
         setCameraActive(true);
         cameraReadyRef.current = true;
       } catch (err) {
