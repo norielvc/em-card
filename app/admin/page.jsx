@@ -67,6 +67,7 @@ export default function AdminPage() {
   const [msgRecipients, setMsgRecipients] = useState([]);
   const [msgUserSearch, setMsgUserSearch] = useState('');
   const [msgUserResults, setMsgUserResults] = useState([]);
+  const [smsProvider, setSmsProvider] = useState(null); // { provider, configured, senderName }
 
   // Event Scanner
   const [events, setEvents] = useState([]);
@@ -144,6 +145,16 @@ export default function AdminPage() {
       fetchMessages();
     }
   }, [activeTab, msgTab]);
+
+  // Check SMS provider status when opening Messages tab
+  useEffect(() => {
+    if (activeTab === 'messages') {
+      fetch('/api/send-sms?status=1')
+        .then(r => r.json())
+        .then(data => setSmsProvider(data))
+        .catch(() => setSmsProvider({ configured: false }));
+    }
+  }, [activeTab]);
 
   // ─── Continuous Live Camera Stream ───
   const stopScanner = async () => {
@@ -1383,6 +1394,24 @@ export default function AdminPage() {
 
         {msgTab === 'compose' && (
           <div className="msg-compose-wrap">
+            {/* SMS Provider Status Banner */}
+            {smsProvider && (
+              <div className={`sms-provider-banner ${smsProvider.configured ? 'ok' : 'warn'}`}>
+                {smsProvider.configured ? (
+                  <>
+                    <span className="sms-provider-dot ok" />
+                    <strong>Provider: {smsProvider.provider?.toUpperCase()}</strong>
+                    {smsProvider.senderName && <span> · Sender: {smsProvider.senderName}</span>}
+                  </>
+                ) : (
+                  <>
+                    <span className="sms-provider-dot warn" />
+                    <strong>SMS not configured</strong>
+                    <span> · Add SEMAPHORE_API_KEY to Vercel env vars</span>
+                  </>
+                )}
+              </div>
+            )}
             <form onSubmit={handleSendMessage} className="msg-compose-form">
               <div className="msg-type-selector">
                 {Object.entries(typeLabels).map(([key, label]) => (

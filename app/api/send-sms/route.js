@@ -134,6 +134,17 @@ async function sendSMS(phone, body) {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
+
+    // Check provider configuration status (no secrets exposed)
+    if (searchParams.get('status') === '1') {
+      const provider = getProvider();
+      return Response.json({
+        provider,
+        configured: !!provider,
+        senderName: process.env.SEMAPHORE_SENDER_NAME || process.env.TWILIO_PHONE_NUMBER || null,
+      });
+    }
+
     const messageId = searchParams.get('message_id');
 
     if (messageId) {
