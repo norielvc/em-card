@@ -52,15 +52,20 @@ async function sendTwilio(phone, body) {
  * Docs: https://semaphore.co/docs
  */
 async function _semaphoreCall(apiKey, phone, body, senderName) {
+  const params = new URLSearchParams({
+    apikey: apiKey,
+    number: phone,
+    message: body,
+  });
+  if (senderName) {
+    params.append('sendername', senderName);
+  }
+  console.log('[Semaphore] Calling API with sender:', senderName || '(default)');
+
   const response = await fetch('https://api.semaphore.co/api/v4/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      apikey: apiKey,
-      number: phone,
-      message: body,
-      sendername: senderName,
-    }),
+    body: params,
   });
 
   const responseText = await response.text();
@@ -81,15 +86,32 @@ async function _semaphoreCall(apiKey, phone, body, senderName) {
     throw new Error(errMsg);
   }
 
-  if (data && (data.error || data.status === 'error' || data.message === 'Invalid API Key')) {
-    const errMsg = data.message || data.error || 'Semaphore API error';
-    console.error('[Semaphore] API error in body:', errMsg);
+  // Semaphore error responses come in many shapes:
+  // { message: "Invalid sender name" }
+  // { error: "Insufficient balance" }
+  // { status: "error", message: "..." }
+  // [{ error: "..." }]
+  // [{ message: "..." }]
+  const isErrorObj = data && (data.error || data.message || data.status === 'error');
+  const isErrorArr = Array.isArray(data) && data.length > 0 && (data[0].error || data[0].message || data[0].status === 'error');
+
+  if (isErrorObj || isErrorArr) {
+    const errMsg = data?.message || data?.error || data?.[0]?.message || data?.[0]?.error || 'Semaphore API error';
+    console.error('[Semaphore] API error in body:', errMsg, '| Full data:', JSON.stringify(data));
     throw new Error(errMsg);
   }
 
-  const sid = data?.message_id || (Array.isArray(data) ? data[0]?.message_id : null);
-  const status = data?.status || (Array.isArray(data) ? data[0]?.status : 'sent') || 'sent';
-  return { sid: sid || 'unknown', status, data };
+  // Success: Semaphore returns [{ message_id, status, ... }]
+  const sid = Array.isArray(data) ? data[0]?.message_id : data?.message_id;
+  const status = Array.isArray(data) ? data[0]?.status : data?.status;
+
+  if (!sid) {
+    console.error('[Semaphore] No message_id in response. Data:', JSON.stringify(data));
+    throw new Error(`Unexpected Semaphore response (no message_id): ${JSON.stringify(data).slice(0, 200)}`);
+  }
+
+  console.log('[Semaphore] Success — sid:', sid, '| status:', status);
+  return { sid, status: status || 'sent', data };
 }
 
 async function sendSemaphore(phone, body) {
@@ -110,23 +132,24 @@ async function sendSemaphore(phone, body) {
     formattedPhone = '63' + formattedPhone;
   }
 
-  // Try custom sender name first (must be pre-approved by Semaphore)
-  if (customSender && customSender !== 'SEMAPHORE') {
+  // Fallback chain: custom sender → SEMAPHORE → no sendername (Semaphore default)
+  const sendersToTry = [];
+  if (customSender && customSender !== 'SEMAPHORE') sendersToTry.push(customSender);
+  sendersToTry.push('SEMAPHORE');
+  sendersToTry.push(null); // no sendername = Semaphore default
+
+  for (const sender of sendersToTry) {
     try {
-      console.log('[Semaphore] Trying custom sender:', customSender);
-      const result = await _semaphoreCall(apiKey, formattedPhone, body, customSender);
-      console.log('[Semaphore] Success with custom sender — sid:', result.sid, '| status:', result.status);
+      console.log('[Semaphore] Trying sender:', sender || '(default)');
+      const result = await _semaphoreCall(apiKey, formattedPhone, body, sender);
+      console.log('[Semaphore] Success — sid:', result.sid, '| status:', result.status);
       return { sid: result.sid, status: result.status };
     } catch (err) {
-      console.warn('[Semaphore] Custom sender failed:', err.message, '| Retrying with SEMAPHORE...');
+      console.warn('[Semaphore] Failed with sender', sender || '(default)', ':', err.message);
     }
   }
 
-  // Fallback to default SEMAPHORE sender
-  console.log('[Semaphore] Trying default sender: SEMAPHORE');
-  const result = await _semaphoreCall(apiKey, formattedPhone, body, 'SEMAPHORE');
-  console.log('[Semaphore] Success with default sender — sid:', result.sid, '| status:', result.status);
-  return { sid: result.sid, status: result.status };
+  throw new Error('All Semaphore sender options failed. Register a sender name at https://semaphore.co/account#sendernames or check your API key.');
 }
 
 /**
