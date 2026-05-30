@@ -79,8 +79,8 @@ async function sendSemaphore(phone, body) {
 
   const response = await fetch('https://api.semaphore.co/api/v4/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(payload),
   });
 
   const responseText = await response.text();
@@ -315,10 +315,21 @@ export async function POST(request) {
 
     if (recError) throw recError;
 
-    // 4. Send SMS in background (non-blocking)
-    // We don't await this - it runs in background
-    console.log('[SMS] Starting background send for message:', messageRecord.id, '| recipients:', (recipientRecords || []).length, '| provider:', getProvider());
-    sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody);
+    // 4. Send SMS
+    const totalRecipients = (recipientRecords || []).length;
+    console.log('[SMS] Starting send for message:', messageRecord.id, '| recipients:', totalRecipients, '| provider:', getProvider());
+
+    // For small sends (test / 1-10 recipients), send synchronously so Vercel
+    // doesn't freeze the function before the SMS API call completes.
+    // For bulk sends (>10), fire-and-forget with best-effort background send.
+    if (totalRecipients <= 10) {
+      console.log('[SMS] Awaiting synchronous send (small batch)...');
+      await sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody);
+      console.log('[SMS] Synchronous send complete.');
+    } else {
+      console.log('[SMS] Background send (large batch) — may not complete on Vercel serverless');
+      sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody);
+    }
 
     return Response.json({
       success: true,
