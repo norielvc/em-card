@@ -84,6 +84,7 @@ export default function AdminPage() {
   const [cameraActive, setCameraActive] = useState(false);
   const scannerRef = useRef(null);
   const scanInProgressRef = useRef(false);
+  const cameraReadyRef = useRef(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -138,7 +139,7 @@ export default function AdminPage() {
   useEffect(() => {
     let html5QrCode;
     const startCamera = async () => {
-      if (scannerInputMode !== 'camera' || !selectedEvent || cameraActive) return;
+      if (scannerInputMode !== 'camera' || !selectedEvent || cameraReadyRef.current) return;
       try {
         const { Html5Qrcode } = await import('html5-qrcode');
         html5QrCode = new Html5Qrcode('event-scanner-camera');
@@ -164,6 +165,7 @@ export default function AdminPage() {
           (_frameErr) => { /* ignore per-frame decode errors for performance */ }
         );
         setCameraActive(true);
+        cameraReadyRef.current = true;
       } catch (err) {
         console.warn('Camera init failed:', err);
         setCameraActive(false);
@@ -171,12 +173,14 @@ export default function AdminPage() {
     };
 
     const stopCamera = async () => {
+      if (!cameraReadyRef.current) { setCameraActive(false); return; }
       const instance = scannerRef.current;
       if (instance) {
         try { await instance.stop(); } catch (e) {}
         try { await instance.clear(); } catch (e) {}
       }
       setCameraActive(false);
+      cameraReadyRef.current = false;
     };
 
     if (scannerInputMode === 'camera' && selectedEvent) {
@@ -186,7 +190,7 @@ export default function AdminPage() {
     }
 
     return () => { stopCamera(); };
-  }, [scannerInputMode, selectedEvent, cameraActive]);
+  }, [scannerInputMode, selectedEvent]);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
