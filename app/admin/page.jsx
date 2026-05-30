@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine, Camera } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine, Camera, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function AdminPage() {
@@ -136,6 +136,44 @@ export default function AdminPage() {
   // ─── Camera Capture (Photo-based QR Scan) ───
   const stopScanner = async () => {
     // No-op: we no longer run a continuous camera stream
+  };
+
+  // Resize image to prevent OOM crash from high-res phone photos
+  const resizeImage = (file, maxDim = 1024) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+          } else {
+            reject(new Error('Canvas toBlob failed'));
+          }
+        }, 'image/jpeg', 0.85);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Image load failed'));
+      };
+      img.src = url;
+    });
   };
 
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -1865,9 +1903,11 @@ export default function AdminPage() {
                     if (!file) return;
                     setScanLoading(true);
                     try {
+                      // Resize image to prevent OOM crash from high-res phone photos
+                      const resized = await resizeImage(file, 1024);
                       const { Html5Qrcode } = await import('html5-qrcode');
-                      const reader = new Html5Qrcode('__dummy__'); // dummy element id for file-only mode
-                      const decodedText = await reader.scanFile(file, false);
+                      const reader = new Html5Qrcode('qr-file-scanner');
+                      const decodedText = await reader.scanFile(resized, false);
                       if (decodedText) {
                         handleEventScan(decodedText);
                       }
@@ -1880,6 +1920,8 @@ export default function AdminPage() {
                     }
                   }}
                 />
+                {/* Hidden element required by Html5Qrcode constructor for file scanning */}
+                <div id="qr-file-scanner" style={{ display: 'none' }}></div>
                 <div className="camera-scanner-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
                   <Camera size={64} style={{ opacity: 0.5 }} />
                   <h4 style={{ margin: 0 }}>Capture QR Code</h4>
