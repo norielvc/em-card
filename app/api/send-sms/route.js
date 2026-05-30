@@ -418,11 +418,11 @@ export async function POST(request) {
     let sendResults = null;
     if (totalRecipients <= 10) {
       console.log('[SMS] Awaiting synchronous send (small batch)...');
-      sendResults = await sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody);
+      sendResults = await sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody, validRecipients);
       console.log('[SMS] Synchronous send complete. Results:', JSON.stringify(sendResults));
     } else {
       console.log('[SMS] Background send (large batch) — may not complete on Vercel serverless');
-      sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody);
+      sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody, validRecipients);
     }
 
     return Response.json({
@@ -441,17 +441,27 @@ export async function POST(request) {
 /**
  * Background task: send SMS to all recipients
  */
-async function sendMessagesAsync(messageId, recipients, body) {
+async function sendMessagesAsync(messageId, recipients, body, validRecipients = null) {
   let sentCount = 0;
   let failedCount = 0;
   const results = [];
 
   console.log('[SMS] Background send started. Message:', messageId, '| Recipients:', recipients.length);
 
-  for (const recipient of recipients) {
+  for (let i = 0; i < recipients.length; i++) {
+    const recipient = recipients[i];
+    let messageBody = body;
+
+    // Template replacement if validRecipients data provided (birthday personalization)
+    if (validRecipients && validRecipients[i]) {
+      const firstName = validRecipients[i]?.ValidResidents?.first_name || '';
+      messageBody = body.replace(/\{firstName\}/g, firstName);
+      console.log('[SMS] Personalized message for', recipient.phone_number, ':', messageBody.substring(0, 60) + '...');
+    }
+
     console.log('[SMS] Sending to:', recipient.phone_number, '| name:', recipient.resident_name);
     try {
-      const result = await sendSMS(recipient.phone_number, body);
+      const result = await sendSMS(recipient.phone_number, messageBody);
       console.log('[SMS] Success for', recipient.phone_number, '| result:', JSON.stringify(result));
 
       // Update recipient status

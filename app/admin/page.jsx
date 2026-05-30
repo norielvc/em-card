@@ -72,7 +72,7 @@ export default function AdminPage() {
   // Birthday SMS
   const [birthdayRecipients, setBirthdayRecipients] = useState([]);
   const [birthdayLoading, setBirthdayLoading] = useState(false);
-  const [birthdayMessage, setBirthdayMessage] = useState('Happy Birthday! Wishing you a wonderful day filled with joy and blessings. - EM-CARD');
+  const [birthdayMessage, setBirthdayMessage] = useState('Maligayang Kaarawan {firstName}! Nawa\'y puno ng pag-ibig, saya, at biyaya ang iyong araw. Mula sa EM-CARD family.');
   const [birthdaySending, setBirthdaySending] = useState(false);
 
   // Event Scanner
@@ -1657,6 +1657,7 @@ export default function AdminPage() {
 
                 <div className="msg-birthday-compose">
                   <label className="msg-label">Birthday Message</label>
+                  <p className="msg-birthday-hint">Use <code>{`{firstName}`}</code> to automatically insert each celebrator's first name.</p>
                   <textarea
                     className="msg-textarea"
                     placeholder="Type your birthday greeting..."
