@@ -9,7 +9,8 @@ ALTER TABLE registrations
   ADD COLUMN IF NOT EXISTS em_card_no TEXT UNIQUE,
   ADD COLUMN IF NOT EXISTS last_scanned_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS scan_count INTEGER DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS scan_event TEXT;
+  ADD COLUMN IF NOT EXISTS scan_event TEXT,
+  ADD COLUMN IF NOT EXISTS sector_category TEXT;
 
 -- Create grievances / suggestions table
 CREATE TABLE IF NOT EXISTS grievances (
@@ -84,6 +85,65 @@ CREATE POLICY IF NOT EXISTS "Allow authenticated select event_scans"
 
 CREATE POLICY IF NOT EXISTS "Allow authenticated insert event_scans"
   ON event_scans FOR INSERT TO authenticated WITH CHECK (true);
+
+-- ─── SMS MESSAGING TABLES ───
+
+CREATE TABLE IF NOT EXISTS messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT,
+  body TEXT NOT NULL,
+  type TEXT DEFAULT 'broadcast' CHECK (type IN ('broadcast', 'announcement', 'event_reminder', 'emergency')),
+  status TEXT DEFAULT 'sending' CHECK (status IN ('sending', 'sent', 'failed', 'draft')),
+  target_type TEXT DEFAULT 'all',
+  target_value TEXT,
+  total_recipients INTEGER DEFAULT 0,
+  sent_count INTEGER DEFAULT 0,
+  failed_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  sent_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS message_recipients (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id UUID REFERENCES messages(id) ON DELETE CASCADE,
+  registration_id UUID REFERENCES registrations(id) ON DELETE SET NULL,
+  resident_id UUID,
+  phone_number TEXT NOT NULL,
+  resident_name TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+  provider_response JSONB,
+  error_message TEXT,
+  sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Performance indexes for SMS tables
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status);
+CREATE INDEX IF NOT EXISTS idx_message_recipients_message_id ON message_recipients(message_id);
+CREATE INDEX IF NOT EXISTS idx_message_recipients_status ON message_recipients(status);
+
+-- RLS Policies for SMS tables
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE message_recipients ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY IF NOT EXISTS "Allow authenticated select messages"
+  ON messages FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY IF NOT EXISTS "Allow authenticated insert messages"
+  ON messages FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY IF NOT EXISTS "Allow authenticated update messages"
+  ON messages FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+
+CREATE POLICY IF NOT EXISTS "Allow authenticated select message_recipients"
+  ON message_recipients FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY IF NOT EXISTS "Allow authenticated insert message_recipients"
+  ON message_recipients FOR INSERT TO authenticated WITH CHECK (true);
+
+CREATE POLICY IF NOT EXISTS "Allow authenticated update message_recipients"
+  ON message_recipients FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 
 -- Verify columns
 SELECT column_name, data_type
