@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine, Camera, RefreshCw } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine, Camera } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function AdminPage() {
@@ -81,12 +81,8 @@ export default function AdminPage() {
   const [eventScans, setEventScans] = useState([]);
   const [scanStats, setScanStats] = useState({ total: 0, duplicates: 0 });
   const [scannerInputMode, setScannerInputMode] = useState('camera'); // 'camera' | 'manual'
-  const [cameraActive, setCameraActive] = useState(false);
-  const scannerRef = useRef(null);
   const scanInProgressRef = useRef(false);
-  const cameraReadyRef = useRef(false);
-  const [availableCameras, setAvailableCameras] = useState([]);
-  const [currentCameraId, setCurrentCameraId] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -137,141 +133,9 @@ export default function AdminPage() {
     }
   }, [activeTab, msgTab]);
 
-  // ─── Camera QR Scanner (Robust Permission-First Approach) ───
-  const getBackCameraId = (devices) => {
-    // Try to find back camera by label pattern
-    const backPatterns = [/back/i, /rear/i, /environment/i, /world facing/i, /external/i];
-    for (const pattern of backPatterns) {
-      const match = devices.find(d => pattern.test(d.label || ''));
-      if (match) return match.deviceId;
-    }
-    // If no pattern match, return last camera (often back on mobile)
-    return devices.length > 0 ? devices[devices.length - 1].deviceId : null;
-  };
-
-  const startScannerWithDevice = async (deviceId) => {
-    if (cameraReadyRef.current) return;
-    try {
-      const { Html5Qrcode } = await import('html5-qrcode');
-      const html5QrCode = new Html5Qrcode('event-scanner-camera');
-      scannerRef.current = html5QrCode;
-
-      const config = {
-        fps: 20,
-        qrbox: { width: 280, height: 280 },
-        aspectRatio: 1.0,
-      };
-
-      const onDecode = (decodedText) => {
-        if (scanInProgressRef.current) return;
-        scanInProgressRef.current = true;
-        handleEventScan(decodedText);
-      };
-
-      await html5QrCode.start(
-        { deviceId: { exact: deviceId } },
-        config,
-        onDecode,
-        () => {}
-      );
-
-      setCameraActive(true);
-      cameraReadyRef.current = true;
-      setCurrentCameraId(deviceId);
-    } catch (err) {
-      console.warn('Scanner start failed:', err);
-      setCameraActive(false);
-      cameraReadyRef.current = false;
-    }
-  };
-
+  // ─── Camera Capture (Photo-based QR Scan) ───
   const stopScanner = async () => {
-    const instance = scannerRef.current;
-    if (instance) {
-      try { await instance.stop(); } catch (_) {}
-      try { await instance.clear(); } catch (_) {}
-    }
-    scannerRef.current = null;
-    cameraReadyRef.current = false;
-    setCameraActive(false);
-  };
-
-  // Main camera init effect
-  useEffect(() => {
-    if (scannerInputMode !== 'camera' || !selectedEvent) {
-      stopScanner();
-      return () => {};
-    }
-
-    let cancelled = false;
-
-    const initCamera = async () => {
-      // Step 1: Request permission FIRST via native API (labels only appear after permission)
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        stream.getTracks().forEach(t => t.stop()); // release immediately
-      } catch (permErr) {
-        console.warn('Camera permission denied:', permErr);
-        setCameraActive(false);
-        return;
-      }
-
-      if (cancelled) return;
-
-      // Step 2: Enumerate devices (now labels are populated)
-      let videoDevices = [];
-      try {
-        const allDevices = await navigator.mediaDevices.enumerateDevices();
-        videoDevices = allDevices.filter(d => d.kind === 'videoinput' && d.deviceId);
-        setAvailableCameras(videoDevices.map(d => ({ id: d.deviceId, label: d.label || `Camera ${videoDevices.indexOf(d) + 1}` })));
-      } catch (enumErr) {
-        console.warn('Enumerate failed:', enumErr);
-      }
-
-      if (cancelled) return;
-
-      // Step 3: Pick camera
-      let targetId = currentCameraId;
-      if (!targetId && videoDevices.length > 0) {
-        targetId = getBackCameraId(videoDevices);
-      }
-
-      // Step 4: Start scanner
-      if (targetId && !cancelled) {
-        await startScannerWithDevice(targetId);
-      } else if (!cancelled) {
-        // Last resort: try facingMode
-        try {
-          const { Html5Qrcode } = await import('html5-qrcode');
-          const html5QrCode = new Html5Qrcode('event-scanner-camera');
-          scannerRef.current = html5QrCode;
-          await html5QrCode.start(
-            { facingMode: 'environment' },
-            { fps: 20, qrbox: { width: 280, height: 280 } },
-            (txt) => { if (!scanInProgressRef.current) { scanInProgressRef.current = true; handleEventScan(txt); } },
-            () => {}
-          );
-          setCameraActive(true);
-          cameraReadyRef.current = true;
-        } catch (f) { console.warn('facingMode fallback failed:', f); }
-      }
-    };
-
-    initCamera();
-
-    return () => {
-      cancelled = true;
-      stopScanner();
-    };
-  }, [scannerInputMode, selectedEvent]);
-
-  const switchCamera = async (deviceId) => {
-    await stopScanner();
-    setCurrentCameraId(deviceId);
-    // Small delay to ensure cleanup
-    setTimeout(() => {
-      startScannerWithDevice(deviceId);
-    }, 100);
+    // No-op: we no longer run a continuous camera stream
   };
 
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -1990,43 +1854,50 @@ export default function AdminPage() {
 
             {scannerInputMode === 'camera' ? (
               <>
-                <div className="camera-scanner-container">
-                  <div id="event-scanner-camera" className="camera-viewport"></div>
-                  {!cameraActive && (
-                    <div className="camera-placeholder">
-                      <Camera size={48} />
-                      <p>Allow camera access to scan QR codes</p>
-                      <small>If camera doesn't start, switch to Manual mode</small>
-                    </div>
-                  )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  ref={fileInputRef}
+                  style={{ display: 'none' }}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setScanLoading(true);
+                    try {
+                      const { Html5Qrcode } = await import('html5-qrcode');
+                      const reader = new Html5Qrcode('__dummy__'); // dummy element id for file-only mode
+                      const decodedText = await reader.scanFile(file, false);
+                      if (decodedText) {
+                        handleEventScan(decodedText);
+                      }
+                    } catch (scanErr) {
+                      console.warn('QR scan from image failed:', scanErr);
+                      setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
+                      setScanLoading(false);
+                    } finally {
+                      e.target.value = ''; // reset so same file can be selected again
+                    }
+                  }}
+                />
+                <div className="camera-scanner-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                  <Camera size={64} style={{ opacity: 0.5 }} />
+                  <h4 style={{ margin: 0 }}>Capture QR Code</h4>
+                  <p style={{ textAlign: 'center', margin: 0, color: 'var(--muted)' }}>
+                    Tap the button below to open your camera, then take a photo of the EM Card QR code.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ padding: '14px 32px', fontSize: '1.1rem' }}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Camera size={20} style={{ marginRight: 8 }} /> Capture QR
+                  </button>
                 </div>
-                {availableCameras.length > 1 && (
-                  <div style={{ marginTop: 10, display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
-                    <label style={{ fontSize: 12, color: 'var(--muted)' }}>Camera:</label>
-                    <select
-                      value={currentCameraId || ''}
-                      onChange={(e) => switchCamera(e.target.value)}
-                      style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)' }}
-                    >
-                      {availableCameras.map(c => (
-                        <option key={c.id} value={c.id}>{c.label || c.id}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
-                      onClick={() => {
-                        const ids = availableCameras.map(c => c.id);
-                        const idx = Math.max(0, ids.indexOf(currentCameraId));
-                        const nextId = ids[(idx + 1) % ids.length];
-                        switchCamera(nextId);
-                      }}
-                    >
-                      <RefreshCw size={14} />
-                    </button>
-                  </div>
+                {scanLoading && (
+                  <div className="scan-spinner" style={{ marginTop: 16 }}>Analyzing image...</div>
                 )}
-                <p className="camera-hint">Point camera at the resident's EM Card QR code</p>
               </>
             ) : (
               <>
