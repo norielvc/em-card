@@ -198,8 +198,7 @@ export default function AdminPage() {
 
   // Main camera init effect
   useEffect(() => {
-    // Stop camera when showing a scan result (prevents crash when DOM element is removed)
-    if (scannerInputMode !== 'camera' || !selectedEvent || scanResult) {
+    if (scannerInputMode !== 'camera' || !selectedEvent) {
       stopScanner();
       return () => {};
     }
@@ -264,7 +263,7 @@ export default function AdminPage() {
       cancelled = true;
       stopScanner();
     };
-  }, [scannerInputMode, selectedEvent, scanResult]);
+  }, [scannerInputMode, selectedEvent]);
 
   const switchCamera = async (deviceId) => {
     await stopScanner();
@@ -1698,6 +1697,7 @@ export default function AdminPage() {
       // Accept either new format (EM-10digits) or old format (EM+24chars)
       const validTokenPattern = /^(EM[A-Za-z0-9]{24}|EM-\d{10})$/;
       if (!validTokenPattern.test(cleanToken)) {
+        stopScanner();
         setScanResult({ type: 'invalid', message: 'SECURITY ALERT: Invalid QR format. This is NOT a valid EM Card.' });
         setScanLoading(false);
         setScanToken('');
@@ -1714,6 +1714,7 @@ export default function AdminPage() {
         .maybeSingle();
 
       if (regErr || !reg) {
+        stopScanner();
         setScanResult({ type: 'invalid', message: 'SECURITY ALERT: Unregistered or unauthorized EM Card. This QR code is not in our system.' });
         setScanLoading(false);
         setScanToken('');
@@ -1736,6 +1737,7 @@ export default function AdminPage() {
 
       if (existingScan) {
         // DUPLICATE — show RED warning
+        stopScanner();
         setScanResult({
           type: 'duplicate',
           name: fullName,
@@ -1770,6 +1772,7 @@ export default function AdminPage() {
           .eq('registration_id', reg.id)
           .maybeSingle();
         if (raceCheck) {
+          stopScanner();
           setScanResult({
             type: 'duplicate',
             name: fullName,
@@ -1797,6 +1800,7 @@ export default function AdminPage() {
         scan_count: (reg.scan_count || 0) + 1,
       }).eq('id', reg.id);
 
+      stopScanner();
       setScanResult({
         type: 'success',
         name: fullName,
@@ -1813,6 +1817,7 @@ export default function AdminPage() {
       // Refresh scan list
       fetchEventScans(selectedEvent.id);
     } catch (err) {
+      stopScanner();
       setScanResult({ type: 'error', message: err.message || 'Network error. Try again.' });
     } finally {
       setScanLoading(false);
