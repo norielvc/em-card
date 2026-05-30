@@ -256,11 +256,10 @@ export default function AdminPage() {
   };
 
   const generateEMCardNo = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // omit confusing chars like 0/O, 1/I
-    let part1 = '', part2 = '';
-    for (let i = 0; i < 4; i++) part1 += chars.charAt(Math.floor(Math.random() * chars.length));
-    for (let i = 0; i < 4; i++) part2 += chars.charAt(Math.floor(Math.random() * chars.length));
-    return `EM-${part1}-${part2}`;
+    // Format: EM- followed by 10 random digits (0000000000)
+    let digits = '';
+    for (let i = 0; i < 10; i++) digits += Math.floor(Math.random() * 10);
+    return `EM-${digits}`;
   };
 
   const generateQRForMember = async (reg) => {
