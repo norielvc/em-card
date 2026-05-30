@@ -261,9 +261,11 @@ export async function GET(request) {
  * POST - Send new SMS campaign
  */
 export async function POST(request) {
+  console.log('[SMS] ===== POST /api/send-sms handler started =====');
   try {
     const body = await request.json();
     const { title, messageBody, type, targetType, targetValue } = body;
+    console.log('[SMS] Request body:', JSON.stringify({ title, messageBody, type, targetType, targetValue }));
 
     if (!messageBody || !type) {
       return Response.json({ error: 'Message body and type are required' }, { status: 400 });

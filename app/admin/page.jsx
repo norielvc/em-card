@@ -773,6 +773,7 @@ export default function AdminPage() {
         }),
       });
       const data = await res.json();
+      console.log('[SMS Response]', JSON.stringify(data, null, 2));
       if (data.success) {
         showToast(`SMS campaign sent to ${data.totalRecipients} recipients`, 'success');
         setMsgForm({ title: '', body: '', type: 'broadcast', targetType: 'all', targetValue: '' });
