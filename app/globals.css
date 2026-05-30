@@ -7470,6 +7470,12 @@ p {
   text-align: center;
   letter-spacing: 1px;
   background: var(--white);
+  color: var(--green-black);
+}
+
+.scan-input-panel .scan-token-input::placeholder {
+  color: var(--light-muted);
+  opacity: 1;
 }
 
 .scan-input-panel .scan-token-input:focus {
