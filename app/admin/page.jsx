@@ -39,6 +39,9 @@ export default function AdminPage() {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [selectedRegDetail, setSelectedRegDetail] = useState(null);
   const [selectedMember, setSelectedMember] = useState(null);
+  const [memberEditMode, setMemberEditMode] = useState(false);
+  const [editMemberForm, setEditMemberForm] = useState({});
+  const [editMemberLoading, setEditMemberLoading] = useState(false);
   const [newResident, setNewResident] = useState({
     last_name: '', first_name: '', middle_name: '', barangay: 'Borol 1st', precinct: ''
   });
@@ -353,6 +356,73 @@ export default function AdminPage() {
       setSelectedMember({ ...reg, qr_token: newToken, em_card_no: newCardNo });
     } catch (err) {
       showToast('Failed to generate QR token.', 'error');
+    }
+  };
+
+  const openEditMember = (reg) => {
+    const r = reg.ValidResidents || {};
+    setEditMemberForm({
+      first_name: r.first_name || '',
+      middle_name: r.middle_name || '',
+      last_name: r.last_name || '',
+      barangay: r.barangay || '',
+      house_no: reg.house_no || '',
+      purok: reg.purok || '',
+      contact: reg.contact || '',
+      sector_category: reg.sector_category || '',
+      referral_name: reg.referral_name || '',
+      birthday: reg.birthday || '',
+    });
+    setMemberEditMode(true);
+  };
+
+  const handleUpdateMember = async () => {
+    if (!selectedMember) return;
+    setEditMemberLoading(true);
+    try {
+      // Update ValidResidents (name + barangay)
+      if (selectedMember.resident_id) {
+        const { error: resError } = await supabase
+          .from('ValidResidents')
+          .update({
+            first_name: editMemberForm.first_name,
+            middle_name: editMemberForm.middle_name,
+            last_name: editMemberForm.last_name,
+            barangay: editMemberForm.barangay,
+          })
+          .eq('id', selectedMember.resident_id);
+        if (resError) throw resError;
+      }
+
+      // Update registrations
+      const { error: regError } = await supabase
+        .from('registrations')
+        .update({
+          house_no: editMemberForm.house_no,
+          purok: editMemberForm.purok,
+          barangay: editMemberForm.barangay,
+          contact: editMemberForm.contact,
+          sector_category: editMemberForm.sector_category,
+          referral_name: editMemberForm.referral_name,
+          birthday: editMemberForm.birthday,
+        })
+        .eq('id', selectedMember.id);
+      if (regError) throw regError;
+
+      showToast('Member details updated successfully', 'success');
+      setMemberEditMode(false);
+      fetchAllRegistrations();
+      // Refresh selectedMember with new data
+      const { data: fresh } = await supabase
+        .from('registrations')
+        .select('id, resident_id, house_no, purok, barangay, contact, status, sector_category, referral_name, photo_base64, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, barangay)')
+        .eq('id', selectedMember.id)
+        .single();
+      if (fresh) setSelectedMember(fresh);
+    } catch (err) {
+      showToast(err.message || 'Failed to update member', 'error');
+    } finally {
+      setEditMemberLoading(false);
     }
   };
 
@@ -2633,78 +2703,160 @@ export default function AdminPage() {
         const hasQR = !!selectedMember.qr_token;
         const hasCardNo = !!selectedMember.em_card_no;
         const fullAddress = `${selectedMember.house_no ? `House ${selectedMember.house_no}, ` : ''}${selectedMember.purok ? `Purok ${selectedMember.purok}, ` : ''}${r.barangay || ''}`.replace(/, $/, '');
+        const sectorOptions = ['Senior Citizens','PWD','Solo Parent','Youth','Women','Farmers','Fisherfolk','Workers / Labor','Religious','Transport','Indigenous People','Education','Business / Entrepreneurs','Health','Other'];
         return (
-          <div className="modal-overlay" onClick={() => setSelectedMember(null)}>
+          <div className="modal-overlay" onClick={() => { setSelectedMember(null); setMemberEditMode(false); }}>
             <div className="modal-card member-detail-card" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h3>Member Profile</h3>
-                <button className="modal-close-x" onClick={() => setSelectedMember(null)}>✕</button>
+                <h3>{memberEditMode ? 'Edit Member' : 'Member Profile'}</h3>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {!memberEditMode && (
+                    <button className="btn btn-sm btn-edit" onClick={() => openEditMember(selectedMember)}>✏️ Edit</button>
+                  )}
+                  <button className="modal-close-x" onClick={() => { setSelectedMember(null); setMemberEditMode(false); }}>✕</button>
+                </div>
               </div>
               <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                {/* Top: Photo + Name + EM Card No */}
-                <div className="member-detail-top">
-                  <div className="member-detail-photo">
-                    {selectedMember.photo_base64 ? <img src={selectedMember.photo_base64} alt="" /> : <span style={{fontSize:'2rem'}}>👤</span>}
-                  </div>
-                  <div className="member-detail-head">
-                    <h2>{name}</h2>
-                    <span className="member-detail-status">✓ Approved Member</span>
-                    {hasCardNo && (
-                      <p className="member-detail-cardno">EM Card: <strong>{selectedMember.em_card_no}</strong></p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Full Address */}
-                <div className="member-detail-address">
-                  <span className="member-detail-label">📍 Full Address</span>
-                  <span className="member-detail-value">{fullAddress || '—'}</span>
-                </div>
-
-                {/* QR Token Section */}
-                <div className="member-detail-qr-section">
-                  <span className="member-detail-label">QR Scan Token</span>
-                  {hasQR ? (
-                    <>
-                      <code className="member-qr-big">{selectedMember.qr_token}</code>
-                      <div className="member-qr-image">
-                        <QRCodeSVG value={`https://www.em-card.com/card/${selectedMember.qr_token}`} size={180} level="H" includeMargin={true} />
+                {memberEditMode ? (
+                  <div className="member-edit-form">
+                    <div className="member-edit-section">
+                      <h4 className="member-edit-section-title">Personal Information</h4>
+                      <div className="member-edit-grid">
+                        <div className="member-edit-field">
+                          <label>First Name</label>
+                          <input type="text" value={editMemberForm.first_name} onChange={e => setEditMemberForm(f => ({ ...f, first_name: e.target.value }))} />
+                        </div>
+                        <div className="member-edit-field">
+                          <label>Middle Name</label>
+                          <input type="text" value={editMemberForm.middle_name} onChange={e => setEditMemberForm(f => ({ ...f, middle_name: e.target.value }))} />
+                        </div>
+                        <div className="member-edit-field">
+                          <label>Last Name</label>
+                          <input type="text" value={editMemberForm.last_name} onChange={e => setEditMemberForm(f => ({ ...f, last_name: e.target.value }))} />
+                        </div>
                       </div>
-                      <p className="member-qr-hint">📱 Member scans QR → <strong>https://www.em-card.com/card/{selectedMember.qr_token}</strong></p>
-                    </>
-                  ) : (
-                    <div className="member-qr-missing">
-                      <span>No QR token generated yet.</span>
-                      <button className="btn btn-generate-qr" onClick={() => generateQRForMember(selectedMember)}>
-                        ⚡ Generate QR & Card
-                      </button>
                     </div>
-                  )}
-                </div>
 
-                {/* Details Grid */}
-                <div className="member-detail-grid">
-                  <div className="member-detail-item"><span className="member-detail-label">House No</span><span className="member-detail-value">{selectedMember.house_no ? selectedMember.house_no : '-'}</span></div>
-                  <div className="member-detail-item"><span className="member-detail-label">Purok</span><span className="member-detail-value">{selectedMember.purok || '-'}</span></div>
-                  <div className="member-detail-item"><span className="member-detail-label">Barangay</span><span className="member-detail-value">{r.barangay || '-'}</span></div>
-                  <div className="member-detail-item"><span className="member-detail-label">Sector</span><span className="member-detail-value">{selectedMember.sector_category || '-'}</span></div>
-                  <div className="member-detail-item"><span className="member-detail-label">Contact</span><span className="member-detail-value">{selectedMember.contact || '-'}</span></div>
-                  <div className="member-detail-item"><span className="member-detail-label">Referral</span><span className="member-detail-value">{selectedMember.referral_name || '-'}</span></div>
-                  <div className="member-detail-item"><span className="member-detail-label">Approved On</span><span className="member-detail-value">{new Date(selectedMember.created_at).toLocaleDateString()}</span></div>
-                  <div className="member-detail-item"><span className="member-detail-label">Total Scans</span><span className="member-detail-value">{selectedMember.scan_count || 0}</span></div>
-                  <div className="member-detail-item full-width"><span className="member-detail-label">Last Scanned</span><span className="member-detail-value">{selectedMember.last_scanned_at ? new Date(selectedMember.last_scanned_at).toLocaleString() : 'Never'}</span></div>
-                </div>
+                    <div className="member-edit-section">
+                      <h4 className="member-edit-section-title">Address & Contact</h4>
+                      <div className="member-edit-grid">
+                        <div className="member-edit-field">
+                          <label>House No</label>
+                          <input type="text" value={editMemberForm.house_no} onChange={e => setEditMemberForm(f => ({ ...f, house_no: e.target.value }))} />
+                        </div>
+                        <div className="member-edit-field">
+                          <label>Purok</label>
+                          <input type="text" value={editMemberForm.purok} onChange={e => setEditMemberForm(f => ({ ...f, purok: e.target.value }))} />
+                        </div>
+                        <div className="member-edit-field">
+                          <label>Barangay</label>
+                          <input type="text" value={editMemberForm.barangay} onChange={e => setEditMemberForm(f => ({ ...f, barangay: e.target.value }))} />
+                        </div>
+                        <div className="member-edit-field">
+                          <label>Contact Number</label>
+                          <input type="tel" value={editMemberForm.contact} onChange={e => setEditMemberForm(f => ({ ...f, contact: e.target.value }))} />
+                        </div>
+                      </div>
+                    </div>
 
-                {/* Action Buttons */}
-                {hasQR && (
-                  <div className="member-detail-links">
-                    <a href={`https://www.em-card.com/card/${selectedMember.qr_token}`} target="_blank" rel="noreferrer" className="btn btn-member-link">🌐 Open Citizen Dashboard</a>
-                    <button className="btn btn-member-copy" onClick={() => { navigator.clipboard.writeText(`https://www.em-card.com/card/${selectedMember.qr_token}`); showToast('Card URL copied!', 'success'); }}>📋 Copy Card URL</button>
+                    <div className="member-edit-section">
+                      <h4 className="member-edit-section-title">Other Details</h4>
+                      <div className="member-edit-grid">
+                        <div className="member-edit-field">
+                          <label>Sector Category</label>
+                          <select value={editMemberForm.sector_category} onChange={e => setEditMemberForm(f => ({ ...f, sector_category: e.target.value }))}>
+                            <option value="">Select Sector...</option>
+                            {sectorOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div className="member-edit-field">
+                          <label>Referral Name</label>
+                          <input type="text" value={editMemberForm.referral_name} onChange={e => setEditMemberForm(f => ({ ...f, referral_name: e.target.value }))} />
+                        </div>
+                        <div className="member-edit-field">
+                          <label>Birthday</label>
+                          <input type="text" value={editMemberForm.birthday} onChange={e => setEditMemberForm(f => ({ ...f, birthday: e.target.value }))} placeholder="e.g. January 15, 1990" />
+                        </div>
+                      </div>
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    {/* Top: Photo + Name + EM Card No */}
+                    <div className="member-detail-top">
+                      <div className="member-detail-photo">
+                        {selectedMember.photo_base64 ? <img src={selectedMember.photo_base64} alt="" /> : <span style={{fontSize:'2rem'}}>👤</span>}
+                      </div>
+                      <div className="member-detail-head">
+                        <h2>{name}</h2>
+                        <span className="member-detail-status">✓ Approved Member</span>
+                        {hasCardNo && (
+                          <p className="member-detail-cardno">EM Card: <strong>{selectedMember.em_card_no}</strong></p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Full Address */}
+                    <div className="member-detail-address">
+                      <span className="member-detail-label">📍 Full Address</span>
+                      <span className="member-detail-value">{fullAddress || '—'}</span>
+                    </div>
+
+                    {/* QR Token Section */}
+                    <div className="member-detail-qr-section">
+                      <span className="member-detail-label">QR Scan Token</span>
+                      {hasQR ? (
+                        <>
+                          <code className="member-qr-big">{selectedMember.qr_token}</code>
+                          <div className="member-qr-image">
+                            <QRCodeSVG value={`https://www.em-card.com/card/${selectedMember.qr_token}`} size={180} level="H" includeMargin={true} />
+                          </div>
+                          <p className="member-qr-hint">📱 Member scans QR → <strong>https://www.em-card.com/card/{selectedMember.qr_token}</strong></p>
+                        </>
+                      ) : (
+                        <div className="member-qr-missing">
+                          <span>No QR token generated yet.</span>
+                          <button className="btn btn-generate-qr" onClick={() => generateQRForMember(selectedMember)}>
+                            ⚡ Generate QR & Card
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Details Grid */}
+                    <div className="member-detail-grid">
+                      <div className="member-detail-item"><span className="member-detail-label">House No</span><span className="member-detail-value">{selectedMember.house_no ? selectedMember.house_no : '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label">Purok</span><span className="member-detail-value">{selectedMember.purok || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label">Barangay</span><span className="member-detail-value">{r.barangay || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label">Sector</span><span className="member-detail-value">{selectedMember.sector_category || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label">Contact</span><span className="member-detail-value">{selectedMember.contact || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label">Referral</span><span className="member-detail-value">{selectedMember.referral_name || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label">Approved On</span><span className="member-detail-value">{new Date(selectedMember.created_at).toLocaleDateString()}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label">Total Scans</span><span className="member-detail-value">{selectedMember.scan_count || 0}</span></div>
+                      <div className="member-detail-item full-width"><span className="member-detail-label">Last Scanned</span><span className="member-detail-value">{selectedMember.last_scanned_at ? new Date(selectedMember.last_scanned_at).toLocaleString() : 'Never'}</span></div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    {hasQR && (
+                      <div className="member-detail-links">
+                        <a href={`https://www.em-card.com/card/${selectedMember.qr_token}`} target="_blank" rel="noreferrer" className="btn btn-member-link">🌐 Open Citizen Dashboard</a>
+                        <button className="btn btn-member-copy" onClick={() => { navigator.clipboard.writeText(`https://www.em-card.com/card/${selectedMember.qr_token}`); showToast('Card URL copied!', 'success'); }}>📋 Copy Card URL</button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-modal-secondary" onClick={() => setSelectedMember(null)}>Close</button>
+                {memberEditMode ? (
+                  <>
+                    <button type="button" className="btn btn-modal-secondary" onClick={() => setMemberEditMode(false)}>Cancel</button>
+                    <button type="button" className="btn btn-modal-primary" onClick={handleUpdateMember} disabled={editMemberLoading}>
+                      {editMemberLoading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="btn btn-modal-secondary" onClick={() => setSelectedMember(null)}>Close</button>
+                )}
               </div>
             </div>
           </div>

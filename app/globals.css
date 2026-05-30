@@ -2750,6 +2750,91 @@ p {
   border-color: var(--emerald);
 }
 
+/* Member Edit Form */
+.member-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.member-edit-section {
+  background: var(--green-soft);
+  border-radius: 10px;
+  padding: 14px 16px;
+  border: 1.5px solid var(--border);
+}
+
+.member-edit-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--green-deep);
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.member-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.member-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.member-edit-field label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.member-edit-field input,
+.member-edit-field select {
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: var(--white);
+  color: var(--text);
+  transition: all 0.2s ease;
+}
+
+.member-edit-field input:focus,
+.member-edit-field select:focus {
+  outline: none;
+  border-color: var(--emerald);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.08);
+}
+
+.btn-edit {
+  padding: 6px 14px;
+  background: var(--white);
+  color: var(--green-deep);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-edit:hover {
+  background: var(--green-soft);
+  border-color: var(--emerald);
+}
+
+@media (max-width: 480px) {
+  .member-edit-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Quick Actions */
 .admin-actions-grid {
   display: grid;
