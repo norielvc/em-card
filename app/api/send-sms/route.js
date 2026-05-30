@@ -327,6 +327,23 @@ export async function POST(request) {
       }
       console.log('[API] Found user:', reg.ValidResidents, 'phone:', reg.contact);
       validRecipients = [reg];
+    } else if (targetType === 'birthday' && Array.isArray(targetValue) && targetValue.length > 0) {
+      // Birthday: targetValue is array of registration IDs
+      console.log('[API] Birthday mode. IDs:', targetValue);
+      const { data: regs, error: regError } = await supabase
+        .from('registrations')
+        .select('id, resident_id, contact, barangay, sector_category, birthday, ValidResidents(first_name, last_name, middle_name)')
+        .in('id', targetValue)
+        .not('contact', 'is', null)
+        .neq('contact', '');
+
+      if (regError) throw regError;
+      validRecipients = (regs || []).filter(r => r.contact && r.contact.length >= 10);
+      console.log('[API] Birthday recipients found:', validRecipients.length);
+
+      if (validRecipients.length === 0) {
+        return Response.json({ error: 'No valid birthday recipients found with phone numbers' }, { status: 400 });
+      }
     } else {
       let recipientsQuery = supabase.from('registrations').select('id, resident_id, contact, barangay, sector_category, ValidResidents(first_name, last_name, middle_name)');
 

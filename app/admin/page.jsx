@@ -69,6 +69,12 @@ export default function AdminPage() {
   const [msgUserResults, setMsgUserResults] = useState([]);
   const [smsProvider, setSmsProvider] = useState(null); // { provider, configured, senderName }
 
+  // Birthday SMS
+  const [birthdayRecipients, setBirthdayRecipients] = useState([]);
+  const [birthdayLoading, setBirthdayLoading] = useState(false);
+  const [birthdayMessage, setBirthdayMessage] = useState('Happy Birthday! Wishing you a wonderful day filled with joy and blessings. - EM-CARD');
+  const [birthdaySending, setBirthdaySending] = useState(false);
+
   // Event Scanner
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -143,6 +149,13 @@ export default function AdminPage() {
   useEffect(() => {
     if (activeTab === 'messages' && msgTab === 'history') {
       fetchMessages();
+    }
+  }, [activeTab, msgTab]);
+
+  // Auto-fetch birthday celebrators when switching to birthday tab
+  useEffect(() => {
+    if (activeTab === 'messages' && msgTab === 'birthday') {
+      fetchBirthdayCelebrators();
     }
   }, [activeTab, msgTab]);
 
@@ -788,6 +801,71 @@ export default function AdminPage() {
     }
   };
 
+  const fetchBirthdayCelebrators = async () => {
+    setBirthdayLoading(true);
+    try {
+      const today = new Date();
+      const todayMonthDay = `${today.toLocaleString('en-US', { month: 'long' })} ${today.getDate()}`;
+
+      const { data: regs, error } = await supabase
+        .from('registrations')
+        .select('id, resident_id, contact, barangay, sector_category, birthday, ValidResidents(first_name, last_name, middle_name)')
+        .eq('status', 'Approved')
+        .not('contact', 'is', null)
+        .neq('contact', '');
+
+      if (error) throw error;
+
+      const celebrators = (regs || []).filter(reg => {
+        if (!reg.birthday) return false;
+        const parts = reg.birthday.split(',');
+        if (parts.length < 2) return false;
+        const monthDay = parts[0].trim();
+        return monthDay === todayMonthDay;
+      });
+
+      setBirthdayRecipients(celebrators);
+    } catch (err) {
+      console.error('Birthday fetch error:', err);
+      showToast('Failed to load birthday celebrators', 'error');
+    } finally {
+      setBirthdayLoading(false);
+    }
+  };
+
+  const handleSendBirthday = async () => {
+    if (!birthdayMessage.trim()) { showToast('Message is required', 'error'); return; }
+    if (birthdayRecipients.length === 0) { showToast('No birthday celebrators today', 'error'); return; }
+
+    setBirthdaySending(true);
+    try {
+      const ids = birthdayRecipients.map(r => r.id);
+      const res = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Birthday Greeting',
+          messageBody: birthdayMessage,
+          type: 'broadcast',
+          targetType: 'birthday',
+          targetValue: ids,
+        }),
+      });
+      const data = await res.json();
+      console.log('[Birthday SMS Response]', JSON.stringify(data, null, 2));
+      if (data.success) {
+        showToast(`Birthday SMS sent to ${data.totalRecipients} celebrators`, 'success');
+        fetchMessages();
+      } else {
+        showToast(data.error || 'Failed to send', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Network error', 'error');
+    } finally {
+      setBirthdaySending(false);
+    }
+  };
+
   // RENDER VIEWS
   const renderDashboard = () => (
     <>
@@ -1389,6 +1467,7 @@ export default function AdminPage() {
           <h3>SMS Messages</h3>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className={`msg-tab-btn ${msgTab === 'compose' ? 'active' : ''}`} onClick={() => setMsgTab('compose')}>✏️ Compose</button>
+            <button className={`msg-tab-btn ${msgTab === 'birthday' ? 'active' : ''}`} onClick={() => setMsgTab('birthday')}>🎂 Birthdays</button>
             <button className={`msg-tab-btn ${msgTab === 'history' ? 'active' : ''}`} onClick={() => { setMsgTab('history'); fetchMessages(); }}>📜 History</button>
           </div>
         </div>
@@ -1540,6 +1619,70 @@ export default function AdminPage() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {msgTab === 'birthday' && (
+          <div className="msg-birthday-wrap">
+            <div className="msg-birthday-header">
+              <h4>🎉 Today's Birthday Celebrators</h4>
+              <span className="msg-birthday-date">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            </div>
+
+            {birthdayLoading ? (
+              <div className="table-loading">Loading birthday celebrators...</div>
+            ) : birthdayRecipients.length === 0 ? (
+              <div className="msg-birthday-empty">
+                <span className="msg-birthday-empty-icon">🎂</span>
+                <p>No birthday celebrators today.</p>
+                <button className="btn btn-sm btn-secondary" onClick={fetchBirthdayCelebrators}>Refresh</button>
+              </div>
+            ) : (
+              <>
+                <div className="msg-birthday-list">
+                  {birthdayRecipients.map(reg => {
+                    const name = getResidentName(reg);
+                    return (
+                      <div key={reg.id} className="msg-birthday-item">
+                        <div className="msg-birthday-avatar">🎂</div>
+                        <div className="msg-birthday-info">
+                          <span className="msg-birthday-name">{name}</span>
+                          <span className="msg-birthday-meta">{reg.barangay || '-'} · {reg.sector_category || '-'} · {reg.contact}</span>
+                        </div>
+                        <span className="msg-birthday-badge">{reg.birthday}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="msg-birthday-compose">
+                  <label className="msg-label">Birthday Message</label>
+                  <textarea
+                    className="msg-textarea"
+                    placeholder="Type your birthday greeting..."
+                    value={birthdayMessage}
+                    onChange={e => setBirthdayMessage(e.target.value)}
+                    maxLength={480}
+                    rows={4}
+                  />
+                  <div className="msg-char-count">{birthdayMessage.length}/480 characters</div>
+
+                  <div className="msg-form-footer" style={{ marginTop: '12px' }}>
+                    <div className="msg-preview-box">
+                      <span className="msg-preview-label">Preview:</span>
+                      <p className="msg-preview-text">{birthdayMessage || 'Your message will appear here...'}</p>
+                    </div>
+                    <button
+                      className="btn btn-msg-send"
+                      onClick={handleSendBirthday}
+                      disabled={birthdaySending || !birthdayMessage.trim()}
+                    >
+                      {birthdaySending ? 'Sending...' : `Send to ${birthdayRecipients.length} celebrator${birthdayRecipients.length > 1 ? 's' : ''}`}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
