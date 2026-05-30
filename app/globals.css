@@ -7112,3 +7112,388 @@ p {
   background: var(--white);
   border-top: 1px solid var(--border);
 }
+
+/* ============================================================
+   ADMIN EVENT SCANNER
+   ============================================================ */
+
+.event-scanner-intro {
+  text-align: center;
+  padding: 32px 24px;
+  background: linear-gradient(135deg, var(--green-deep) 0%, var(--emerald) 100%);
+  border-radius: 12px;
+  color: var(--white);
+  margin-bottom: 24px;
+}
+
+.event-scanner-intro svg {
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+
+.event-scanner-intro h4 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.event-scanner-intro p {
+  opacity: 0.9;
+  font-size: 0.9rem;
+}
+
+.event-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.event-card {
+  background: var(--white);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.event-card:hover {
+  border-color: var(--emerald);
+  box-shadow: 0 4px 16px rgba(5, 150, 105, 0.12);
+  transform: translateY(-2px);
+}
+
+.event-card-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.event-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.event-card-body h5 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--green-black);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-card-body p {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.event-card-body small {
+  font-size: 0.75rem;
+  color: var(--light-muted);
+}
+
+.event-create-section {
+  padding: 24px;
+  background: var(--off-white);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.event-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 480px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.event-create-form h5 {
+  text-align: center;
+  margin-bottom: 8px;
+  color: var(--green-black);
+}
+
+.event-create-form input {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: var(--white);
+}
+
+.event-create-form .form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+/* Scanner Panel */
+.event-scanner-panel {
+  padding: 0;
+}
+
+.event-scanner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, var(--green-black) 0%, var(--green-deep) 100%);
+  color: var(--white);
+  border-radius: 12px 12px 0 0;
+}
+
+.event-scanner-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.event-scanner-header p {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.event-scanner-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.scan-stat-badge {
+  background: rgba(255,255,255,0.15);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Scan Result Panel */
+.scan-result-panel {
+  padding: 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.scan-result-success {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+.scan-result-duplicate {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-left: 6px solid #dc2626;
+}
+
+.scan-result-invalid {
+  background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+}
+
+.scan-result-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scan-result-badge.success {
+  background: var(--emerald);
+  color: var(--white);
+}
+
+.scan-result-badge.duplicate {
+  background: #dc2626;
+  color: var(--white);
+}
+
+.scan-result-badge.invalid {
+  background: #eab308;
+  color: var(--green-black);
+}
+
+.scan-result-profile {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.scan-result-photo {
+  width: 140px;
+  height: 160px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--off-white);
+  border: 3px solid var(--white);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scan-result-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scan-result-photo svg {
+  color: var(--light-muted);
+}
+
+.scan-result-info h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--green-black);
+  margin-bottom: 12px;
+}
+
+.scan-result-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 20px;
+}
+
+.scan-result-meta-grid span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.scan-result-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+}
+
+.scan-result-footer span {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.duplicate-footer {
+  flex-direction: column;
+  gap: 16px;
+  align-items: stretch !important;
+}
+
+.duplicate-warning {
+  background: #fee2e2;
+  border: 2px solid #fecaca;
+  border-radius: 10px;
+  padding: 16px 20px;
+  text-align: center;
+}
+
+.duplicate-warning strong {
+  color: #991b1b;
+  font-size: 1.1rem;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.duplicate-warning p {
+  color: #7f1d1d;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.duplicate-stop {
+  font-weight: 700;
+  font-size: 1rem !important;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #fecaca;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: var(--white);
+  border: none;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
+/* Scan Input Panel */
+.scan-input-panel {
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.scan-input-icon {
+  color: var(--emerald);
+  margin-bottom: 12px;
+}
+
+.scan-input-panel h4 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--green-black);
+  margin-bottom: 6px;
+}
+
+.scan-input-panel p {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+}
+
+.scan-input-panel .scan-token-input {
+  width: 100%;
+  max-width: 480px;
+  padding: 16px 20px;
+  font-size: 1.1rem;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+  letter-spacing: 1px;
+  background: var(--white);
+}
+
+.scan-input-panel .scan-token-input:focus {
+  outline: none;
+  border-color: var(--emerald);
+  box-shadow: 0 0 0 4px rgba(5,150,105,0.1);
+}
+
+/* Event Scans Table */
+.event-scans-table {
+  padding: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.event-scans-table h5 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--green-black);
+  margin-bottom: 16px;
+}
+
+.scan-error-message {
+  text-align: center;
+  color: #92400e;
+  font-size: 1rem;
+  margin: 20px 0;
+}

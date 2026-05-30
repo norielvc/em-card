@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function AdminPage() {
@@ -67,6 +67,19 @@ export default function AdminPage() {
   const [msgRecipients, setMsgRecipients] = useState([]);
   const [msgUserSearch, setMsgUserSearch] = useState('');
   const [msgUserResults, setMsgUserResults] = useState([]);
+
+  // Event Scanner
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [scanToken, setScanToken] = useState('');
+  const [scanResult, setScanResult] = useState(null);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scannerMode, setScannerMode] = useState('select'); // select | scan | result
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [newEventForm, setNewEventForm] = useState({ event_name: '', event_date: '', location: '' });
+  const [eventScans, setEventScans] = useState([]);
+  const [scanStats, setScanStats] = useState({ total: 0, duplicates: 0 });
 
   useEffect(() => {
     const checkSession = async () => {
@@ -294,6 +307,7 @@ export default function AdminPage() {
     if (tab === 'residents') fetchAllResidents(residentsPage, residentSearch);
     if (tab === 'registrations') fetchAllRegistrations();
     if (tab === 'members' && allRegs.length === 0) fetchAllRegistrations();
+    if (tab === 'eventScanner') fetchEvents();
   };
 
   // CSV Parser (handles quoted fields)
@@ -449,6 +463,7 @@ export default function AdminPage() {
     { id: 'residents', label: 'Registered Voters', icon: <Users size={20} strokeWidth={1.8} /> },
     { id: 'registrations', label: 'Registrations', icon: <ClipboardList size={20} strokeWidth={1.8} /> },
     { id: 'members', label: 'Members', icon: <UserCheck size={20} strokeWidth={1.8} /> },
+    { id: 'eventScanner', label: 'Event Scanner', icon: <ScanLine size={20} strokeWidth={1.8} /> },
     { id: 'network', label: 'Network', icon: <Network size={20} strokeWidth={1.8} /> },
     { id: 'messages', label: 'Messages', icon: <MessageSquare size={20} strokeWidth={1.8} /> },
     { id: 'reports', label: 'Reports', icon: <BarChart3 size={20} strokeWidth={1.8} /> },
@@ -1472,6 +1487,370 @@ export default function AdminPage() {
     </div>
   );
 
+  // ─── EVENT SCANNER ───
+  const fetchEvents = async () => {
+    setEventsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('scan_events')
+        .select('*')
+        .eq('status', 'Active')
+        .order('created_at', { ascending: false });
+      if (!error) setEvents(data || []);
+    } catch (e) { console.error(e); }
+    setEventsLoading(false);
+  };
+
+  const fetchEventScans = async (eventId) => {
+    try {
+      const { data, error } = await supabase
+        .from('event_scans')
+        .select('*, registrations(qr_token, em_card_no, photo_base64, contact, purok, house_no, ValidResidents(first_name, last_name, middle_name, barangay))')
+        .eq('event_id', eventId)
+        .order('scanned_at', { ascending: false });
+      if (!error) {
+        setEventScans(data || []);
+        setScanStats({ total: (data || []).length, duplicates: 0 });
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleCreateEvent = async (e) => {
+    e.preventDefault();
+    if (!newEventForm.event_name.trim()) return;
+    try {
+      const { data, error } = await supabase.from('scan_events').insert({
+        event_name: newEventForm.event_name.trim(),
+        event_date: newEventForm.event_date || null,
+        location: newEventForm.location.trim() || null,
+        status: 'Active',
+        created_by: username,
+      }).select().single();
+      if (error) throw error;
+      showToast('Event created: ' + data.event_name, 'success');
+      setShowCreateEvent(false);
+      setNewEventForm({ event_name: '', event_date: '', location: '' });
+      setEvents(prev => [data, ...prev]);
+    } catch (err) {
+      showToast('Failed to create event: ' + err.message, 'error');
+    }
+  };
+
+  const handleEventScan = async (rawToken) => {
+    if (!rawToken.trim() || !selectedEvent) return;
+    setScanLoading(true);
+    setScanResult(null);
+
+    try {
+      const cleanToken = rawToken.trim().replace(/[\r\n\t]/g, '');
+
+      // 1. Look up registration by QR token
+      const { data: reg, error: regErr } = await supabase
+        .from('registrations')
+        .select('*, ValidResidents(first_name, last_name, middle_name, barangay, purok, photo_base64)')
+        .ilike('qr_token', cleanToken)
+        .eq('status', 'Approved')
+        .maybeSingle();
+
+      if (regErr || !reg) {
+        setScanResult({ type: 'invalid', message: 'Invalid or unregistered EM Card.' });
+        setScanLoading(false);
+        setScanToken('');
+        return;
+      }
+
+      const person = reg.ValidResidents || {};
+      const fullName = `${person.first_name || ''} ${person.middle_name ? person.middle_name + ' ' : ''}${person.last_name || ''}`.trim();
+
+      // 2. Check if already scanned at THIS event (cryptographic duplicate prevention)
+      const { data: existingScan, error: dupErr } = await supabase
+        .from('event_scans')
+        .select('scanned_at, scanned_by')
+        .eq('event_id', selectedEvent.id)
+        .eq('registration_id', reg.id)
+        .maybeSingle();
+
+      if (dupErr) console.warn('Duplicate check error:', dupErr);
+
+      if (existingScan) {
+        // DUPLICATE — show RED warning
+        setScanResult({
+          type: 'duplicate',
+          name: fullName,
+          barangay: person.barangay || '-',
+          purok: reg.purok || person.purok || '-',
+          houseNo: reg.house_no || '-',
+          contact: reg.contact || '-',
+          photo: reg.photo_base64 || person.photo_base64,
+          emCardNo: reg.em_card_no || '-',
+          qrToken: reg.qr_token,
+          scannedAt: existingScan.scanned_at,
+          scannedBy: existingScan.scanned_by,
+        });
+        setScanLoading(false);
+        setScanToken('');
+        return;
+      }
+
+      // 3. Record the scan in event_scans (permanent lock)
+      const { error: insertErr } = await supabase.from('event_scans').insert({
+        event_id: selectedEvent.id,
+        registration_id: reg.id,
+        scanned_by: username,
+      });
+
+      if (insertErr) {
+        // Could be a race condition — check again
+        const { data: raceCheck } = await supabase
+          .from('event_scans')
+          .select('scanned_at')
+          .eq('event_id', selectedEvent.id)
+          .eq('registration_id', reg.id)
+          .maybeSingle();
+        if (raceCheck) {
+          setScanResult({
+            type: 'duplicate',
+            name: fullName,
+            barangay: person.barangay || '-',
+            purok: reg.purok || person.purok || '-',
+            houseNo: reg.house_no || '-',
+            contact: reg.contact || '-',
+            photo: reg.photo_base64 || person.photo_base64,
+            emCardNo: reg.em_card_no || '-',
+            qrToken: reg.qr_token,
+            scannedAt: raceCheck.scanned_at,
+            scannedBy: 'another staff',
+          });
+          setScanLoading(false);
+          setScanToken('');
+          return;
+        }
+        throw insertErr;
+      }
+
+      // 4. Update registration global scan stats
+      await supabase.from('registrations').update({
+        last_scanned_at: new Date().toISOString(),
+        scan_count: (reg.scan_count || 0) + 1,
+      }).eq('id', reg.id);
+
+      setScanResult({
+        type: 'success',
+        name: fullName,
+        barangay: person.barangay || '-',
+        purok: reg.purok || person.purok || '-',
+        houseNo: reg.house_no || '-',
+        contact: reg.contact || '-',
+        photo: reg.photo_base64 || person.photo_base64,
+        emCardNo: reg.em_card_no || '-',
+        qrToken: reg.qr_token,
+        scanCount: (reg.scan_count || 0) + 1,
+      });
+
+      // Refresh scan list
+      fetchEventScans(selectedEvent.id);
+    } catch (err) {
+      setScanResult({ type: 'error', message: err.message || 'Network error. Try again.' });
+    } finally {
+      setScanLoading(false);
+      setScanToken('');
+    }
+  };
+
+  const renderEventScanner = () => {
+    // ─── Select Event Screen ───
+    if (scannerMode === 'select' || !selectedEvent) {
+      return (
+        <div className="admin-panel">
+          <div className="panel-header">
+            <h3><ScanLine size={22} /> Event Scanner</h3>
+            <span className="panel-badge">Distribution Verification</span>
+          </div>
+
+          <div className="event-scanner-intro">
+            <ShieldCheck size={48} />
+            <h4>Select an Active Event to Begin Scanning</h4>
+            <p>Scan EM Card QR codes to verify resident eligibility and prevent duplicate distribution.</p>
+          </div>
+
+          {eventsLoading ? (
+            <div className="table-loading">Loading events...</div>
+          ) : events.length === 0 ? (
+            <div className="table-empty">
+              <p>No active events found. Create one to start scanning.</p>
+            </div>
+          ) : (
+            <div className="event-list-grid">
+              {events.map(evt => (
+                <div key={evt.id} className="event-card" onClick={() => { setSelectedEvent(evt); setScannerMode('scan'); fetchEventScans(evt.id); }}>
+                  <div className="event-card-icon">📅</div>
+                  <div className="event-card-body">
+                    <h5>{evt.event_name}</h5>
+                    <p>{evt.location || 'No location'}</p>
+                    <small>{evt.event_date ? new Date(evt.event_date).toLocaleDateString() : 'No date'}</small>
+                  </div>
+                  <button className="btn btn-sm btn-primary">Select →</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="event-create-section">
+            {!showCreateEvent ? (
+              <button className="btn btn-outline" onClick={() => setShowCreateEvent(true)}>+ Create New Event</button>
+            ) : (
+              <form className="event-create-form" onSubmit={handleCreateEvent}>
+                <h5>Create New Event</h5>
+                <input type="text" placeholder="Event Name *" required value={newEventForm.event_name} onChange={e => setNewEventForm(p => ({ ...p, event_name: e.target.value }))} />
+                <input type="date" value={newEventForm.event_date} onChange={e => setNewEventForm(p => ({ ...p, event_date: e.target.value }))} />
+                <input type="text" placeholder="Location" value={newEventForm.location} onChange={e => setNewEventForm(p => ({ ...p, location: e.target.value }))} />
+                <div className="form-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowCreateEvent(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">Create Event</button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── Scanner Screen ───
+    return (
+      <div className="admin-panel event-scanner-panel">
+        {/* Scanner Header */}
+        <div className="event-scanner-header">
+          <div>
+            <h3><ScanLine size={22} /> {selectedEvent.event_name}</h3>
+            <p>{selectedEvent.location || ''} {selectedEvent.event_date ? '• ' + new Date(selectedEvent.event_date).toLocaleDateString() : ''}</p>
+          </div>
+          <div className="event-scanner-actions">
+            <span className="scan-stat-badge">{eventScans.length} Scanned</span>
+            <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedEvent(null); setScannerMode('select'); setScanResult(null); }}>← Change Event</button>
+          </div>
+        </div>
+
+        {/* Result Display */}
+        {scanResult && (
+          <div className={`scan-result-panel scan-result-${scanResult.type}`}>
+            {scanResult.type === 'success' && (
+              <>
+                <div className="scan-result-badge success"><CheckCircle size={32} /> VERIFIED — ELIGIBLE</div>
+                <div className="scan-result-profile">
+                  <div className="scan-result-photo">
+                    {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
+                  </div>
+                  <div className="scan-result-info">
+                    <h2>{scanResult.name}</h2>
+                    <div className="scan-result-meta-grid">
+                      <span><MapPin size={14} /> {scanResult.barangay}</span>
+                      <span>🏠 {scanResult.houseNo}</span>
+                      <span>📍 {scanResult.purok}</span>
+                      <span><Phone size={14} /> {scanResult.contact}</span>
+                      <span>💳 {scanResult.emCardNo}</span>
+                      <span>🔑 {scanResult.qrToken}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="scan-result-footer">
+                  <span>Scan #{scanResult.scanCount} recorded</span>
+                  <button className="btn btn-primary" onClick={() => setScanResult(null)}>Scan Next →</button>
+                </div>
+              </>
+            )}
+
+            {scanResult.type === 'duplicate' && (
+              <>
+                <div className="scan-result-badge duplicate"><AlertTriangle size={32} /> DUPLICATE — STOP DISTRIBUTION</div>
+                <div className="scan-result-profile">
+                  <div className="scan-result-photo">
+                    {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
+                  </div>
+                  <div className="scan-result-info">
+                    <h2>{scanResult.name}</h2>
+                    <div className="scan-result-meta-grid">
+                      <span><MapPin size={14} /> {scanResult.barangay}</span>
+                      <span>🏠 {scanResult.houseNo}</span>
+                      <span>📍 {scanResult.purok}</span>
+                      <span><Phone size={14} /> {scanResult.contact}</span>
+                      <span>💳 {scanResult.emCardNo}</span>
+                      <span>🔑 {scanResult.qrToken}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="scan-result-footer duplicate-footer">
+                  <div className="duplicate-warning">
+                    <strong>⚠ ALREADY SCANNED</strong>
+                    <p>At <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
+                    {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
+                    <p className="duplicate-stop">❌ DO NOT DISTRIBUTE — This resident has already received items.</p>
+                  </div>
+                  <button className="btn btn-danger" onClick={() => setScanResult(null)}>Acknowledge &amp; Scan Next</button>
+                </div>
+              </>
+            )}
+
+            {(scanResult.type === 'invalid' || scanResult.type === 'error') && (
+              <>
+                <div className="scan-result-badge invalid"><X size={32} /> {scanResult.type === 'invalid' ? 'INVALID CARD' : 'ERROR'}</div>
+                <p className="scan-error-message">{scanResult.message}</p>
+                <button className="btn btn-secondary" onClick={() => setScanResult(null)}>Try Again</button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Scan Input */}
+        {!scanResult && (
+          <div className="scan-input-panel">
+            <div className="scan-input-icon"><ScanLine size={40} /></div>
+            <h4>Scan EM Card QR Code</h4>
+            <p>Point the QR scanner at the resident's EM Card</p>
+            <form onSubmit={e => { e.preventDefault(); handleEventScan(scanToken); }}>
+              <input
+                type="text"
+                value={scanToken}
+                onChange={e => setScanToken(e.target.value)}
+                placeholder="Tap here and scan QR code..."
+                className="scan-token-input"
+                autoFocus
+                autoComplete="off"
+              />
+              {scanLoading && <div className="scan-spinner">Verifying...</div>}
+            </form>
+          </div>
+        )}
+
+        {/* Recent Scans Table */}
+        {eventScans.length > 0 && (
+          <div className="event-scans-table">
+            <h5>Recent Scans ({eventScans.length})</h5>
+            <table className="admin-table">
+              <thead>
+                <tr><th>Name</th><th>Barangay</th><th>EM Card</th><th>Scanned At</th><th>By</th></tr>
+              </thead>
+              <tbody>
+                {eventScans.slice(0, 20).map((s, i) => {
+                  const person = s.registrations?.ValidResidents || {};
+                  const name = `${person.first_name || ''} ${person.middle_name || ''} ${person.last_name || ''}`.trim();
+                  return (
+                    <tr key={i}>
+                      <td>{name || '—'}</td>
+                      <td>{person.barangay || '—'}</td>
+                      <td><code>{s.registrations?.em_card_no || '—'}</code></td>
+                      <td>{new Date(s.scanned_at).toLocaleString()}</td>
+                      <td>{s.scanned_by || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="admin-dashboard">
       {/* Toast Notification */}
@@ -1553,6 +1932,7 @@ export default function AdminPage() {
           {activeTab === 'residents' && renderResidents()}
           {activeTab === 'registrations' && renderRegistrations()}
           {activeTab === 'members' && renderMembers()}
+          {activeTab === 'eventScanner' && renderEventScanner()}
           {activeTab === 'network' && renderNetwork()}
           {activeTab === 'messages' && renderMessages()}
           {activeTab === 'reports' && renderReports()}
