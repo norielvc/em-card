@@ -137,133 +137,141 @@ export default function AdminPage() {
     }
   }, [activeTab, msgTab]);
 
-  // Camera QR Scanner initialization
-  useEffect(() => {
-    let html5QrCode;
-    const startCamera = async () => {
-      if (scannerInputMode !== 'camera' || !selectedEvent || cameraReadyRef.current) return;
-      try {
-        const { Html5Qrcode } = await import('html5-qrcode');
-        html5QrCode = new Html5Qrcode('event-scanner-camera');
-        scannerRef.current = html5QrCode;
-        // Prefer back camera when available; remember choice
-        let chosenId = currentCameraId;
-        try {
-          const cameras = await Html5Qrcode.getCameras();
-          if (Array.isArray(cameras) && cameras.length > 0) {
-            setAvailableCameras(cameras);
-            if (!chosenId) {
-              const backCandidate = cameras.find(c => /back|rear|environment|world/i.test(c.label || ''));
-              chosenId = (backCandidate || cameras[cameras.length - 1]).id;
-            }
-          }
-        } catch (_) {}
+  // ─── Camera QR Scanner (Robust Permission-First Approach) ───
+  const getBackCameraId = (devices) => {
+    // Try to find back camera by label pattern
+    const backPatterns = [/back/i, /rear/i, /environment/i, /world facing/i, /external/i];
+    for (const pattern of backPatterns) {
+      const match = devices.find(d => pattern.test(d.label || ''));
+      if (match) return match.deviceId;
+    }
+    // If no pattern match, return last camera (often back on mobile)
+    return devices.length > 0 ? devices[devices.length - 1].deviceId : null;
+  };
 
-        const commonConfig = {
-          fps: 25,
-          qrbox: 320,
-          aspectRatio: 1.777,
-          experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-          videoConstraints: {
-            focusMode: 'continuous',
-            advanced: [{ focusMode: 'continuous' }]
-          }
-        };
+  const startScannerWithDevice = async (deviceId) => {
+    if (cameraReadyRef.current) return;
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const html5QrCode = new Html5Qrcode('event-scanner-camera');
+      scannerRef.current = html5QrCode;
 
-        const onDecode = (decodedText) => {
-          if (scanInProgressRef.current) return;
-          scanInProgressRef.current = true;
-          handleEventScan(decodedText);
-        };
+      const config = {
+        fps: 20,
+        qrbox: { width: 280, height: 280 },
+        aspectRatio: 1.0,
+      };
 
-        const onErrorFrame = (_frameErr) => {};
+      const onDecode = (decodedText) => {
+        if (scanInProgressRef.current) return;
+        scanInProgressRef.current = true;
+        handleEventScan(decodedText);
+      };
 
-        try {
-          if (chosenId) {
-            await html5QrCode.start(chosenId, commonConfig, onDecode, onErrorFrame);
-            setCurrentCameraId(chosenId);
-          } else {
-            await html5QrCode.start({ facingMode: { exact: 'environment' } }, commonConfig, onDecode, onErrorFrame);
-            setCurrentCameraId(null);
-          }
-        } catch (primaryErr) {
-          // Fallback: try any alternate camera id, else permissive facingMode
-          try {
-            const cams = availableCameras.length ? availableCameras : (await (await import('html5-qrcode')).Html5Qrcode.getCameras());
-            const alt = (cams || []).map(c => c.id).find(id => id !== chosenId) || (cams && cams[0] && cams[0].id);
-            if (alt) {
-              await html5QrCode.start(alt, commonConfig, onDecode, onErrorFrame);
-              setCurrentCameraId(alt);
-            } else {
-              await html5QrCode.start({ facingMode: 'environment' }, commonConfig, onDecode, onErrorFrame);
-              setCurrentCameraId(null);
-            }
-          } catch (secondaryErr) {
-            throw secondaryErr;
-          }
-        }
-        setCameraActive(true);
-        cameraReadyRef.current = true;
-      } catch (err) {
-        console.warn('Camera init failed:', err);
-        setCameraActive(false);
-      }
-    };
+      await html5QrCode.start(
+        { deviceId: { exact: deviceId } },
+        config,
+        onDecode,
+        () => {}
+      );
 
-    const stopCamera = async () => {
-      if (!cameraReadyRef.current) { setCameraActive(false); return; }
-      const instance = scannerRef.current;
-      if (instance) {
-        try { await instance.stop(); } catch (e) {}
-        try { await instance.clear(); } catch (e) {}
-      }
+      setCameraActive(true);
+      cameraReadyRef.current = true;
+      setCurrentCameraId(deviceId);
+    } catch (err) {
+      console.warn('Scanner start failed:', err);
       setCameraActive(false);
       cameraReadyRef.current = false;
-    };
-
-    if (scannerInputMode === 'camera' && selectedEvent) {
-      startCamera();
-    } else {
-      stopCamera();
     }
+  };
 
-    return () => { stopCamera(); };
-  }, [scannerInputMode, selectedEvent]);
-
-  const flipCamera = async () => {
-    if (!availableCameras.length) return;
-    const ids = availableCameras.map(c => c.id);
-    const idx = Math.max(0, ids.indexOf(currentCameraId));
-    const nextId = ids[(idx + 1) % ids.length];
-    // Stop and restart on next camera id
+  const stopScanner = async () => {
     const instance = scannerRef.current;
-    try { if (instance) { await instance.stop(); await instance.clear(); } } catch (_) {}
+    if (instance) {
+      try { await instance.stop(); } catch (_) {}
+      try { await instance.clear(); } catch (_) {}
+    }
+    scannerRef.current = null;
     cameraReadyRef.current = false;
     setCameraActive(false);
-    setCurrentCameraId(nextId);
-    // Trigger effect to start again with currentCameraId
-    if (scannerInputMode === 'camera' && selectedEvent) {
-      // brief timeout lets camera release
-      setTimeout(() => {
-        // no-op; effect runs on selectedEvent/scannerInputMode, so restart manually
-        (async () => {
-          try {
-            const { Html5Qrcode } = await import('html5-qrcode');
-            const html5QrCode = new Html5Qrcode('event-scanner-camera');
-            scannerRef.current = html5QrCode;
-            const commonConfig = {
-              fps: 25, qrbox: 320, aspectRatio: 1.777,
-              experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-              videoConstraints: { focusMode: 'continuous', advanced: [{ focusMode: 'continuous' }] }
-            };
-            await html5QrCode.start(nextId, commonConfig, (txt) => {
-              if (scanInProgressRef.current) return; scanInProgressRef.current = true; handleEventScan(txt);
-            }, () => {});
-            cameraReadyRef.current = true; setCameraActive(true);
-          } catch (e) { console.warn('Flip camera failed:', e); }
-        })();
-      }, 50);
+  };
+
+  // Main camera init effect
+  useEffect(() => {
+    if (scannerInputMode !== 'camera' || !selectedEvent) {
+      stopScanner();
+      return () => {};
     }
+
+    let cancelled = false;
+
+    const initCamera = async () => {
+      // Step 1: Request permission FIRST via native API (labels only appear after permission)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(t => t.stop()); // release immediately
+      } catch (permErr) {
+        console.warn('Camera permission denied:', permErr);
+        setCameraActive(false);
+        return;
+      }
+
+      if (cancelled) return;
+
+      // Step 2: Enumerate devices (now labels are populated)
+      let videoDevices = [];
+      try {
+        const allDevices = await navigator.mediaDevices.enumerateDevices();
+        videoDevices = allDevices.filter(d => d.kind === 'videoinput' && d.deviceId);
+        setAvailableCameras(videoDevices.map(d => ({ id: d.deviceId, label: d.label || `Camera ${videoDevices.indexOf(d) + 1}` })));
+      } catch (enumErr) {
+        console.warn('Enumerate failed:', enumErr);
+      }
+
+      if (cancelled) return;
+
+      // Step 3: Pick camera
+      let targetId = currentCameraId;
+      if (!targetId && videoDevices.length > 0) {
+        targetId = getBackCameraId(videoDevices);
+      }
+
+      // Step 4: Start scanner
+      if (targetId && !cancelled) {
+        await startScannerWithDevice(targetId);
+      } else if (!cancelled) {
+        // Last resort: try facingMode
+        try {
+          const { Html5Qrcode } = await import('html5-qrcode');
+          const html5QrCode = new Html5Qrcode('event-scanner-camera');
+          scannerRef.current = html5QrCode;
+          await html5QrCode.start(
+            { facingMode: 'environment' },
+            { fps: 20, qrbox: { width: 280, height: 280 } },
+            (txt) => { if (!scanInProgressRef.current) { scanInProgressRef.current = true; handleEventScan(txt); } },
+            () => {}
+          );
+          setCameraActive(true);
+          cameraReadyRef.current = true;
+        } catch (f) { console.warn('facingMode fallback failed:', f); }
+      }
+    };
+
+    initCamera();
+
+    return () => {
+      cancelled = true;
+      stopScanner();
+    };
+  }, [scannerInputMode, selectedEvent]);
+
+  const switchCamera = async (deviceId) => {
+    await stopScanner();
+    setCurrentCameraId(deviceId);
+    // Small delay to ensure cleanup
+    setTimeout(() => {
+      startScannerWithDevice(deviceId);
+    }, 100);
   };
 
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -1978,9 +1986,6 @@ export default function AdminPage() {
               <>
                 <div className="camera-scanner-container">
                   <div id="event-scanner-camera" className="camera-viewport"></div>
-                  <button type="button" className="btn btn-sm btn-secondary" style={{ position: 'absolute', right: 10, bottom: 10 }} onClick={flipCamera}>
-                    <RefreshCw size={14} /> Flip
-                  </button>
                   {!cameraActive && (
                     <div className="camera-placeholder">
                       <Camera size={48} />
@@ -1989,6 +1994,32 @@ export default function AdminPage() {
                     </div>
                   )}
                 </div>
+                {availableCameras.length > 1 && (
+                  <div style={{ marginTop: 10, display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
+                    <label style={{ fontSize: 12, color: 'var(--muted)' }}>Camera:</label>
+                    <select
+                      value={currentCameraId || ''}
+                      onChange={(e) => switchCamera(e.target.value)}
+                      style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border)' }}
+                    >
+                      {availableCameras.map(c => (
+                        <option key={c.id} value={c.id}>{c.label || c.id}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => {
+                        const ids = availableCameras.map(c => c.id);
+                        const idx = Math.max(0, ids.indexOf(currentCameraId));
+                        const nextId = ids[(idx + 1) % ids.length];
+                        switchCamera(nextId);
+                      }}
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                  </div>
+                )}
                 <p className="camera-hint">Point camera at the resident's EM Card QR code</p>
               </>
             ) : (
