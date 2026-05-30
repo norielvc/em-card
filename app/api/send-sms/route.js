@@ -51,36 +51,16 @@ async function sendTwilio(phone, body) {
  * Send SMS via Semaphore (Philippines-based, cheaper)
  * Docs: https://semaphore.co/docs
  */
-async function sendSemaphore(phone, body) {
-  const apiKey = process.env.SEMAPHORE_API_KEY;
-  const senderName = process.env.SEMAPHORE_SENDER_NAME || 'SEMAPHORE';
-
-  console.log('[Semaphore] Starting send. API key present:', !!apiKey, '| Sender:', senderName);
-
-  if (!apiKey) {
-    throw new Error('Semaphore API key not configured');
-  }
-
-  // Format phone for Philippines
-  let formattedPhone = phone.replace(/\D/g, '');
-  if (formattedPhone.startsWith('0')) {
-    formattedPhone = '63' + formattedPhone.slice(1);
-  } else if (!formattedPhone.startsWith('63')) {
-    formattedPhone = '63' + formattedPhone;
-  }
-
-  const payload = {
-    apikey: apiKey,
-    number: formattedPhone,
-    message: body,
-    sendername: senderName,
-  };
-  console.log('[Semaphore] Request payload:', JSON.stringify({ ...payload, apikey: '***MASKED***' }));
-
+async function _semaphoreCall(apiKey, phone, body, senderName) {
   const response = await fetch('https://api.semaphore.co/api/v4/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(payload),
+    body: new URLSearchParams({
+      apikey: apiKey,
+      number: phone,
+      message: body,
+      sendername: senderName,
+    }),
   });
 
   const responseText = await response.text();
@@ -95,25 +75,58 @@ async function sendSemaphore(phone, body) {
     throw new Error(`Semaphore returned non-JSON: ${responseText.slice(0, 200)}`);
   }
 
-  // Semaphore may return 200 but with error in body
   if (!response.ok) {
     const errMsg = data?.message || data?.error || `Semaphore HTTP error: ${response.status}`;
     console.error('[Semaphore] HTTP error:', errMsg);
     throw new Error(errMsg);
   }
 
-  // Check for API-level errors even with 200 status
   if (data && (data.error || data.status === 'error' || data.message === 'Invalid API Key')) {
     const errMsg = data.message || data.error || 'Semaphore API error';
     console.error('[Semaphore] API error in body:', errMsg);
     throw new Error(errMsg);
   }
 
-  // Semaphore returns array on success: [{ message_id, status, ... }]
   const sid = data?.message_id || (Array.isArray(data) ? data[0]?.message_id : null);
   const status = data?.status || (Array.isArray(data) ? data[0]?.status : 'sent') || 'sent';
-  console.log('[Semaphore] Success — sid:', sid, '| status:', status);
-  return { sid: sid || 'unknown', status };
+  return { sid: sid || 'unknown', status, data };
+}
+
+async function sendSemaphore(phone, body) {
+  const apiKey = process.env.SEMAPHORE_API_KEY;
+  const customSender = process.env.SEMAPHORE_SENDER_NAME;
+
+  console.log('[Semaphore] Starting send. API key present:', !!apiKey, '| Custom sender:', customSender);
+
+  if (!apiKey) {
+    throw new Error('Semaphore API key not configured');
+  }
+
+  // Format phone for Philippines
+  let formattedPhone = phone.replace(/\D/g, '');
+  if (formattedPhone.startsWith('0')) {
+    formattedPhone = '63' + formattedPhone.slice(1);
+  } else if (!formattedPhone.startsWith('63')) {
+    formattedPhone = '63' + formattedPhone;
+  }
+
+  // Try custom sender name first (must be pre-approved by Semaphore)
+  if (customSender && customSender !== 'SEMAPHORE') {
+    try {
+      console.log('[Semaphore] Trying custom sender:', customSender);
+      const result = await _semaphoreCall(apiKey, formattedPhone, body, customSender);
+      console.log('[Semaphore] Success with custom sender — sid:', result.sid, '| status:', result.status);
+      return { sid: result.sid, status: result.status };
+    } catch (err) {
+      console.warn('[Semaphore] Custom sender failed:', err.message, '| Retrying with SEMAPHORE...');
+    }
+  }
+
+  // Fallback to default SEMAPHORE sender
+  console.log('[Semaphore] Trying default sender: SEMAPHORE');
+  const result = await _semaphoreCall(apiKey, formattedPhone, body, 'SEMAPHORE');
+  console.log('[Semaphore] Success with default sender — sid:', result.sid, '| status:', result.status);
+  return { sid: result.sid, status: result.status };
 }
 
 /**
@@ -168,6 +181,44 @@ async function sendSMS(phone, body) {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
+
+    // Direct Semaphore API test — bypass all app logic
+    if (searchParams.get('debug') === '1') {
+      const testPhone = searchParams.get('phone') || '639171234567';
+      const testMsg = searchParams.get('msg') || 'Test from EM-CARD';
+      const senderName = process.env.SEMAPHORE_SENDER_NAME || 'SEMAPHORE';
+      const apiKey = process.env.SEMAPHORE_API_KEY;
+
+      if (!apiKey) {
+        return Response.json({ error: 'SEMAPHORE_API_KEY not set' }, { status: 500 });
+      }
+
+      try {
+        const response = await fetch('https://api.semaphore.co/api/v4/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            apikey: apiKey,
+            number: testPhone,
+            message: testMsg,
+            sendername: senderName,
+          }),
+        });
+        const responseText = await response.text();
+        let data;
+        try { data = JSON.parse(responseText); } catch (e) { data = { raw: responseText }; }
+        return Response.json({
+          debug: true,
+          httpStatus: response.status,
+          httpOk: response.ok,
+          senderName,
+          phone: testPhone,
+          response: data,
+        });
+      } catch (err) {
+        return Response.json({ debug: true, error: err.message }, { status: 500 });
+      }
+    }
 
     // Check provider configuration status (no secrets exposed)
     if (searchParams.get('status') === '1') {
@@ -322,10 +373,11 @@ export async function POST(request) {
     // For small sends (test / 1-10 recipients), send synchronously so Vercel
     // doesn't freeze the function before the SMS API call completes.
     // For bulk sends (>10), fire-and-forget with best-effort background send.
+    let sendResults = null;
     if (totalRecipients <= 10) {
       console.log('[SMS] Awaiting synchronous send (small batch)...');
-      await sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody);
-      console.log('[SMS] Synchronous send complete.');
+      sendResults = await sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody);
+      console.log('[SMS] Synchronous send complete. Results:', JSON.stringify(sendResults));
     } else {
       console.log('[SMS] Background send (large batch) — may not complete on Vercel serverless');
       sendMessagesAsync(messageRecord.id, recipientRecords || [], messageBody);
@@ -335,8 +387,9 @@ export async function POST(request) {
       success: true,
       messageId: messageRecord.id,
       totalRecipients: validRecipients.length,
-      status: 'sending',
+      status: sendResults ? (sendResults.failedCount === 0 ? 'sent' : 'partial') : 'sending',
       provider: getProvider(),
+      sendResults,
     });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
@@ -349,6 +402,7 @@ export async function POST(request) {
 async function sendMessagesAsync(messageId, recipients, body) {
   let sentCount = 0;
   let failedCount = 0;
+  const results = [];
 
   console.log('[SMS] Background send started. Message:', messageId, '| Recipients:', recipients.length);
 
@@ -369,6 +423,7 @@ async function sendMessagesAsync(messageId, recipients, body) {
         .eq('id', recipient.id);
 
       sentCount++;
+      results.push({ phone: recipient.phone_number, status: 'sent', result });
     } catch (err) {
       console.error('[SMS] FAILED for', recipient.phone_number, '| error:', err.message);
       await supabase
@@ -381,6 +436,7 @@ async function sendMessagesAsync(messageId, recipients, body) {
         .eq('id', recipient.id);
 
       failedCount++;
+      results.push({ phone: recipient.phone_number, status: 'failed', error: err.message });
     }
   }
 
@@ -396,4 +452,6 @@ async function sendMessagesAsync(messageId, recipients, body) {
       sent_at: new Date().toISOString(),
     })
     .eq('id', messageId);
+
+  return { sentCount, failedCount, results };
 }
