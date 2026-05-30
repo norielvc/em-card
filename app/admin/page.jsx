@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine, Camera } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine, Camera, RefreshCw } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function AdminPage() {
@@ -85,6 +85,8 @@ export default function AdminPage() {
   const scannerRef = useRef(null);
   const scanInProgressRef = useRef(false);
   const cameraReadyRef = useRef(false);
+  const [availableCameras, setAvailableCameras] = useState([]);
+  const [currentCameraId, setCurrentCameraId] = useState(null);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -144,13 +146,16 @@ export default function AdminPage() {
         const { Html5Qrcode } = await import('html5-qrcode');
         html5QrCode = new Html5Qrcode('event-scanner-camera');
         scannerRef.current = html5QrCode;
-        // Prefer back camera when available
-        let backCamId = null;
+        // Prefer back camera when available; remember choice
+        let chosenId = currentCameraId;
         try {
           const cameras = await Html5Qrcode.getCameras();
           if (Array.isArray(cameras) && cameras.length > 0) {
-            const backCandidate = cameras.find(c => /back|rear|environment|world/i.test(c.label || ''));
-            backCamId = (backCandidate || cameras[cameras.length - 1]).id;
+            setAvailableCameras(cameras);
+            if (!chosenId) {
+              const backCandidate = cameras.find(c => /back|rear|environment|world/i.test(c.label || ''));
+              chosenId = (backCandidate || cameras[cameras.length - 1]).id;
+            }
           }
         } catch (_) {}
 
@@ -173,10 +178,29 @@ export default function AdminPage() {
 
         const onErrorFrame = (_frameErr) => {};
 
-        if (backCamId) {
-          await html5QrCode.start(backCamId, commonConfig, onDecode, onErrorFrame);
-        } else {
-          await html5QrCode.start({ facingMode: 'environment' }, commonConfig, onDecode, onErrorFrame);
+        try {
+          if (chosenId) {
+            await html5QrCode.start(chosenId, commonConfig, onDecode, onErrorFrame);
+            setCurrentCameraId(chosenId);
+          } else {
+            await html5QrCode.start({ facingMode: { exact: 'environment' } }, commonConfig, onDecode, onErrorFrame);
+            setCurrentCameraId(null);
+          }
+        } catch (primaryErr) {
+          // Fallback: try any alternate camera id, else permissive facingMode
+          try {
+            const cams = availableCameras.length ? availableCameras : (await (await import('html5-qrcode')).Html5Qrcode.getCameras());
+            const alt = (cams || []).map(c => c.id).find(id => id !== chosenId) || (cams && cams[0] && cams[0].id);
+            if (alt) {
+              await html5QrCode.start(alt, commonConfig, onDecode, onErrorFrame);
+              setCurrentCameraId(alt);
+            } else {
+              await html5QrCode.start({ facingMode: 'environment' }, commonConfig, onDecode, onErrorFrame);
+              setCurrentCameraId(null);
+            }
+          } catch (secondaryErr) {
+            throw secondaryErr;
+          }
         }
         setCameraActive(true);
         cameraReadyRef.current = true;
@@ -205,6 +229,42 @@ export default function AdminPage() {
 
     return () => { stopCamera(); };
   }, [scannerInputMode, selectedEvent]);
+
+  const flipCamera = async () => {
+    if (!availableCameras.length) return;
+    const ids = availableCameras.map(c => c.id);
+    const idx = Math.max(0, ids.indexOf(currentCameraId));
+    const nextId = ids[(idx + 1) % ids.length];
+    // Stop and restart on next camera id
+    const instance = scannerRef.current;
+    try { if (instance) { await instance.stop(); await instance.clear(); } } catch (_) {}
+    cameraReadyRef.current = false;
+    setCameraActive(false);
+    setCurrentCameraId(nextId);
+    // Trigger effect to start again with currentCameraId
+    if (scannerInputMode === 'camera' && selectedEvent) {
+      // brief timeout lets camera release
+      setTimeout(() => {
+        // no-op; effect runs on selectedEvent/scannerInputMode, so restart manually
+        (async () => {
+          try {
+            const { Html5Qrcode } = await import('html5-qrcode');
+            const html5QrCode = new Html5Qrcode('event-scanner-camera');
+            scannerRef.current = html5QrCode;
+            const commonConfig = {
+              fps: 25, qrbox: 320, aspectRatio: 1.777,
+              experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+              videoConstraints: { focusMode: 'continuous', advanced: [{ focusMode: 'continuous' }] }
+            };
+            await html5QrCode.start(nextId, commonConfig, (txt) => {
+              if (scanInProgressRef.current) return; scanInProgressRef.current = true; handleEventScan(txt);
+            }, () => {});
+            cameraReadyRef.current = true; setCameraActive(true);
+          } catch (e) { console.warn('Flip camera failed:', e); }
+        })();
+      }, 50);
+    }
+  };
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -1918,6 +1978,9 @@ export default function AdminPage() {
               <>
                 <div className="camera-scanner-container">
                   <div id="event-scanner-camera" className="camera-viewport"></div>
+                  <button type="button" className="btn btn-sm btn-secondary" style={{ position: 'absolute', right: 10, bottom: 10 }} onClick={flipCamera}>
+                    <RefreshCw size={14} /> Flip
+                  </button>
                   {!cameraActive && (
                     <div className="camera-placeholder">
                       <Camera size={48} />
