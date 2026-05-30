@@ -83,6 +83,7 @@ export default function AdminPage() {
   const [scannerInputMode, setScannerInputMode] = useState('camera'); // 'camera' | 'manual'
   const [cameraActive, setCameraActive] = useState(false);
   const scannerRef = useRef(null);
+  const scanInProgressRef = useRef(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -146,6 +147,13 @@ export default function AdminPage() {
           { facingMode: 'environment' },
           { fps: 10, qrbox: { width: 250, height: 250 } },
           (decodedText) => {
+            if (scanInProgressRef.current) return;
+            scanInProgressRef.current = true;
+            try {
+              if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.pause(true);
+              }
+            } catch (e) {}
             handleEventScan(decodedText);
           },
           () => {}
@@ -1579,8 +1587,14 @@ export default function AdminPage() {
     }
   };
 
+  const resetScanState = () => {
+    setScanResult(null);
+    scanInProgressRef.current = false;
+  };
+
   const handleEventScan = async (rawToken) => {
     if (!rawToken.trim() || !selectedEvent) return;
+    scanInProgressRef.current = true;
     setScanLoading(true);
     setScanResult(null);
 
@@ -1779,7 +1793,7 @@ export default function AdminPage() {
           </div>
           <div className="event-scanner-actions">
             <span className="scan-stat-badge">{eventScans.length} Scanned</span>
-            <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedEvent(null); setScannerMode('select'); setScanResult(null); }}>← Change Event</button>
+            <button className="btn btn-sm btn-secondary" onClick={() => { setSelectedEvent(null); setScannerMode('select'); resetScanState(); }}>← Change Event</button>
           </div>
         </div>
 
@@ -1807,7 +1821,7 @@ export default function AdminPage() {
                 </div>
                 <div className="scan-result-footer">
                   <span>Scan #{scanResult.scanCount} recorded</span>
-                  <button className="btn btn-primary" onClick={() => setScanResult(null)}>Scan Next →</button>
+                  <button className="btn btn-primary" onClick={resetScanState}>Scan Next →</button>
                 </div>
               </>
             )}
@@ -1838,7 +1852,7 @@ export default function AdminPage() {
                     {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
                     <p className="duplicate-stop">❌ DO NOT DISTRIBUTE — This resident has already received items.</p>
                   </div>
-                  <button className="btn btn-danger" onClick={() => setScanResult(null)}>Acknowledge &amp; Scan Next</button>
+                  <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
                 </div>
               </>
             )}
@@ -1847,7 +1861,7 @@ export default function AdminPage() {
               <>
                 <div className="scan-result-badge invalid"><X size={32} /> {scanResult.type === 'invalid' ? 'INVALID CARD' : 'ERROR'}</div>
                 <p className="scan-error-message">{scanResult.message}</p>
-                <button className="btn btn-secondary" onClick={() => setScanResult(null)}>Try Again</button>
+                <button className="btn btn-secondary" onClick={resetScanState}>Try Again</button>
               </>
             )}
           </div>
