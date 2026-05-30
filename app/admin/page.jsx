@@ -81,8 +81,9 @@ export default function AdminPage() {
   const [eventScans, setEventScans] = useState([]);
   const [scanStats, setScanStats] = useState({ total: 0, duplicates: 0 });
   const [scannerInputMode, setScannerInputMode] = useState('camera'); // 'camera' | 'manual'
+  const [cameraActive, setCameraActive] = useState(false);
+  const scannerRef = useRef(null);
   const scanInProgressRef = useRef(false);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -133,48 +134,55 @@ export default function AdminPage() {
     }
   }, [activeTab, msgTab]);
 
-  // ─── Camera Capture (Photo-based QR Scan) ───
+  // ─── Continuous Live Camera Stream ───
   const stopScanner = async () => {
-    // No-op: we no longer run a continuous camera stream
+    const instance = scannerRef.current;
+    if (instance) {
+      try { await instance.stop(); } catch (_) {}
+      scannerRef.current = null;
+    }
+    setCameraActive(false);
   };
 
-  // Resize image to prevent OOM crash from high-res phone photos
-  const resizeImage = (file, maxDim = 1024) => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(new File([blob], file.name, { type: 'image/jpeg' }));
-          } else {
-            reject(new Error('Canvas toBlob failed'));
-          }
-        }, 'image/jpeg', 0.85);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Image load failed'));
-      };
-      img.src = url;
-    });
-  };
+  useEffect(() => {
+    if (scannerInputMode !== 'camera' || !selectedEvent) {
+      stopScanner();
+      return;
+    }
+
+    let cancelled = false;
+
+    const startCamera = async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        const qr = new Html5Qrcode('event-scanner-camera');
+        scannerRef.current = qr;
+
+        await qr.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 280, height: 280 }, aspectRatio: 1.0 },
+          (decodedText) => {
+            if (scanInProgressRef.current) return;
+            scanInProgressRef.current = true;
+            handleEventScan(decodedText);
+          },
+          () => {}
+        );
+
+        if (!cancelled) setCameraActive(true);
+      } catch (err) {
+        console.warn('Camera failed:', err);
+        if (!cancelled) setCameraActive(false);
+      }
+    };
+
+    startCamera();
+
+    return () => {
+      cancelled = true;
+      stopScanner();
+    };
+  }, [scannerInputMode, selectedEvent]);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -1611,7 +1619,6 @@ export default function AdminPage() {
       const validTokenPattern = /^(EM[A-Za-z0-9]{24}|EM-\d{10})$/;
       if (!validTokenPattern.test(cleanToken)) {
         console.warn('[Scanner] Token failed validation:', cleanToken);
-        stopScanner();
         setScanResult({ type: 'invalid', message: 'SECURITY ALERT: Invalid QR format. This is NOT a valid EM Card.' });
         setScanLoading(false);
         setScanToken('');
@@ -1628,7 +1635,6 @@ export default function AdminPage() {
         .maybeSingle();
 
       if (regErr || !reg) {
-        stopScanner();
         setScanResult({ type: 'invalid', message: 'SECURITY ALERT: Unregistered or unauthorized EM Card. This QR code is not in our system.' });
         setScanLoading(false);
         setScanToken('');
@@ -1651,7 +1657,6 @@ export default function AdminPage() {
 
       if (existingScan) {
         // DUPLICATE — show RED warning
-        stopScanner();
         setScanResult({
           type: 'duplicate',
           name: fullName,
@@ -1686,7 +1691,6 @@ export default function AdminPage() {
           .eq('registration_id', reg.id)
           .maybeSingle();
         if (raceCheck) {
-          stopScanner();
           setScanResult({
             type: 'duplicate',
             name: fullName,
@@ -1714,7 +1718,6 @@ export default function AdminPage() {
         scan_count: (reg.scan_count || 0) + 1,
       }).eq('id', reg.id);
 
-      stopScanner();
       setScanResult({
         type: 'success',
         name: fullName,
@@ -1731,7 +1734,6 @@ export default function AdminPage() {
       // Refresh scan list
       fetchEventScans(selectedEvent.id);
     } catch (err) {
-      stopScanner();
       setScanResult({ type: 'error', message: err.message || 'Network error. Try again.' });
     } finally {
       setScanLoading(false);
@@ -1813,79 +1815,8 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Result Display */}
-        {scanResult && (
-          <div className={`scan-result-panel scan-result-${scanResult.type}`}>
-            {scanResult.type === 'success' && (
-              <>
-                <div className="scan-result-badge success"><CheckCircle size={32} /> VERIFIED — ELIGIBLE</div>
-                <div className="scan-result-profile">
-                  <div className="scan-result-photo">
-                    {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
-                  </div>
-                  <div className="scan-result-info">
-                    <h2>{scanResult.name}</h2>
-                    <div className="scan-result-meta-grid">
-                      <span><MapPin size={14} /> {scanResult.barangay}</span>
-                      <span>🏠 {scanResult.houseNo}</span>
-                      <span>📍 {scanResult.purok}</span>
-                      <span><Phone size={14} /> {scanResult.contact}</span>
-                      <span>💳 {scanResult.emCardNo}</span>
-                      <span>🔑 {scanResult.qrToken}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="scan-result-footer">
-                  <span>Scan #{scanResult.scanCount} recorded</span>
-                  <button className="btn btn-primary" onClick={resetScanState}>Scan Next →</button>
-                </div>
-              </>
-            )}
-
-            {scanResult.type === 'duplicate' && (
-              <>
-                <div className="scan-result-badge duplicate"><AlertTriangle size={32} /> DUPLICATE — STOP DISTRIBUTION</div>
-                <div className="scan-result-profile">
-                  <div className="scan-result-photo">
-                    {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
-                  </div>
-                  <div className="scan-result-info">
-                    <h2>{scanResult.name}</h2>
-                    <div className="scan-result-meta-grid">
-                      <span><MapPin size={14} /> {scanResult.barangay}</span>
-                      <span>🏠 {scanResult.houseNo}</span>
-                      <span>📍 {scanResult.purok}</span>
-                      <span><Phone size={14} /> {scanResult.contact}</span>
-                      <span>💳 {scanResult.emCardNo}</span>
-                      <span>🔑 {scanResult.qrToken}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="scan-result-footer duplicate-footer">
-                  <div className="duplicate-warning">
-                    <strong>⚠ ALREADY SCANNED</strong>
-                    <p>At <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
-                    {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
-                    <p className="duplicate-stop">❌ DO NOT DISTRIBUTE — This resident has already received items.</p>
-                  </div>
-                  <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
-                </div>
-              </>
-            )}
-
-            {(scanResult.type === 'invalid' || scanResult.type === 'error') && (
-              <>
-                <div className="scan-result-badge invalid"><X size={32} /> {scanResult.type === 'invalid' ? 'INVALID CARD' : 'ERROR'}</div>
-                <p className="scan-error-message">{scanResult.message}</p>
-                <button className="btn btn-secondary" onClick={resetScanState}>Try Again</button>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Scan Input */}
-        {!scanResult && (
-          <div className="scan-input-panel">
+        {/* Scan Input — always mounted; result overlays camera without unmounting */}
+        <div className="scan-input-panel">
             {/* Mode Toggle */}
             <div className="scanner-mode-toggle">
               <button
@@ -1904,97 +1835,94 @@ export default function AdminPage() {
 
             {scannerInputMode === 'camera' ? (
               <>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  ref={fileInputRef}
-                  style={{ display: 'none' }}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setScanLoading(true);
-                    try {
-                      // Resize to 1600px max for good QR readability while preventing OOM
-                      const resized = await resizeImage(file, 1600);
+                {/* Live camera viewport — ALWAYS mounted, never removed */}
+                <div className="camera-scanner-container" style={{ position: 'relative', minHeight: 320 }}>
+                  <div id="event-scanner-camera" style={{ width: '100%', height: '100%' }}></div>
+                  {!cameraActive && (
+                    <div className="camera-placeholder" style={{ position: 'absolute', inset: 0 }}>
+                      <Camera size={48} />
+                      <p>Starting camera...</p>
+                      <small>If camera fails, switch to Manual mode</small>
+                    </div>
+                  )}
 
-                      let decodedText = null;
+                  {/* Result overlay — covers camera without unmounting it */}
+                  {scanResult && (
+                    <div className="scan-result-overlay" style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      zIndex: 10,
+                      background: 'rgba(255,255,255,0.98)',
+                      overflowY: 'auto',
+                      padding: 20,
+                      borderRadius: 12
+                    }}>
+                      {scanResult.type === 'success' && (
+                        <>
+                          <div className="scan-result-badge success"><CheckCircle size={32} /> VERIFIED</div>
+                          <div className="scan-result-profile">
+                            <div className="scan-result-photo">
+                              {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
+                            </div>
+                            <div className="scan-result-info">
+                              <h2>{scanResult.name}</h2>
+                              <div className="scan-result-meta-grid">
+                                <span><MapPin size={14} /> {scanResult.barangay}</span>
+                                <span>🏠 {scanResult.houseNo}</span>
+                                <span>📍 {scanResult.purok}</span>
+                                <span><Phone size={14} /> {scanResult.contact}</span>
+                                <span>💳 {scanResult.emCardNo}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="scan-result-footer">
+                            <span>Scan #{scanResult.scanCount} recorded</span>
+                            <button className="btn btn-primary" onClick={resetScanState}>Scan Next →</button>
+                          </div>
+                        </>
+                      )}
 
-                      // 1. Try native BarcodeDetector API (Chrome Android, Safari 15.4+)
-                      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-                        try {
-                          const detector = new BarcodeDetector({ formats: ['qr_code'] });
-                          const bitmap = await createImageBitmap(resized);
-                          const codes = await detector.detect(bitmap);
-                          if (codes.length > 0 && codes[0].rawValue) {
-                            decodedText = codes[0].rawValue;
-                          }
-                        } catch (nativeErr) {
-                          console.warn('Native BarcodeDetector failed:', nativeErr);
-                        }
-                      }
+                      {scanResult.type === 'duplicate' && (
+                        <>
+                          <div className="scan-result-badge duplicate"><AlertTriangle size={32} /> DUPLICATE — STOP</div>
+                          <div className="scan-result-profile">
+                            <div className="scan-result-photo">
+                              {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
+                            </div>
+                            <div className="scan-result-info">
+                              <h2>{scanResult.name}</h2>
+                              <div className="scan-result-meta-grid">
+                                <span><MapPin size={14} /> {scanResult.barangay}</span>
+                                <span>🏠 {scanResult.houseNo}</span>
+                                <span>📍 {scanResult.purok}</span>
+                                <span><Phone size={14} /> {scanResult.contact}</span>
+                                <span>💳 {scanResult.emCardNo}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="scan-result-footer duplicate-footer">
+                            <div className="duplicate-warning">
+                              <strong>⚠ ALREADY SCANNED</strong>
+                              <p>At <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
+                              {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
+                              <p className="duplicate-stop">❌ DO NOT DISTRIBUTE</p>
+                            </div>
+                            <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
+                          </div>
+                        </>
+                      )}
 
-                      // 2. Fallback to jsQR (reads canvas ImageData directly — reliable everywhere)
-                      if (!decodedText) {
-                        try {
-                          const jsQR = (await import('jsqr')).default;
-                          const img = new Image();
-                          const url = URL.createObjectURL(resized);
-                          decodedText = await new Promise((resolve) => {
-                            img.onload = () => {
-                              URL.revokeObjectURL(url);
-                              const canvas = document.createElement('canvas');
-                              canvas.width = img.width;
-                              canvas.height = img.height;
-                              const ctx = canvas.getContext('2d');
-                              ctx.drawImage(img, 0, 0);
-                              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                              const result = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
-                              resolve(result ? result.data : null);
-                            };
-                            img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
-                            img.src = url;
-                          });
-                        } catch (jsqrErr) {
-                          console.warn('jsQR failed:', jsqrErr);
-                        }
-                      }
-
-                      if (decodedText) {
-                        handleEventScan(decodedText);
-                      } else {
-                        setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
-                        setScanLoading(false);
-                      }
-                    } catch (err) {
-                      console.warn('QR processing error:', err);
-                      setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
-                      setScanLoading(false);
-                    } finally {
-                      e.target.value = '';
-                    }
-                  }}
-                />
-                {/* Hidden element required by Html5Qrcode constructor for file scanning */}
-                <div id="qr-file-scanner" style={{ display: 'none' }}></div>
-                <div className="camera-scanner-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-                  <Camera size={64} style={{ opacity: 0.5 }} />
-                  <h4 style={{ margin: 0 }}>Capture QR Code</h4>
-                  <p style={{ textAlign: 'center', margin: 0, color: 'var(--muted)' }}>
-                    Tap the button below to open your camera, then take a photo of the EM Card QR code.
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    style={{ padding: '14px 32px', fontSize: '1.1rem' }}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Camera size={20} style={{ marginRight: 8 }} /> Capture QR
-                  </button>
+                      {(scanResult.type === 'invalid' || scanResult.type === 'error') && (
+                        <>
+                          <div className="scan-result-badge invalid"><X size={32} /> {scanResult.type === 'invalid' ? 'INVALID CARD' : 'ERROR'}</div>
+                          <p className="scan-error-message">{scanResult.message}</p>
+                          <button className="btn btn-secondary" onClick={resetScanState}>Try Again</button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {scanLoading && (
-                  <div className="scan-spinner" style={{ marginTop: 16 }}>Analyzing image...</div>
-                )}
+                <p className="camera-hint">Point camera at the resident's EM Card QR code</p>
               </>
             ) : (
               <>
@@ -2017,7 +1945,6 @@ export default function AdminPage() {
               </>
             )}
           </div>
-        )}
 
         {/* Recent Scans Table */}
         {eventScans.length > 0 && (
