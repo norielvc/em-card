@@ -198,7 +198,8 @@ export default function AdminPage() {
 
   // Main camera init effect
   useEffect(() => {
-    if (scannerInputMode !== 'camera' || !selectedEvent) {
+    // Stop camera when showing a scan result (prevents crash when DOM element is removed)
+    if (scannerInputMode !== 'camera' || !selectedEvent || scanResult) {
       stopScanner();
       return () => {};
     }
@@ -263,7 +264,7 @@ export default function AdminPage() {
       cancelled = true;
       stopScanner();
     };
-  }, [scannerInputMode, selectedEvent]);
+  }, [scannerInputMode, selectedEvent, scanResult]);
 
   const switchCamera = async (deviceId) => {
     await stopScanner();
