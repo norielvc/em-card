@@ -1589,14 +1589,36 @@ export default function AdminPage() {
 
   const fetchEventScans = async (eventId) => {
     try {
+      // 1. Fetch latest 100 scans (stays well under Supabase 1000-row limit)
       const { data, error } = await supabase
         .from('event_scans')
-        .select('*, registrations(qr_token, em_card_no, photo_base64, contact, purok, house_no, ValidResidents(first_name, last_name, middle_name, barangay))')
+        .select('*, registrations(qr_token, em_card_no, contact, purok, house_no, ValidResidents(first_name, last_name, middle_name, barangay))')
         .eq('event_id', eventId)
-        .order('scanned_at', { ascending: false });
+        .order('scanned_at', { ascending: false })
+        .limit(100);
+
+      // 2. Get accurate total count via count() (no row limit)
+      const { count, error: countErr } = await supabase
+        .from('event_scans')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_id', eventId);
+
       if (!error) {
         setEventScans(data || []);
-        setScanStats({ total: (data || []).length, duplicates: 0 });
+        setScanStats({ total: count || (data || []).length, duplicates: 0 });
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  // Lightweight count-only refresh (used after each scan during mass scanning)
+  const refreshScanCount = async (eventId) => {
+    try {
+      const { count, error } = await supabase
+        .from('event_scans')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_id', eventId);
+      if (!error) {
+        setScanStats(prev => ({ ...prev, total: count || prev.total }));
       }
     } catch (e) { console.error(e); }
   };
@@ -1764,8 +1786,8 @@ export default function AdminPage() {
         scanCount: (reg.scan_count || 0) + 1,
       });
 
-      // Refresh scan list
-      fetchEventScans(selectedEvent.id);
+      // Refresh scan count only (fast) — full table fetch deferred for performance
+      refreshScanCount(selectedEvent.id);
     } catch (err) {
       setScanResult({ type: 'error', message: err.message || 'Network error. Try again.' });
     } finally {

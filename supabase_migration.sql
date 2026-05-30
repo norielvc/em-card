@@ -43,6 +43,15 @@ CREATE TABLE IF NOT EXISTS event_scans (
   UNIQUE(event_id, registration_id)
 );
 
+-- Performance indexes for event_scans (prevents sequential scans at 1000+ rows)
+CREATE INDEX IF NOT EXISTS idx_event_scans_event_id ON event_scans(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_scans_scanned_at ON event_scans(scanned_at DESC);
+CREATE INDEX IF NOT EXISTS idx_event_scans_event_registration ON event_scans(event_id, registration_id);
+
+-- Performance indexes for registrations QR lookups
+CREATE INDEX IF NOT EXISTS idx_registrations_qr_token ON registrations(qr_token);
+CREATE INDEX IF NOT EXISTS idx_registrations_status ON registrations(status);
+
 -- Prevent duplicate active registrations (race condition fix)
 -- One resident can only have ONE Pending or Approved registration
 CREATE UNIQUE INDEX IF NOT EXISTS idx_registrations_unique_active
