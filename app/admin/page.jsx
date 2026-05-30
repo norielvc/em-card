@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine, Camera, X } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, Heart, TrendingUp, UserCheck, ScanLine, Camera, X, MapPin, Phone, AlertTriangle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 export default function AdminPage() {
@@ -1593,12 +1593,24 @@ export default function AdminPage() {
     setScanResult(null);
 
     try {
-      const cleanToken = rawToken.trim().replace(/[\r\n\t]/g, '');
+      let cleanToken = rawToken.trim().replace(/[\r\n\t]/g, '');
+
+      // DEBUG: log what we got
+      console.log('[Scanner] Raw decoded text:', cleanToken);
+
+      // If the QR contains a URL, extract the token from it
+      // e.g. https://www.em-card.com/card/EM-1234567890
+      const urlTokenMatch = cleanToken.match(/\/card\/(EM[A-Za-z0-9-]+)/);
+      if (urlTokenMatch) {
+        cleanToken = urlTokenMatch[1];
+        console.log('[Scanner] Extracted token from URL:', cleanToken);
+      }
 
       // SECURITY: Strict token format validation
       // Accept either new format (EM-10digits) or old format (EM+24chars)
       const validTokenPattern = /^(EM[A-Za-z0-9]{24}|EM-\d{10})$/;
       if (!validTokenPattern.test(cleanToken)) {
+        console.warn('[Scanner] Token failed validation:', cleanToken);
         stopScanner();
         setScanResult({ type: 'invalid', message: 'SECURITY ALERT: Invalid QR format. This is NOT a valid EM Card.' });
         setScanLoading(false);
@@ -1903,20 +1915,63 @@ export default function AdminPage() {
                     if (!file) return;
                     setScanLoading(true);
                     try {
-                      // Resize image to prevent OOM crash from high-res phone photos
-                      const resized = await resizeImage(file, 1024);
-                      const { Html5Qrcode } = await import('html5-qrcode');
-                      const reader = new Html5Qrcode('qr-file-scanner');
-                      const decodedText = await reader.scanFile(resized, false);
+                      // Resize to 1600px max for good QR readability while preventing OOM
+                      const resized = await resizeImage(file, 1600);
+
+                      let decodedText = null;
+
+                      // 1. Try native BarcodeDetector API (Chrome Android, Safari 15.4+)
+                      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+                        try {
+                          const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                          const bitmap = await createImageBitmap(resized);
+                          const codes = await detector.detect(bitmap);
+                          if (codes.length > 0 && codes[0].rawValue) {
+                            decodedText = codes[0].rawValue;
+                          }
+                        } catch (nativeErr) {
+                          console.warn('Native BarcodeDetector failed:', nativeErr);
+                        }
+                      }
+
+                      // 2. Fallback to jsQR (reads canvas ImageData directly — reliable everywhere)
+                      if (!decodedText) {
+                        try {
+                          const jsQR = (await import('jsqr')).default;
+                          const img = new Image();
+                          const url = URL.createObjectURL(resized);
+                          decodedText = await new Promise((resolve) => {
+                            img.onload = () => {
+                              URL.revokeObjectURL(url);
+                              const canvas = document.createElement('canvas');
+                              canvas.width = img.width;
+                              canvas.height = img.height;
+                              const ctx = canvas.getContext('2d');
+                              ctx.drawImage(img, 0, 0);
+                              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                              const result = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
+                              resolve(result ? result.data : null);
+                            };
+                            img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+                            img.src = url;
+                          });
+                        } catch (jsqrErr) {
+                          console.warn('jsQR failed:', jsqrErr);
+                        }
+                      }
+
                       if (decodedText) {
                         handleEventScan(decodedText);
+                      } else {
+                        setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
+                        setScanLoading(false);
                       }
-                    } catch (scanErr) {
-                      console.warn('QR scan from image failed:', scanErr);
+                    } catch (err) {
+                      console.warn('QR processing error:', err);
                       setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                       setScanLoading(false);
                     } finally {
-                      e.target.value = ''; // reset so same file can be selected again
+                      e.target.value = '';
                     }
                   }}
                 />
