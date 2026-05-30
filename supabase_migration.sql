@@ -117,6 +117,10 @@ CREATE TABLE IF NOT EXISTS message_recipients (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Fix target_type check constraint to include 'birthday'
+ALTER TABLE messages DROP CONSTRAINT IF EXISTS messages_target_type_check;
+ALTER TABLE messages ADD CONSTRAINT messages_target_type_check CHECK (target_type IN ('all', 'sector', 'barangay', 'leader', 'specific', 'test', 'birthday'));
+
 -- Performance indexes for SMS tables
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status);

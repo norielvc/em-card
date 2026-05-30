@@ -1668,11 +1668,23 @@ export default function AdminPage() {
                   />
                   <div className="msg-char-count">{birthdayMessage.length}/480 characters</div>
 
-                  <div className="msg-form-footer" style={{ marginTop: '12px' }}>
-                    <div className="msg-preview-box">
-                      <span className="msg-preview-label">Preview:</span>
-                      <p className="msg-preview-text">{birthdayMessage || 'Your message will appear here...'}</p>
+                  <div className="msg-birthday-preview-section">
+                    <span className="msg-preview-label">What each celebrator will receive:</span>
+                    <div className="msg-birthday-preview-list">
+                      {birthdayRecipients.map(reg => {
+                        const firstName = reg?.ValidResidents?.first_name || '';
+                        const preview = birthdayMessage.replace(/\{firstName\}/g, firstName);
+                        return (
+                          <div key={reg.id} className="msg-birthday-preview-item">
+                            <span className="msg-birthday-preview-name">{firstName || 'Unknown'}:</span>
+                            <p className="msg-birthday-preview-text">{preview}</p>
+                          </div>
+                        );
+                      })}
                     </div>
+                  </div>
+
+                  <div className="msg-form-footer" style={{ marginTop: '16px' }}>
                     <button
                       className="btn btn-msg-send"
                       onClick={handleSendBirthday}
