@@ -1,0 +1,28 @@
+{
+  "name": "em-card",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
+    "html2canvas": "^1.4.1",
+    "html5-qrcode": "^2.3.8",
+    "jsqr": "^1.4.0",
+    "lucide-react": "^1.17.0",
+    "next": "^16.2.6",
+    "nodemailer": "^8.0.10",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "eslint": "^10.4.0",
+    "eslint-config-next": "^16.2.6"
+  }
+}
