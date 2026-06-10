@@ -291,68 +291,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* WHAT IS EM CARD */}
-        <section className="section" id="about">
-          <div className="container about-grid">
-            <div className="about-content">
-              <h2 className="section-title">Ano ang EM Card?</h2>
-              <p>Ang <strong>EM Card</strong> o <strong>Epektibong Mamamayan</strong> ay isang Non-Government Organization na nakatuon sa paghihikayat ng aktibong pagkamamamayan, pakikilahok sa komunidad, at makabuluhang pampublikong serbisyo.</p>
-              <p>Kami ay nagsisilbing tulay sa pagitan ng mga tao at aksyon sa komunidad sa pamamagitan ng pagbabahagi ng tamang impormasyon, pag-oorganisa ng mga aktibidad, pagsubaybay sa mga proyekto, at pakikinig sa opinyon ng publiko.</p>
-              <div className="values-row">
-                <span className="value-tag">Serbisyo</span>
-                <span className="value-tag">Integridad</span>
-                <span className="value-tag">Pagiging Bukas</span>
-                <span className="value-tag">Pananagutan</span>
-              </div>
-            </div>
-            <div className="about-image" style={{ boxShadow: 'none', background: 'transparent' }}>
-              <img src="/ID 1 sample.png" alt="EM Card Sample ID" style={{ objectFit: 'contain', height: 'auto', boxShadow: 'none', borderRadius: '0', background: 'transparent' }} />
-            </div>
-          </div>
-        </section>
-
-        {/* LATEST ANNOUNCEMENTS */}
-        <section className="section" id="announcements">
-          <div className="container">
-            <div className="section-header">
-              <h2 className="section-title">Pinakabagong Anunsyo</h2>
-              <a href="#announcements" className="view-all">Tingnan lahat ng balita →</a>
-            </div>
-            <div className="announcement-grid">
-              <article className="announcement-card featured">
-                <div className="announcement-img">
-                  <img src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=600&q=80" alt="Community Summit" />
-                </div>
-                <div className="announcement-body">
-                  <h3>Komunidad Leadership Summit 2026</h3>
-                  <p>Oryentasyon sa pamumuno at sesyon ng pagpapalakas sa komunidad sa buong organisasyon.</p>
-                  <div className="announcement-people">
-                    <span className="avatar"></span>
-                    <span className="avatar"></span>
-                    <span className="avatar"></span>
-                  </div>
-                </div>
-              </article>
-              <article className="announcement-card">
-                <div className="announcement-img">
-                  <img src="https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&w=600&q=80" alt="Team EM Card" />
-                </div>
-                <div className="announcement-body">
-                  <h3>Team EM Card: Tagapagdulot ng Pagbabago</h3>
-                  <p>Ang EM Card ay isang organisasyong pangkomunidad na nakatuon sa pagtataguyod ng pagiging bukas, serbisyo, at aktibong pagkamamamayan.</p>
-                </div>
-              </article>
-              <article className="announcement-card cta-card">
-                <div className="announcement-body">
-                  <h3>Tumawag ng mga Boluntaryo!</h3>
-                  <p>Ang EM Card ay naghahanap ng mga nakatuon na boluntaryong nagtataguyod ng serbisyo, pananagutan, at aktibong pagkamamamayan.</p>
-                  <a className="btn btn-primary" href="/register">Magrehistro Na</a>
-                </div>
-              </article>
-            </div>
-          </div>
-        </section>
-
         {/* UPCOMING EVENTS */}
         <section className="section events-section" id="programs">
           <div className="container">
@@ -487,6 +425,68 @@ export default function Home() {
                 </div>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* WHAT IS EM CARD */}
+        <section className="section" id="about">
+          <div className="container about-grid">
+            <div className="about-content">
+              <h2 className="section-title">Ano ang EM Card?</h2>
+              <p>Ang <strong>EM Card</strong> o <strong>Epektibong Mamamayan</strong> ay isang Non-Government Organization na nakatuon sa paghihikayat ng aktibong pagkamamamayan, pakikilahok sa komunidad, at makabuluhang pampublikong serbisyo.</p>
+              <p>Kami ay nagsisilbing tulay sa pagitan ng mga tao at aksyon sa komunidad sa pamamagitan ng pagbabahagi ng tamang impormasyon, pag-oorganisa ng mga aktibidad, pagsubaybay sa mga proyekto, at pakikinig sa opinyon ng publiko.</p>
+              <div className="values-row">
+                <span className="value-tag">Serbisyo</span>
+                <span className="value-tag">Integridad</span>
+                <span className="value-tag">Pagiging Bukas</span>
+                <span className="value-tag">Pananagutan</span>
+              </div>
+            </div>
+            <div className="about-image" style={{ boxShadow: 'none', background: 'transparent' }}>
+              <img src="/ID 1 sample.png" alt="EM Card Sample ID" style={{ objectFit: 'contain', height: 'auto', boxShadow: 'none', borderRadius: '0', background: 'transparent' }} />
+            </div>
+          </div>
+        </section>
+
+        {/* LATEST ANNOUNCEMENTS */}
+        <section className="section" id="announcements">
+          <div className="container">
+            <div className="section-header">
+              <h2 className="section-title">Pinakabagong Anunsyo</h2>
+              <a href="#announcements" className="view-all">Tingnan lahat ng balita →</a>
+            </div>
+            <div className="announcement-grid">
+              <article className="announcement-card featured">
+                <div className="announcement-img">
+                  <img src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=600&q=80" alt="Community Summit" />
+                </div>
+                <div className="announcement-body">
+                  <h3>Komunidad Leadership Summit 2026</h3>
+                  <p>Oryentasyon sa pamumuno at sesyon ng pagpapalakas sa komunidad sa buong organisasyon.</p>
+                  <div className="announcement-people">
+                    <span className="avatar"></span>
+                    <span className="avatar"></span>
+                    <span className="avatar"></span>
+                  </div>
+                </div>
+              </article>
+              <article className="announcement-card">
+                <div className="announcement-img">
+                  <img src="https://images.unsplash.com/photo-1491438590914-bc09fcaaf77a?auto=format&fit=crop&w=600&q=80" alt="Team EM Card" />
+                </div>
+                <div className="announcement-body">
+                  <h3>Team EM Card: Tagapagdulot ng Pagbabago</h3>
+                  <p>Ang EM Card ay isang organisasyong pangkomunidad na nakatuon sa pagtataguyod ng pagiging bukas, serbisyo, at aktibong pagkamamamayan.</p>
+                </div>
+              </article>
+              <article className="announcement-card cta-card">
+                <div className="announcement-body">
+                  <h3>Tumawag ng mga Boluntaryo!</h3>
+                  <p>Ang EM Card ay naghahanap ng mga nakatuon na boluntaryong nagtataguyod ng serbisyo, pananagutan, at aktibong pagkamamamayan.</p>
+                  <a className="btn btn-primary" href="/register">Magrehistro Na</a>
+                </div>
+              </article>
+            </div>
           </div>
         </section>
 

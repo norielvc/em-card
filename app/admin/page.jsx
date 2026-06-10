@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Users, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, UserCheck, ScanLine, Camera, X, MapPin, Phone, AlertTriangle, Upload, Shield, Globe, Link2, QrCode, Zap, Clock, Home, Building, Tag, Hash, Pencil, Printer, Monitor, Database, HardDrive, Activity, Server, Folder, Search, Filter, Plus, Type, Check, CreditCard, Ban, ShieldAlert, Cake, Inbox, Megaphone, History, Info, Trash2, TrendingUp, PieChart, Share2 } from 'lucide-react';
+import { Users, UserPlus, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, UserCheck, ScanLine, Camera, X, MapPin, Phone, AlertTriangle, Upload, Shield, Globe, Link2, QrCode, Zap, Clock, Home, Building, Tag, Hash, Pencil, Printer, Monitor, Database, HardDrive, Activity, Server, Folder, Search, Filter, Plus, Type, Check, CreditCard, Ban, ShieldAlert, Cake, Inbox, Megaphone, History, Info, Trash2, TrendingUp, PieChart, Share2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
@@ -65,6 +65,10 @@ export default function AdminPage() {
   const [cardsPending, setCardsPending] = useState(0);
   const [monthlyPrintingTrend, setMonthlyPrintingTrend] = useState([]);
   const [avgDaysToPrint, setAvgDaysToPrint] = useState(0);
+
+  // Member Source Analytics
+  const [validResidentMembers, setValidResidentMembers] = useState(0);
+  const [nonValidResidentMembers, setNonValidResidentMembers] = useState(0);
 
   // Event Attendance Analytics
   const [eventAttendanceData, setEventAttendanceData] = useState([]);
@@ -841,6 +845,27 @@ export default function AdminPage() {
     }
   };
 
+  const fetchMemberSourceAnalytics = async () => {
+    try {
+      const { count: validCount } = await supabase
+        .from('registrations')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Approved')
+        .not('resident_id', 'is', null);
+
+      const { count: nonValidCount } = await supabase
+        .from('registrations')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Approved')
+        .is('resident_id', null);
+
+      setValidResidentMembers(validCount || 0);
+      setNonValidResidentMembers(nonValidCount || 0);
+    } catch (err) {
+      // silent
+    }
+  };
+
   const fetchEventAttendanceAnalytics = async () => {
     try {
       // Fetch all events with their scan counts
@@ -1381,6 +1406,9 @@ export default function AdminPage() {
 
       // Fetch card production analytics
       await fetchCardProductionAnalytics();
+
+      // Fetch member source analytics
+      await fetchMemberSourceAnalytics();
 
       // Fetch event attendance analytics
       await fetchEventAttendanceAnalytics();
@@ -2723,6 +2751,39 @@ export default function AdminPage() {
                   <div className="engagement-value">{memberEngagementScore}%</div>
                 </div>
                 <div className="engagement-label">Members Engaged</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 1b: Member Source Breakdown */}
+          <div className="dashboard-main-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+            <div className="admin-panel dash-panel">
+              <div className="panel-header">
+                <div className="panel-header-left">
+                  <h3>Member Source Breakdown</h3>
+                  <span className="panel-subtitle">Registered Voters vs Not-Registered</span>
+                </div>
+              </div>
+              <div className="card-production-stats">
+                <div className="production-stat-item">
+                  <div className="production-stat-icon printed" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>
+                    <Users size={24} strokeWidth={1.5} />
+                  </div>
+                  <div className="production-stat-content">
+                    <span className="production-stat-label">Registered Voters</span>
+                    <span className="production-stat-value">{validResidentMembers.toLocaleString()}</span>
+                  </div>
+                </div>
+                <div className="production-stat-divider" />
+                <div className="production-stat-item">
+                  <div className="production-stat-icon pending" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b' }}>
+                    <UserPlus size={24} strokeWidth={1.5} />
+                  </div>
+                  <div className="production-stat-content">
+                    <span className="production-stat-label">Not-Registered</span>
+                    <span className="production-stat-value">{nonValidResidentMembers.toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

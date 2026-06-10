@@ -1091,19 +1091,19 @@ export default function RegisterPage() {
                     <div className="premium-form-row" style={{ flexWrap: 'wrap' }}>
                       <div className="premium-form-group" style={{ flex: '1 1 200px', minWidth: '150px' }}>
                         <label className="premium-form-label">{t.firstNameLabel} <span className="req-star">*</span></label>
-                        <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="e.g. Juan" className="premium-input" required />
+                        <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value.toUpperCase())} placeholder="e.g. Juan" className="premium-input" required />
                       </div>
                       <div className="premium-form-group" style={{ flex: '1 1 200px', minWidth: '150px' }}>
                         <label className="premium-form-label">{t.middleNameLabel}</label>
-                        <input type="text" value={middleName} onChange={(e) => setMiddleName(e.target.value)} placeholder="e.g. Perez" className="premium-input" />
+                        <input type="text" value={middleName} onChange={(e) => setMiddleName(e.target.value.toUpperCase())} placeholder="e.g. Perez" className="premium-input" />
                       </div>
                       <div className="premium-form-group" style={{ flex: '1 1 200px', minWidth: '150px' }}>
                         <label className="premium-form-label">{t.lastNameLabel} <span className="req-star">*</span></label>
-                        <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="e.g. Dela Cruz" className="premium-input" required />
+                        <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value.toUpperCase())} placeholder="e.g. Dela Cruz" className="premium-input" required />
                       </div>
                       <div className="premium-form-group" style={{ width: '80px', flex: '0 0 80px' }}>
                         <label className="premium-form-label">{t.suffixLabel}</label>
-                        <input type="text" value={suffix} onChange={(e) => setSuffix(e.target.value)} placeholder="e.g. Jr." className="premium-input" />
+                        <input type="text" value={suffix} onChange={(e) => setSuffix(e.target.value.toUpperCase())} placeholder="e.g. Jr." className="premium-input" />
                       </div>
                     </div>
                   )}
@@ -1127,22 +1127,22 @@ export default function RegisterPage() {
                     {!SUBDIVISION_PUROKS.includes(purok) && (
                       <div className="premium-form-group half">
                         <label className="premium-form-label">{t.houseNoLabel}</label>
-                        <input type="text" value={houseNo} onChange={(e) => setHouseNo(e.target.value)} placeholder="e.g. 123" className="premium-input" />
+                        <input type="text" value={houseNo} onChange={(e) => setHouseNo(e.target.value.toUpperCase())} placeholder="e.g. 123" className="premium-input" />
                       </div>
                     )}
                     {SUBDIVISION_PUROKS.includes(purok) && (
                       <>
                         <div className="premium-form-group quarter">
                           <label className="premium-form-label">{t.lotLabel}</label>
-                          <input type="text" value={lot} onChange={(e) => setLot(e.target.value)} placeholder="e.g. 10" className="premium-input" />
+                          <input type="text" value={lot} onChange={(e) => setLot(e.target.value.toUpperCase())} placeholder="e.g. 10" className="premium-input" />
                         </div>
                         <div className="premium-form-group quarter">
                           <label className="premium-form-label">{t.blockLabel}</label>
-                          <input type="text" value={block} onChange={(e) => setBlock(e.target.value)} placeholder="e.g. A" className="premium-input" />
+                          <input type="text" value={block} onChange={(e) => setBlock(e.target.value.toUpperCase())} placeholder="e.g. A" className="premium-input" />
                         </div>
                         <div className="premium-form-group quarter">
                           <label className="premium-form-label">{t.phaseLabel}</label>
-                          <input type="text" value={phase} onChange={(e) => setPhase(e.target.value)} placeholder="e.g. 1" className="premium-input" />
+                          <input type="text" value={phase} onChange={(e) => setPhase(e.target.value.toUpperCase())} placeholder="e.g. 1" className="premium-input" />
                         </div>
                       </>
                     )}
@@ -1248,7 +1248,7 @@ export default function RegisterPage() {
                         placeholder={t.referralPlaceholder}
                         value={referralQuery}
                         onChange={async (e) => {
-                          const val = e.target.value;
+                          const val = e.target.value.toUpperCase();
                           setReferralQuery(val);
                           setReferralValid(false);
                           setReferral('');
