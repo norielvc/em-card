@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import HeroSlideshow from './HeroSlideshow';
-import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark, PlayCircle, Calendar, Menu, X, CheckCircle, Search, AlertTriangle } from 'lucide-react';
+import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark, PlayCircle, Calendar, Menu, X, CheckCircle, Search, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
@@ -10,6 +10,7 @@ export default function Home() {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventSlideIndex, setEventSlideIndex] = useState(0);
   const [contactForm, setContactForm] = useState({ name: '', email: '', type: '', message: '' });
   const [contactSubmitting, setContactSubmitting] = useState(false);
   const [contactSuccess, setContactSuccess] = useState(false);
@@ -65,6 +66,15 @@ export default function Home() {
     };
     fetchEvents();
   }, []);
+
+  // Auto-slide upcoming events carousel
+  useEffect(() => {
+    if (upcomingEvents.length < 2) return;
+    const interval = setInterval(() => {
+      setEventSlideIndex(prev => (prev + 1) % upcomingEvents.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [upcomingEvents.length]);
 
   return (
     <>
@@ -351,40 +361,94 @@ export default function Home() {
               <h2 className="section-title">Mga Paparating na Kaganapan</h2>
             </div>
             {eventsLoading ? (
-              <div className="events-list">
-                <div className="event-row" style={{ justifyContent: 'center', padding: '40px' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Naglo-load ng mga kaganapan...</span>
-                </div>
+              <div className="events-carousel-wrapper">
+                <div className="events-loading">Naglo-load ng mga kaganapan...</div>
               </div>
             ) : upcomingEvents.length === 0 ? (
-              <div className="events-list">
-                <div className="event-row" style={{ justifyContent: 'center', padding: '40px' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>Walang nakatakdang kaganapan.</span>
-                </div>
+              <div className="events-carousel-wrapper">
+                <div className="events-empty">Walang nakatakdang kaganapan.</div>
               </div>
             ) : (
-              <div className="events-list">
-                {upcomingEvents.map((evt) => {
-                  const evtDate = new Date(evt.event_date);
-                  const dateStr = evtDate.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
-                  return (
-                    <div className="event-row" key={evt.id}>
-                      <div className="event-info">
-                        <h3>{evt.title}</h3>
-                        <p>{evt.description || ''}</p>
-                      </div>
-                      <div className="event-thumb">
-                        <img src={evt.image_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=200&q=80'} alt={evt.title} />
-                      </div>
-                      <div className="event-details">
-                        {evt.event_time && <span>{evt.event_time}</span>}
-                        <span>{dateStr}</span>
-                        {evt.location && <span>{evt.location}</span>}
-                      </div>
-                      <button className="event-cta" onClick={() => setSelectedEvent(evt)}>Tingnan ang Detalye →</button>
-                    </div>
-                  );
-                })}
+              <div className="events-carousel-wrapper">
+                <button
+                  className="carousel-arrow carousel-arrow-left"
+                  onClick={() => setEventSlideIndex(prev => (prev - 1 + upcomingEvents.length) % upcomingEvents.length)}
+                  aria-label="Previous event"
+                >
+                  <ChevronLeft size={28} />
+                </button>
+
+                <div className="events-carousel-viewport">
+                  <div
+                    className="events-carousel-track"
+                    style={{ transform: `translateX(-${eventSlideIndex * 100}%)` }}
+                  >
+                    {upcomingEvents.map((evt) => {
+                      const evtDate = new Date(evt.event_date);
+                      const dateStr = evtDate.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+                      return (
+                        <div className="events-carousel-slide" key={evt.id}>
+                          <div className="events-hero-card">
+                            <div className="events-hero-image">
+                              <img
+                                src={evt.image_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80'}
+                                alt={evt.title}
+                              />
+                              <div className="events-hero-overlay" />
+                            </div>
+                            <div className="events-hero-content">
+                              <h3 className="events-hero-title">{evt.title}</h3>
+                              <p className="events-hero-desc">{evt.description || 'Maghintay para sa higit pang detalye.'}</p>
+                              <div className="events-hero-meta">
+                                <div className="events-hero-meta-item">
+                                  <Calendar size={16} />
+                                  <span>{dateStr}</span>
+                                </div>
+                                {evt.event_time && (
+                                  <div className="events-hero-meta-item">
+                                    <PlayCircle size={16} />
+                                    <span>{evt.event_time}</span>
+                                  </div>
+                                )}
+                                {evt.location && (
+                                  <div className="events-hero-meta-item">
+                                    <Landmark size={16} />
+                                    <span>{evt.location}</span>
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                className="events-hero-btn"
+                                onClick={() => setSelectedEvent(evt)}
+                              >
+                                Tingnan ang Detalye →
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <button
+                  className="carousel-arrow carousel-arrow-right"
+                  onClick={() => setEventSlideIndex(prev => (prev + 1) % upcomingEvents.length)}
+                  aria-label="Next event"
+                >
+                  <ChevronRight size={28} />
+                </button>
+
+                <div className="events-carousel-dots">
+                  {upcomingEvents.map((_, idx) => (
+                    <button
+                      key={idx}
+                      className={`carousel-dot${idx === eventSlideIndex ? ' active' : ''}`}
+                      onClick={() => setEventSlideIndex(idx)}
+                      aria-label={`Go to event ${idx + 1}`}
+                    />
+                  ))}
+                </div>
               </div>
             )}
 

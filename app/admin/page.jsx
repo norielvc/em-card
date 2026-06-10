@@ -3922,7 +3922,11 @@ export default function AdminPage() {
       const tokens = query.split(/\s+/).filter(Boolean);
       const scored = members.map(reg => {
         const r = reg.ValidResidents || {};
-        const fullName = `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}${r.suffix ? ' ' + r.suffix : ''}`.trim().toLowerCase();
+        const firstName = reg.first_name || r.first_name || '';
+        const middleName = reg.middle_name || r.middle_name || '';
+        const lastName = reg.last_name || r.last_name || '';
+        const suffix = reg.suffix || r.suffix || '';
+        const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}${suffix ? ' ' + suffix : ''}`.trim().toLowerCase();
         const emCard = (reg.em_card_no || '').toLowerCase();
         const nameScore = tokens.filter(t => fullName.includes(t)).length;
         const cardScore = tokens.filter(t => emCard.includes(t)).length;
@@ -3972,7 +3976,11 @@ export default function AdminPage() {
 
     const memberFullName = (reg) => {
       const r = reg.ValidResidents || {};
-      return `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}${r.suffix ? ' ' + r.suffix : ''}`.trim();
+      const firstName = reg.first_name || r.first_name || '';
+      const middleName = reg.middle_name || r.middle_name || '';
+      const lastName = reg.last_name || r.last_name || '';
+      const suffix = reg.suffix || r.suffix || '';
+      return `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}${suffix ? ' ' + suffix : ''}`.trim();
     };
 
     // Build household groups for the household tab
@@ -4120,7 +4128,7 @@ export default function AdminPage() {
                     return (
                       <tr key={reg.id} className="member-row-clickable" onClick={() => setSelectedMember(reg)}>
                         <td><strong>{name}</strong></td>
-                        <td>{r.barangay || '-'}</td>
+                        <td>{reg.barangay || r.barangay || '-'}</td>
                         <td>{reg.purok || r.purok || '-'}</td>
                         <td><span className="sector-badge">{reg.sector_category || '-'}</span></td>
                         <td>
@@ -7787,7 +7795,11 @@ export default function AdminPage() {
       {/* MEMBER DETAIL MODAL */}
       {selectedMember && (() => {
         const r = selectedMember.ValidResidents || {};
-        const name = `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}${r.suffix ? ' ' + r.suffix : ''}`.trim();
+        const firstName = selectedMember.first_name || r.first_name || '';
+        const middleName = selectedMember.middle_name || r.middle_name || '';
+        const lastName = selectedMember.last_name || r.last_name || '';
+        const suffix = selectedMember.suffix || r.suffix || '';
+        const name = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}${suffix ? ' ' + suffix : ''}`.trim();
         const hasQR = !!selectedMember.qr_token;
         const hasCardNo = !!selectedMember.em_card_no;
         const sectorOptions = ['Senior Citizens','PWD','Solo Parent','Youth','Women','Farmers','Fisherfolk','Workers / Labor','Religious','Transport','Indigenous People','Education','Business / Entrepreneurs','Health','Other'];
@@ -8115,7 +8127,7 @@ export default function AdminPage() {
                           <div className="member-detail-item"><span className="member-detail-label">Phase</span><span className="member-detail-value">{selectedMember.phase || '-'}</span></div>
                         </>
                       )}
-                      <div className="member-detail-item"><span className="member-detail-label"><MapPin size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Barangay</span><span className="member-detail-value">{r.barangay || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><MapPin size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Barangay</span><span className="member-detail-value">{selectedMember.barangay || r.barangay || '-'}</span></div>
                       <div className="member-detail-item"><span className="member-detail-label"><Hash size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Precinct</span><span className="member-detail-value">{r.precinct || '-'}</span></div>
                       <div className="member-detail-item"><span className="member-detail-label"><Tag size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Sector</span><span className="member-detail-value">{selectedMember.sector_category || '-'}</span></div>
                       <div className="member-detail-item"><span className="member-detail-label"><Phone size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Contact</span><span className="member-detail-value">{selectedMember.contact || '-'}</span></div>
@@ -8196,10 +8208,14 @@ export default function AdminPage() {
       {/* PRINT ID CARD MODAL */}
       {showPrintModal && selectedMember && (() => {
         const r = selectedMember.ValidResidents || {};
-        const name = `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}${r.suffix ? ' ' + r.suffix : ''}`.trim().toUpperCase();
+        const firstName = selectedMember.first_name || r.first_name || '';
+        const middleName = selectedMember.middle_name || r.middle_name || '';
+        const lastName = selectedMember.last_name || r.last_name || '';
+        const suffix = selectedMember.suffix || r.suffix || '';
+        const name = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}${suffix ? ' ' + suffix : ''}`.trim().toUpperCase();
         const purokLabel = selectedMember.purok ? (SUBDIVISION_PUROKS.includes(selectedMember.purok) ? selectedMember.purok.toUpperCase() : `PUROK ${selectedMember.purok}`) : '';
         const lotBlockPhase = SUBDIVISION_PUROKS.includes(selectedMember.purok) ? `Lot ${selectedMember.lot || ''} Block ${selectedMember.block || ''} Phase ${selectedMember.phase || ''}` : '';
-        const barangay = r.barangay ? `${r.barangay.toUpperCase()}, ` : '';
+        const barangay = (selectedMember.barangay || r.barangay) ? `${(selectedMember.barangay || r.barangay).toUpperCase()}, ` : '';
         const address = SUBDIVISION_PUROKS.includes(selectedMember.purok)
           ? `${lotBlockPhase ? `${lotBlockPhase}, ` : ''}${purokLabel ? `${purokLabel}, ` : ''}${barangay}BALAGTAS, BULACAN`
           : `${selectedMember.house_no ? `#${selectedMember.house_no} ` : ''}${purokLabel ? `${purokLabel}, ` : ''}${barangay}BALAGTAS, BULACAN`;
