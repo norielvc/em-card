@@ -1700,7 +1700,9 @@ export default function AdminPage() {
         showToast(error.message, 'error');
       } else {
         showToast(`Approved. EM Card: ${emCardNo}`, 'success');
-        logAdminAction('approve_member', 'registrations', id, null, { em_card_no: emCardNo });
+        const reg = allRegs.find(r => r.id === id);
+        const targetName = reg ? `${reg.last_name}, ${reg.first_name}` : null;
+        logAdminAction('approve_member', 'registrations', id, targetName, { em_card_no: emCardNo });
         fetchAllRegistrations();
       }
     } catch (err) {
@@ -1718,7 +1720,9 @@ export default function AdminPage() {
         showToast(error.message, 'error');
       } else {
         showToast('Registration rejected.', 'success');
-        logAdminAction('reject_member', 'registrations', id, null, {});
+        const reg = allRegs.find(r => r.id === id);
+        const targetName = reg ? `${reg.last_name}, ${reg.first_name}` : null;
+        logAdminAction('reject_member', 'registrations', id, targetName, {});
         fetchAllRegistrations();
       }
     } catch (err) {
@@ -1898,11 +1902,13 @@ export default function AdminPage() {
   const handleDeleteEvent = async (id) => {
     if (!confirm('Are you sure you want to delete this event?')) return;
     try {
+      const evt = upcomingEventsList.find(e => e.id === id);
+      const targetName = evt ? evt.title : null;
       const res = await authFetch(`/api/upcoming-events?id=${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         showToast('Event deleted', 'success');
-        logAdminAction('delete_event', 'upcoming_events', id, null, {});
+        logAdminAction('delete_event', 'upcoming_events', id, targetName, {});
         fetchUpcomingEvents();
       } else {
         showToast(data.error || 'Failed to delete', 'error');
@@ -2100,7 +2106,7 @@ export default function AdminPage() {
       if (error) throw error;
 
       showToast(`${formatted.length} residents uploaded successfully!`, 'success');
-      logAdminAction('bulk_upload', 'ValidResidents', null, null, { count: formatted.length });
+      logAdminAction('bulk_upload', 'ValidResidents', null, `${formatted.length} residents`, { count: formatted.length });
       fetchAllResidents();
       setShowBulkModal(false);
       setCsvFile(null);
@@ -5897,6 +5903,8 @@ export default function AdminPage() {
                       <td>
                         {log.target_name ? (
                           <span style={{ fontSize: '0.82rem' }}>{log.target_name}</span>
+                        ) : log.target_id ? (
+                          <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{log.target_id.slice(0, 8)}...</span>
                         ) : (
                           <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>—</span>
                         )}
