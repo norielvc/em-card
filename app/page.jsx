@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import HeroSlideshow from './HeroSlideshow';
-import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark, PlayCircle, Calendar, Menu, X, CheckCircle, Search, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark, PlayCircle, Calendar, Menu, X, CheckCircle, Search, AlertTriangle, ChevronLeft, ChevronRight, LogIn } from 'lucide-react';
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
@@ -88,6 +88,9 @@ export default function Home() {
             </span>
           </a>
           <div className={`nav-links ${menuOpen ? 'open' : ''}`}>
+            <button className="nav-menu-close" onClick={() => setMenuOpen(false)} aria-label="Close menu">
+              <X size={28} />
+            </button>
             <a href="#home" onClick={() => setMenuOpen(false)}>Home</a>
             <a href="#about" onClick={() => setMenuOpen(false)}>About Us</a>
             <a href="#programs" onClick={() => setMenuOpen(false)}>Programs</a>
@@ -95,6 +98,9 @@ export default function Home() {
             <a href="#faqs" onClick={() => setMenuOpen(false)}>FAQs</a>
             <a href="#contact" onClick={() => setMenuOpen(false)}>Contact</a>
             <a href="#track" onClick={() => setMenuOpen(false)}>Track Application</a>
+            <a href="/admin" className="nav-link-mobile-login" onClick={() => setMenuOpen(false)} style={{ backgroundColor: '#10b981', color: '#fff' }}>
+              <LogIn size={20} /> Login
+            </a>
           </div>
           <a href="/register" className="btn btn-primary nav-btn">Get Involved</a>
           <a href="/admin" className="btn btn-outline nav-login">Login</a>
