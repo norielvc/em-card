@@ -434,6 +434,26 @@ export default function AdminPage() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // ── Auto-logout after 30 minutes of inactivity ──
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 minutes
+    let timer;
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        handleLogout();
+      }, INACTIVITY_LIMIT);
+    };
+    resetTimer();
+    const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'];
+    events.forEach(e => window.addEventListener(e, resetTimer));
+    return () => {
+      clearTimeout(timer);
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+    };
+  }, [isLoggedIn]);
+
   useEffect(() => {
     if (isLoggedIn) fetchDashboardData();
   }, [isLoggedIn]);
@@ -4441,7 +4461,7 @@ export default function AdminPage() {
             {(reg.photo_url || reg.photo_base64) ? (
               <img src={reg.photo_url || reg.photo_base64} alt="" className="tree-node-photo" />
             ) : (
-              <div className="tree-node-placeholder">👤</div>
+              <div className="tree-node-placeholder" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>NP</div>
             )}
             <div className="tree-node-info">
               <span className="tree-node-name">{name}</span>
@@ -4489,11 +4509,22 @@ export default function AdminPage() {
     return (
       <div className="admin-panel">
         {/* Header */}
-        <div className="panel-header">
-          <h3>Referral Network</h3>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span className="panel-badge badge-emerald">{allTimeLeaders.length} Leaders</span>
-            <span className="panel-badge">{allRegs.length} Members</span>
+        <div className="panel-header" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '16px', paddingBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.3px' }}>Referral Network</h3>
+              <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: '0.875rem' }}>Track recruitment performance and organizational structure</p>
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 20px', textAlign: 'center', minWidth: '90px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>{allTimeLeaders.length}</div>
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, marginTop: '2px' }}>Leaders</div>
+              </div>
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 20px', textAlign: 'center', minWidth: '90px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>{allRegs.length}</div>
+                <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, marginTop: '2px' }}>Members</div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -4503,8 +4534,8 @@ export default function AdminPage() {
             {/* All Time */}
             <div className="leader-card">
               <div className="leader-card-header">
-                <h4>🏆 All Time Leaders</h4>
-                <span className="leader-card-sub">Top recruiters overall</span>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#0f172a' }}>All-Time Leaders</h4>
+                <span className="leader-card-sub" style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Top recruiters overall</span>
               </div>
               {allTimeLeaders.length === 0 ? (
                 <div className="leader-card-empty">No leaders yet</div>
@@ -4521,7 +4552,7 @@ export default function AdminPage() {
             {/* This Month */}
             <div className="leader-card">
               <div className="leader-card-header">
-                <h4>📅 This Month Leaders</h4>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#0f172a' }}>This Month</h4>
                 <select
                   className="leader-month-picker"
                   value={networkMonthFilter}
@@ -4547,7 +4578,7 @@ export default function AdminPage() {
             {/* This Week */}
             <div className="leader-card">
               <div className="leader-card-header">
-                <h4>📆 This Week Leaders</h4>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#0f172a' }}>This Week</h4>
                 <span className="leader-card-sub">{startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
               </div>
               {weekLeaders.length === 0 ? (
@@ -4623,7 +4654,7 @@ export default function AdminPage() {
             )}
           </div>
           {selectedNetworkMember && (
-            <button className="btn btn-sm btn-network-clear" onClick={() => { setSelectedNetworkMember(null); setNetworkSearch(''); }}>✕ Clear</button>
+            <button className="btn btn-sm btn-network-clear" onClick={() => { setSelectedNetworkMember(null); setNetworkSearch(''); }}>Clear</button>
           )}
         </div>
 
@@ -4665,7 +4696,7 @@ export default function AdminPage() {
                   {(member.photo_url || member.photo_base64) ? (
                     <img src={member.photo_url || member.photo_base64} alt="" className="tree-node-photo" />
                   ) : (
-                    <div className="tree-node-placeholder">👤</div>
+                    <div className="tree-node-placeholder" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>NP</div>
                   )}
                   <div className="tree-node-info">
                     <span className="tree-node-name">{mName}</span>
@@ -4684,7 +4715,7 @@ export default function AdminPage() {
               {/* Upline */}
               {upline.length > 0 && (
                 <div className="network-history-section">
-                  <h4 className="network-history-title">⬆️ Upline ({upline.length})</h4>
+                  <h4 className="network-history-title" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Upline ({upline.length})</h4>
                   <div className="network-upline-chain">
                     {upline.map((ancestor, i) => (
                       <div key={ancestor.id} className="network-upline-item" style={{ marginLeft: i * 20 }}>
@@ -4692,7 +4723,7 @@ export default function AdminPage() {
                         {(ancestor.photo_url || ancestor.photo_base64) ? (
                           <img src={ancestor.photo_url || ancestor.photo_base64} alt="" className="nu-photo" />
                         ) : (
-                          <div className="nu-photo-placeholder">👤</div>
+                          <div className="nu-photo-placeholder" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>NP</div>
                         )}
                         <div className="nu-info">
                           <span className="nu-name">{getResidentName(ancestor)}</span>
@@ -4707,12 +4738,12 @@ export default function AdminPage() {
 
               {/* Selected Member (Center) */}
               <div className="network-history-section highlight">
-                <h4 className="network-history-title">👤 Selected Member</h4>
+                <h4 className="network-history-title" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Selected Member</h4>
                 <div className="network-selected-card">
                   {(reg.photo_url || reg.photo_base64) ? (
                     <img src={reg.photo_url || reg.photo_base64} alt="" className="ns-photo" />
                   ) : (
-                    <div className="ns-photo-placeholder">👤</div>
+                    <div className="ns-photo-placeholder" style={{ fontSize: '0.75rem', color: '#94a3b8' }}>No Photo</div>
                   )}
                   <div className="ns-info">
                     <span className="ns-name">{name}</span>
@@ -4725,7 +4756,7 @@ export default function AdminPage() {
 
               {/* Downline */}
               <div className="network-history-section">
-                <h4 className="network-history-title">⬇️ Downline</h4>
+                <h4 className="network-history-title" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Downline</h4>
                 <div className="network-downline-tree">
                   {getChildren(name).length === 0 ? (
                     <div className="leader-card-empty">No downline referrals</div>
@@ -4751,7 +4782,7 @@ export default function AdminPage() {
                       <div key={name} className="tree-root">
                         <div className="tree-root-header" onClick={() => toggleNode(rootKey)}>
                           <span className={`tree-root-chevron ${isOpen ? 'open' : ''}`}>▸</span>
-                          <span className="tree-root-icon">🔺</span>
+                          <span className="tree-root-icon" style={{ color: '#3b82f6', fontSize: '0.8rem', fontWeight: 700 }}>ROOT</span>
                           <span className="tree-root-name">{name}</span>
                           <span className="tree-root-badges">
                             <span className="level-badge l1">L1 {l1}</span>

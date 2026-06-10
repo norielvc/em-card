@@ -126,7 +126,7 @@ const TRANSLATIONS = {
     referredBy: 'Referred By',
     searching: 'Searching Database...',
     registerAnyway: 'Not in the registry? Click here to register anyway.',
-    registerAnywayBtn: 'Register as Non-Valid Resident',
+    registerAnywayBtn: 'Register as New Resident',
     firstNameLabel: 'First Name',
     middleNameLabel: 'Middle Name',
     lastNameLabel: 'Last Name',
@@ -253,7 +253,7 @@ const TRANSLATIONS = {
     referredBy: 'Inirekomenda Ni',
     searching: 'Naghahanap sa Database...',
     registerAnyway: 'Wala sa listahan? Magrehistro pa rin dito.',
-    registerAnywayBtn: 'Magrehistro Kahit Wala Sa Listahan',
+    registerAnywayBtn: 'Magrehistro Bilang Bagong Residente',
     firstNameLabel: 'Pangalan',
     middleNameLabel: 'Gitnang Pangalan',
     lastNameLabel: 'Apelyido',
@@ -350,91 +350,16 @@ export default function RegisterPage() {
     window.history.replaceState(null, '', `#${hash.toString()}`);
   }, [step, subStep]);
 
-  // ── Persist / Restore registration progress on refresh ──
   const REG_PROGRESS_KEY = 'emcard_reg_progress';
 
-  useLayoutEffect(() => {
+  // Clear any previously saved progress so refresh starts clean
+  useEffect(() => {
     try {
-      // First try URL hash (most reliable on refresh)
-      const hash = new URLSearchParams(window.location.hash.slice(1));
-      const hashStep = hash.get('step');
-      const hashSub = hash.get('sub');
-      if (hashStep) {
-        const s = parseInt(hashStep, 10);
-        if (!isNaN(s)) setStep(s);
-      }
-      if (hashSub) {
-        const ss = parseInt(hashSub, 10);
-        if (!isNaN(ss)) setSubStep(ss);
-      }
-
-      // Then restore full form data from sessionStorage
-      const raw = sessionStorage.getItem(REG_PROGRESS_KEY);
-      if (!raw) { hasRestoredRef.current = true; return; }
-      const saved = JSON.parse(raw);
-      if (saved.step) setStep(saved.step);
-      if (saved.subStep) setSubStep(saved.subStep);
-      if (saved.selectedPerson) setSelectedPerson(saved.selectedPerson);
-      if (saved.isNonValidResident !== undefined) setIsNonValidResident(saved.isNonValidResident);
-      if (saved.firstName !== undefined) setFirstName(saved.firstName);
-      if (saved.middleName !== undefined) setMiddleName(saved.middleName);
-      if (saved.lastName !== undefined) setLastName(saved.lastName);
-      if (saved.suffix !== undefined) setSuffix(saved.suffix);
-      if (saved.barangay !== undefined) setBarangay(saved.barangay);
-      if (saved.referral !== undefined) setReferral(saved.referral);
-      if (saved.referralQuery !== undefined) setReferralQuery(saved.referralQuery);
-      if (saved.referralValid !== undefined) setReferralValid(saved.referralValid);
-      if (saved.sector !== undefined) setSector(saved.sector);
-      if (saved.houseNo !== undefined) setHouseNo(saved.houseNo);
-      if (saved.purok !== undefined) setPurok(saved.purok);
-      if (saved.contact !== undefined) setContact(saved.contact);
-      if (saved.gender !== undefined) setGender(saved.gender);
-      if (saved.civilStatus !== undefined) setCivilStatus(saved.civilStatus);
-      if (saved.lot !== undefined) setLot(saved.lot);
-      if (saved.block !== undefined) setBlock(saved.block);
-      if (saved.phase !== undefined) setPhase(saved.phase);
-      if (saved.birthMonth !== undefined) setBirthMonth(saved.birthMonth);
-      if (saved.birthDay !== undefined) setBirthDay(saved.birthDay);
-      if (saved.birthYear !== undefined) setBirthYear(saved.birthYear);
-      if (saved.photo !== undefined) setPhoto(saved.photo);
-      if (saved.photoSource !== undefined) setPhotoSource(saved.photoSource);
-      if (saved.searchQuery !== undefined) setSearchQuery(saved.searchQuery);
-      if (saved.hasSearched !== undefined) setHasSearched(saved.hasSearched);
-      if (saved.lang !== undefined) setLang(saved.lang);
-    } catch (err) {
-      // silent
-    } finally {
-      hasRestoredRef.current = true;
+      sessionStorage.removeItem(REG_PROGRESS_KEY);
+    } catch {
+      // ignore
     }
   }, []);
-
-  useEffect(() => {
-    if (!hasRestoredRef.current) return; // skip saving until restore is done
-    const payload = {
-      step, subStep, selectedPerson, isNonValidResident,
-      firstName, middleName, lastName, suffix, barangay,
-      referral, referralQuery, referralValid,
-      sector, houseNo, purok, contact, gender, civilStatus, lot, block, phase,
-      birthMonth, birthDay, birthYear,
-      photo, photoSource,
-      searchQuery, hasSearched,
-      lang,
-    };
-    try {
-      sessionStorage.setItem(REG_PROGRESS_KEY, JSON.stringify(payload));
-    } catch {
-      // silently fail if storage is full (e.g. very large photo)
-    }
-  }, [
-    step, subStep, selectedPerson, isNonValidResident,
-    firstName, middleName, lastName, suffix, barangay,
-    referral, referralQuery, referralValid,
-    sector, houseNo, purok, contact, gender, civilStatus, lot, block, phase,
-    birthMonth, birthDay, birthYear,
-    photo, photoSource,
-    searchQuery, hasSearched,
-    lang,
-  ]);
 
   const clearRegProgress = () => {
     try {
@@ -443,38 +368,6 @@ export default function RegisterPage() {
       // ignore
     }
   };
-
-  // Force-save before page unload / refresh so nothing is lost
-  useEffect(() => {
-    const saveBeforeUnload = () => {
-      const payload = {
-        step, subStep, selectedPerson, isNonValidResident,
-        firstName, middleName, lastName, suffix, barangay,
-        referral, referralQuery, referralValid,
-        sector, houseNo, purok, contact, gender, civilStatus, lot, block, phase,
-        birthMonth, birthDay, birthYear,
-        photo, photoSource,
-        searchQuery, hasSearched,
-        lang,
-      };
-      try {
-        sessionStorage.setItem(REG_PROGRESS_KEY, JSON.stringify(payload));
-      } catch {
-        // silently fail
-      }
-    };
-    window.addEventListener('beforeunload', saveBeforeUnload);
-    return () => window.removeEventListener('beforeunload', saveBeforeUnload);
-  }, [
-    step, subStep, selectedPerson, isNonValidResident,
-    firstName, middleName, lastName, suffix, barangay,
-    referral, referralQuery, referralValid,
-    sector, houseNo, purok, contact, gender, civilStatus, lot, block, phase,
-    birthMonth, birthDay, birthYear,
-    photo, photoSource,
-    searchQuery, hasSearched,
-    lang,
-  ]);
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 100 }, (_, i) => (currentYear - 16) - i); // 16+ years old
@@ -1186,8 +1079,8 @@ export default function RegisterPage() {
               <div className="premium-selected-pill">
                 <div className="pill-dot" style={{ background: isNonValidResident ? '#f59e0b' : '#10b981' }} />
                 <div className="pill-profile-text">
-                  <strong>{isNonValidResident ? (`${firstName} ${middleName ? middleName + ' ' : ''}${lastName}${suffix ? ' ' + suffix : ''}`.trim() || 'Non-Valid Resident') : selectedPerson.name}</strong>
-                  <span>{isNonValidResident ? (barangay || 'Non-Valid Resident') : selectedPerson.barangay}</span>
+                  <strong>{isNonValidResident ? (`${firstName} ${middleName ? middleName + ' ' : ''}${lastName}${suffix ? ' ' + suffix : ''}`.trim() || 'New Resident') : selectedPerson.name}</strong>
+                  <span>{isNonValidResident ? (barangay || 'New Resident') : selectedPerson.barangay}</span>
                 </div>
                 <button className="btn-premium-change" onClick={() => { setStep(1); setSelectedPerson(null); setIsNonValidResident(false); }}>{t.changeProfile}</button>
               </div>
