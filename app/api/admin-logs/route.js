@@ -40,11 +40,45 @@ export async function GET(request) {
       query = query.lte('created_at', endDate);
     }
 
-    const { data, error, count } = await query;
+    let { data, error, count } = await query;
 
     if (error) throw error;
 
-    return Response.json({ logs: data || [], total: count || 0 });
+    // Resolve missing target_names from their source tables
+    const logs = data || [];
+    const missing = logs.filter(l => !l.target_name && l.target_id && l.target_table);
+    if (missing.length > 0) {
+      const byTable = {};
+      missing.forEach(l => {
+        byTable[l.target_table] = byTable[l.target_table] || [];
+        byTable[l.target_table].push(l.target_id);
+      });
+
+      const nameMap = {};
+      for (const [table, ids] of Object.entries(byTable)) {
+        const uniqueIds = [...new Set(ids)];
+        if (table === 'upcoming_events') {
+          const { data: rows } = await supabase.from(table).select('id, title').in('id', uniqueIds);
+          (rows || []).forEach(r => { nameMap[r.id] = r.title; });
+        } else {
+          const { data: rows } = await supabase.from(table).select('id, last_name, first_name').in('id', uniqueIds);
+          (rows || []).forEach(r => {
+            const ln = r.last_name || '';
+            const fn = r.first_name || '';
+            const name = `${ln}, ${fn}`.trim().replace(/^,\s*|,\s*$/g, '');
+            nameMap[r.id] = name || null;
+          });
+        }
+      }
+
+      logs.forEach(l => {
+        if (!l.target_name && l.target_id && nameMap[l.target_id]) {
+          l.target_name = nameMap[l.target_id];
+        }
+      });
+    }
+
+    return Response.json({ logs, total: count || 0 });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
   }

@@ -1700,8 +1700,12 @@ export default function AdminPage() {
         showToast(error.message, 'error');
       } else {
         showToast(`Approved. EM Card: ${emCardNo}`, 'success');
-        const reg = allRegs.find(r => r.id === id);
-        const targetName = reg ? `${reg.last_name}, ${reg.first_name}` : null;
+        const { data: reg } = await supabase
+          .from('registrations')
+          .select('first_name, last_name')
+          .eq('id', id)
+          .single();
+        const targetName = reg ? `${reg.last_name || ''}, ${reg.first_name || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || null : null;
         logAdminAction('approve_member', 'registrations', id, targetName, { em_card_no: emCardNo });
         fetchAllRegistrations();
       }
@@ -1720,8 +1724,12 @@ export default function AdminPage() {
         showToast(error.message, 'error');
       } else {
         showToast('Registration rejected.', 'success');
-        const reg = allRegs.find(r => r.id === id);
-        const targetName = reg ? `${reg.last_name}, ${reg.first_name}` : null;
+        const { data: reg } = await supabase
+          .from('registrations')
+          .select('first_name, last_name')
+          .eq('id', id)
+          .single();
+        const targetName = reg ? `${reg.last_name || ''}, ${reg.first_name || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || null : null;
         logAdminAction('reject_member', 'registrations', id, targetName, {});
         fetchAllRegistrations();
       }
