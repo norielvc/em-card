@@ -2334,6 +2334,16 @@ p {
   overflow: hidden;
 }
 
+/* Embedded mode: registration inside admin portal */
+.split-layout.embedded {
+  background: transparent !important;
+}
+.split-layout.embedded .split-wrapper {
+  width: 100%;
+  height: auto;
+  min-height: 100%;
+}
+
 /* LEFT PANEL (AESTHETIC BRAND PANEL) */
 .split-left-panel {
   width: 42%;
@@ -6436,6 +6446,13 @@ p {
   align-items: center;
   justify-content: center;
   position: relative;
+}
+
+/* Embedded mode: registration inside admin portal (no left panel) */
+.split-right-panel.embedded {
+  width: 100%;
+  min-height: 100%;
+  border-radius: 16px;
 }
 
 /* Premium Language Toggle Pill */

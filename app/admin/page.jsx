@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Users, UserPlus, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, UserCheck, ScanLine, Camera, X, MapPin, Phone, AlertTriangle, Upload, Shield, Globe, Link2, QrCode, Zap, Clock, Home, Building, Tag, Hash, Pencil, Printer, Monitor, Database, HardDrive, Activity, Server, Folder, Search, Filter, Plus, Type, Check, CreditCard, Ban, ShieldAlert, Cake, Inbox, Megaphone, History, Info, Trash2, TrendingUp, PieChart, Share2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import RegisterForm from '../components/RegisterForm';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 
@@ -128,6 +129,10 @@ export default function AdminPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [selectedRegDetail, setSelectedRegDetail] = useState(null);
+  const [adminReferral, setAdminReferral] = useState('');
+  const [adminReferralQuery, setAdminReferralQuery] = useState('');
+  const [adminReferralResults, setAdminReferralResults] = useState([]);
+  const [adminReferralValid, setAdminReferralValid] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberEditMode, setMemberEditMode] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -498,6 +503,21 @@ export default function AdminPage() {
       fetchMemberScanHistory(selectedMember.id);
     }
   }, [selectedMember]);
+
+  // Sync admin referral search state when opening/changing registration details modal
+  useEffect(() => {
+    if (selectedRegDetail) {
+      setAdminReferral(selectedRegDetail.referral_name || '');
+      setAdminReferralQuery(selectedRegDetail.referral_name || '');
+      setAdminReferralValid(!!selectedRegDetail.referral_name);
+      setAdminReferralResults([]);
+    } else {
+      setAdminReferral('');
+      setAdminReferralQuery('');
+      setAdminReferralValid(false);
+      setAdminReferralResults([]);
+    }
+  }, [selectedRegDetail]);
 
   // Auto-fetch messages when switching to history tab
   useEffect(() => {
@@ -1716,16 +1736,45 @@ export default function AdminPage() {
     }
   };
 
-  const approveRegistration = async (id) => {
+  const approveRegistration = async (id, assignedReferral) => {
+    let finalReferral = assignedReferral;
+
+    // Fetch the registration details if not passed to verify referral_name exists
+    if (!finalReferral) {
+      const { data: currentReg } = await supabase
+        .from('registrations')
+        .select('referral_name')
+        .eq('id', id)
+        .single();
+      if (currentReg && currentReg.referral_name) {
+        finalReferral = currentReg.referral_name;
+      }
+    }
+
+    if (!finalReferral || !finalReferral.trim()) {
+      showToast('Referral Node is required. Please review registration details to assign a referral.', 'error');
+      const targetReg = allRegs.find(r => r.id === id);
+      if (targetReg) {
+        setSelectedRegDetail(targetReg);
+      }
+      return false;
+    }
+
     try {
       const emCardNo = generateEMCardNo();
       const qrToken = emCardNo; // QR Token and EM Card Number are identical
       const { error } = await supabase
         .from('registrations')
-        .update({ status: 'Approved', qr_token: qrToken, em_card_no: emCardNo })
+        .update({ 
+          status: 'Approved', 
+          qr_token: qrToken, 
+          em_card_no: emCardNo,
+          referral_name: finalReferral.trim()
+        })
         .eq('id', id);
       if (error) {
         showToast(error.message, 'error');
+        return false;
       } else {
         showToast(`Approved. EM Card: ${emCardNo}`, 'success');
         const { data: reg } = await supabase
@@ -1734,11 +1783,13 @@ export default function AdminPage() {
           .eq('id', id)
           .single();
         const targetName = reg ? `${reg.last_name || ''}, ${reg.first_name || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || null : null;
-        logAdminAction('approve_member', 'registrations', id, targetName, { em_card_no: emCardNo });
+        logAdminAction('approve_member', 'registrations', id, targetName, { em_card_no: emCardNo, referral_name: finalReferral.trim() });
         fetchAllRegistrations();
+        return true;
       }
     } catch (err) {
       showToast('Failed to approve registration.', 'error');
+      return false;
     }
   };
 
@@ -2293,6 +2344,7 @@ export default function AdminPage() {
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} strokeWidth={1.8} /> },
     { id: 'residents', label: 'Registered Voters', icon: <Users size={20} strokeWidth={1.8} /> },
     { id: 'registrations', label: 'Registrations', icon: <ClipboardList size={20} strokeWidth={1.8} /> },
+    { id: 'registerMember', label: 'Register Member', icon: <UserPlus size={20} strokeWidth={1.8} /> },
     { id: 'members', label: 'Members', icon: <UserCheck size={20} strokeWidth={1.8} /> },
     { id: 'eventScanner', label: 'Event Scanner', icon: <ScanLine size={20} strokeWidth={1.8} /> },
     { id: 'events', label: 'Upcoming Events', icon: <Calendar size={20} strokeWidth={1.8} /> },
@@ -2647,6 +2699,10 @@ export default function AdminPage() {
         <button className="quick-action-btn" onClick={() => { setShowAddModal(true); setAddError(''); }}>
           <Plus size={18} />
           <span>Add Resident</span>
+        </button>
+        <button className="quick-action-btn" onClick={() => window.open('/register', '_blank')} style={{ border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+          <UserPlus size={18} style={{ color: '#10b981' }} />
+          <span style={{ color: '#047857', fontWeight: 'bold' }}>Register Member</span>
         </button>
       </div>
 
@@ -3896,6 +3952,9 @@ export default function AdminPage() {
             <button className="btn btn-action-outline" onClick={() => downloadRegistrationsCSV(filteredRegs)}>
               <Download size={14} /> Export CSV
             </button>
+            <button className="btn btn-action-primary" onClick={() => window.open('/register', '_blank')} style={{ background: '#10b981' }}>
+              <UserPlus size={14} /> Register Member
+            </button>
           </div>
         </div>
 
@@ -4354,19 +4413,42 @@ export default function AdminPage() {
   };
 
   const downloadMembersCSV = (members) => {
-    const headers = ['Name', 'Barangay', 'Purok', 'Sector', 'EM Card No', 'Print Status', 'Contact', 'Date'];
+    const headers = ['FULL NAME', 'FULL ADDRESS', 'CONTACT NUMBER', 'BIRTHDAY', 'DATE ISSUED', 'QR CODE', 'EM NUMBER'];
     const rows = members.map(reg => {
       const r = reg.ValidResidents || {};
-      const name = `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}${r.suffix ? ' ' + r.suffix : ''}`.trim();
+      const firstName = reg.first_name || r.first_name || '';
+      const middleName = reg.middle_name || r.middle_name || '';
+      const lastName = reg.last_name || r.last_name || '';
+      const suffix = reg.suffix || r.suffix || '';
+      const fullName = `${lastName}${suffix ? ' ' + suffix : ''}, ${firstName}${middleName ? ' ' + middleName : ''}`.trim();
+
+      const houseNo = reg.house_no || '';
+      const purok = reg.purok || '';
+      const lot = reg.lot || '';
+      const block = reg.block || '';
+      const phase = reg.phase || '';
+      const barangay = reg.barangay || r.barangay || '';
+
+      const addressParts = [];
+      if (houseNo) addressParts.push(`House ${houseNo}`);
+      if (lot) addressParts.push(`Lot ${lot}`);
+      if (block) addressParts.push(`Block ${block}`);
+      if (phase) addressParts.push(`Phase ${phase}`);
+      if (purok) addressParts.push(purok);
+      if (barangay) addressParts.push(barangay);
+      const fullAddress = addressParts.join(', ');
+
+      const birthday = reg.birthday || '';
+      const dateIssued = reg.created_at ? new Date(reg.created_at).toLocaleDateString() : '';
+
       return [
-        name,
-        r.barangay || '',
-        reg.purok || r.purok || '',
-        reg.sector_category || '',
-        reg.em_card_no || '',
-        reg.printed_at ? 'Printed' : 'Not Printed',
+        fullName,
+        fullAddress,
         reg.contact || '',
-        new Date(reg.created_at).toLocaleDateString(),
+        birthday,
+        dateIssued,
+        reg.qr_token || '',
+        reg.em_card_no || '',
       ];
     });
     const csvContent = [headers, ...rows]
@@ -7548,6 +7630,7 @@ export default function AdminPage() {
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'residents' && renderResidents()}
           {activeTab === 'registrations' && renderRegistrations()}
+          {activeTab === 'registerMember' && <RegisterForm embedded={true} />}
           {activeTab === 'members' && renderMembers()}
           {activeTab === 'eventScanner' && renderEventScanner()}
           {activeTab === 'events' && renderUpcomingEvents()}
@@ -7815,9 +7898,119 @@ export default function AdminPage() {
                     </div>
                   </>
                 )}
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Referral</span>
-                  <span className="reg-detail-value">{selectedRegDetail.referral_name}</span>
+                <div className="reg-detail-item full" style={{ gridColumn: 'span 2' }}>
+                  <span className="reg-detail-label">Authorized Referral Node <span style={{ color: '#ef4444' }}>*</span></span>
+                  {selectedRegDetail.status === 'Pending' ? (
+                    <div style={{ position: 'relative', width: '100%', marginTop: '6px' }}>
+                      <input
+                        type="text"
+                        placeholder="Start typing community referral name..."
+                        value={adminReferralQuery}
+                        onChange={async (e) => {
+                          const val = e.target.value.toUpperCase();
+                          setAdminReferralQuery(val);
+                          setAdminReferralValid(false);
+                          setAdminReferral('');
+                          const trimmedVal = val.trim();
+                          if (trimmedVal.length >= 2) {
+                            try {
+                              const excludeParam = selectedRegDetail.resident_id ? `&excludeId=${selectedRegDetail.resident_id}` : '';
+                              const apiUrl = `/api/search-residents?q=${encodeURIComponent(trimmedVal)}${excludeParam}`;
+                              const res = await fetch(apiUrl);
+                              const json = await res.json();
+                              const data = json.data || [];
+
+                              const mapped = data.map(p => ({
+                                ...p,
+                                name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
+                              }));
+                              setAdminReferralResults(mapped);
+                            } catch (err) {
+                              setAdminReferralResults([]);
+                            }
+                          } else {
+                            setAdminReferralResults([]);
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          border: adminReferralValid ? '2px solid #10b981' : '1px solid rgba(6, 78, 59, 0.15)',
+                          outline: 'none',
+                          fontSize: '0.92rem',
+                          background: adminReferralValid ? '#f0fdf4' : '#fff',
+                          transition: 'all 0.2s'
+                        }}
+                        required
+                      />
+                      {adminReferralValid && (
+                        <span style={{
+                          position: 'absolute',
+                          right: '12px',
+                          top: '11px',
+                          color: '#10b981',
+                          fontSize: '0.82rem',
+                          fontWeight: 'bold'
+                        }}>
+                          ✓ Node Verified
+                        </span>
+                      )}
+                      {!adminReferralValid && adminReferralResults.length > 0 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          background: '#fff',
+                          border: '1px solid rgba(6, 78, 59, 0.15)',
+                          borderRadius: '10px',
+                          boxShadow: '0 10px 30px rgba(2, 44, 34, 0.12)',
+                          maxHeight: '200px',
+                          overflowY: 'auto',
+                          zIndex: 1000,
+                          marginTop: '4px'
+                        }}>
+                          {adminReferralResults.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setAdminReferral(p.name);
+                                setAdminReferralQuery(p.name);
+                                setAdminReferralValid(true);
+                                setAdminReferralResults([]);
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '10px 14px',
+                                border: 'none',
+                                background: 'none',
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                borderBottom: '1px solid rgba(6, 78, 59, 0.05)',
+                                transition: 'background 0.2s'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f8f4'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              <strong style={{ fontSize: '0.9rem', color: '#1a3a30' }}>{p.name}</strong>
+                              <span style={{ fontSize: '0.75rem', color: '#5d756d' }}>{p.barangay}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {!adminReferralValid && adminReferralQuery.length >= 2 && adminReferralResults.length === 0 && (
+                        <p style={{ margin: '4px 0 0', color: '#ef4444', fontSize: '0.8rem' }}>
+                          Zero records found matching this node string in our directory.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="reg-detail-value">{selectedRegDetail.referral_name || '-'}</span>
+                  )}
                 </div>
                 <div className="reg-detail-item">
                   <span className="reg-detail-label">Contact</span>
@@ -7841,7 +8034,19 @@ export default function AdminPage() {
               <button type="button" className="btn btn-modal-secondary" onClick={() => setSelectedRegDetail(null)}>Close</button>
               {selectedRegDetail.status === 'Pending' && (
                 <>
-                  <button type="button" className="btn btn-approve" onClick={() => { approveRegistration(selectedRegDetail.id); setSelectedRegDetail(null); }}>Approve</button>
+                  <button 
+                    type="button" 
+                    className="btn btn-approve" 
+                    onClick={async () => {
+                      const success = await approveRegistration(selectedRegDetail.id, adminReferral);
+                      if (success) setSelectedRegDetail(null);
+                    }}
+                    disabled={!adminReferralValid}
+                    style={{ opacity: adminReferralValid ? 1 : 0.6, cursor: adminReferralValid ? 'pointer' : 'not-allowed' }}
+                    title={!adminReferralValid ? "Please verify an Authorized Referral Node before approving" : "Approve registration"}
+                  >
+                    Approve
+                  </button>
                   <button type="button" className="btn btn-reject" onClick={() => { rejectRegistration(selectedRegDetail.id); setSelectedRegDetail(null); }}>Reject</button>
                 </>
               )}
