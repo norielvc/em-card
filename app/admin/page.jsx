@@ -8,7 +8,7 @@ import RegisterForm from '../components/RegisterForm';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 
-const SUBDIVISION_PUROKS = ['North Ville 6', 'Balagtas Heights'];
+const SUBDIVISION_PUROKS = ['North Ville 6', 'Balagtas Heights', 'Milaflor Subdivision', 'Divine Grace Village', 'Sta. Cruz Village', 'Mariano Village', 'Zone 1 St. Francis Subdivision', 'Zone 1 Sta. Elene Subdivision', 'Zone 5 Villa Juliana Subdivision', 'Zone 4 Virgen Milagrosa Homes', 'Jomaville Subdivision', 'Cresta Verde', 'Jordan Valley Subdivision'];
 
 // Helper: fetch with auth token for admin API routes
 async function authFetch(url, options = {}) {
@@ -4214,8 +4214,8 @@ export default function AdminPage() {
             <button className="btn btn-scan-start" onClick={() => { setScanQrMember({ open: true }); setScanQrToken(''); setScanQrResult(null); }}>
               <ScanLine size={14} /> Scan ID
             </button>
-            <button className="btn btn-action-outline" onClick={() => downloadMembersCSV(members)}>
-              <Download size={14} /> Export CSV
+            <button className="btn btn-action-outline" onClick={() => downloadMembersExcel(members)}>
+              <Download size={14} /> Export Excel
             </button>
           </div>
         </div>
@@ -4412,7 +4412,7 @@ export default function AdminPage() {
     showToast('Profile exported to Excel!', 'success');
   };
 
-  const downloadMembersCSV = (members) => {
+  const downloadMembersExcel = (members) => {
     const headers = ['FULL NAME', 'FULL ADDRESS', 'CONTACT NUMBER', 'BIRTHDAY', 'DATE ISSUED', 'QR CODE', 'EM NUMBER'];
     const rows = members.map(reg => {
       const r = reg.ValidResidents || {};
@@ -4429,14 +4429,12 @@ export default function AdminPage() {
       const phase = reg.phase || '';
       const barangay = reg.barangay || r.barangay || '';
 
-      const addressParts = [];
-      if (houseNo) addressParts.push(`House ${houseNo}`);
-      if (lot) addressParts.push(`Lot ${lot}`);
-      if (block) addressParts.push(`Block ${block}`);
-      if (phase) addressParts.push(`Phase ${phase}`);
-      if (purok) addressParts.push(purok);
-      if (barangay) addressParts.push(barangay);
-      const fullAddress = addressParts.join(', ');
+      const purokLabel = purok ? (SUBDIVISION_PUROKS.includes(purok) ? purok.toUpperCase() : `PUROK ${purok}`) : '';
+      const lotBlockPhase = SUBDIVISION_PUROKS.includes(purok) ? `Lot ${lot} Block ${block} Phase ${phase}` : '';
+      const barangayUpper = barangay ? `${barangay.toUpperCase()}, ` : '';
+      const fullAddress = SUBDIVISION_PUROKS.includes(purok)
+        ? `${lotBlockPhase ? `${lotBlockPhase}, ` : ''}${purokLabel ? `${purokLabel}, ` : ''}${barangayUpper}BALAGTAS, BULACAN`
+        : `${houseNo ? `#${houseNo} ` : ''}${purokLabel ? `${purokLabel}, ` : ''}${barangayUpper}BALAGTAS, BULACAN`;
 
       const birthday = reg.birthday || '';
       const dateIssued = reg.created_at ? new Date(reg.created_at).toLocaleDateString() : '';
@@ -4451,18 +4449,11 @@ export default function AdminPage() {
         reg.em_card_no || '',
       ];
     });
-    const csvContent = [headers, ...rows]
-      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `members_export_${new Date().toISOString().slice(0,10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Members');
+    XLSX.writeFile(wb, `members_export_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   const downloadResidentsCSV = (residents) => {
@@ -8639,7 +8630,7 @@ export default function AdminPage() {
                             {scanQrResult.member.photo ? <img src={scanQrResult.member.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={28} />}
                           </div>
                           <div style={{ textAlign: 'left', minWidth: 0 }}>
-                            <h4 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{scanQrResult.member.name}</h4>
+                            <h4 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, lineHeight: 1.3, wordBreak: 'break-word' }}>{scanQrResult.member.name}</h4>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 12, opacity: 0.85 }}>
                               <span><MapPin size={12} style={{ verticalAlign: 'text-bottom', marginRight: 3 }} />{scanQrResult.member.barangay}</span>
                               <span><Home size={12} style={{ verticalAlign: 'text-bottom', marginRight: 3 }} />{scanQrResult.member.purok}</span>
@@ -8696,7 +8687,7 @@ export default function AdminPage() {
                             {scanQrResult.member.photo ? <img src={scanQrResult.member.photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={28} color="#64748b" />}
                           </div>
                           <div style={{ textAlign: 'left', minWidth: 0 }}>
-                            <h4 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{scanQrResult.member.name}</h4>
+                            <h4 style={{ margin: '0 0 4px', fontSize: 17, fontWeight: 700, color: '#0f172a', lineHeight: 1.3, wordBreak: 'break-word' }}>{scanQrResult.member.name}</h4>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 12, color: '#64748b' }}>
                               <span><MapPin size={12} style={{ verticalAlign: 'text-bottom', marginRight: 3 }} />{scanQrResult.member.barangay}</span>
                               <span><Home size={12} style={{ verticalAlign: 'text-bottom', marginRight: 3 }} />{scanQrResult.member.purok}</span>
