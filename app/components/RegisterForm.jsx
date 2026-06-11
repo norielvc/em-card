@@ -261,7 +261,7 @@ const TRANSLATIONS = {
   }
 };
 
-const SUBDIVISION_PUROKS = ['North Ville 6', 'Balagtas Heights'];
+const SUBDIVISION_PUROKS = ['North Ville 6', 'Balagtas Heights', 'Milaflor Subdivision', 'Divine Grace Village', 'Sta. Cruz Village', 'Mariano Village', 'Zone 1 St. Francis Subdivision', 'Zone 1 Sta. Elene Subdivision', 'Zone 5 Villa Juliana Subdivision', 'Zone 4 Virgen Milagrosa Homes', 'Jomaville Subdivision', 'Cresta Verde', 'Villa Castro', 'Divine Grace II', 'Villa Victoria St.', 'Villa Lourdes', 'Ma. Magdalena Subdivision', 'Ma. Corazon Subdivision', 'RMB Subdivision', 'Jordan Valley Subdivision'];
 
 export default function RegisterForm({ embedded = false }) {
   const [lang, setLang] = useState('en'); // 'en' or 'ph'
@@ -1134,11 +1134,181 @@ export default function RegisterForm({ embedded = false }) {
                       <div className="premium-select-wrapper">
                         <select value={purok} onChange={(e) => { setPurok(e.target.value); if (SUBDIVISION_PUROKS.includes(e.target.value)) { setHouseNo(''); } else { setLot(''); setBlock(''); setPhase(''); } }}>
                           <option value="">Select purok...</option>
-                          {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Purok {n}</option>)}
+                          {!["BOROL 1ST", "BOROL 2ND", "DALIG", "LONGOS", "PANGINAY", "PULONG GUBAT", "SAN JUAN", "SANTOL", "WAWA"].includes((isNonValidResident ? barangay : selectedPerson?.barangay)?.toUpperCase()) && (
+                            [1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Purok {n}</option>)
+                          )}
                           {(isNonValidResident ? barangay : selectedPerson?.barangay)?.toUpperCase() === 'SANTOL' && (
                             <>
-                              <option value="North Ville 6">North Ville 6</option>
-                              <option value="Balagtas Heights">Balagtas Heights</option>
+                              <optgroup label="Purok / Street">
+                                <option value="St. James">St. James</option>
+                                <option value="St. Vincent">St. Vincent</option>
+                                <option value="Nia Road 1">Nia Road 1</option>
+                                <option value="Nia Road 2">Nia Road 2</option>
+                                <option value="St. Jude">St. Jude</option>
+                                <option value="St. Michael">St. Michael</option>
+                                <option value="Sto. Niño">Sto. Niño</option>
+                                <option value="St. Joseph">St. Joseph</option>
+                                <option value="St. Matthew">St. Matthew</option>
+                              </optgroup>
+                              <optgroup label="Subdivision / Village">
+                                <option value="Jordan Valley Subdivision">Jordan Valley Subdivision</option>
+                                <option value="North Ville 6">North Ville 6</option>
+                              </optgroup>
+                            </>
+                          )}
+                          {(isNonValidResident ? barangay : selectedPerson?.barangay)?.toUpperCase() === 'BOROL 1ST' && (
+                            <>
+                              <optgroup label="Purok / Street">
+                                <option value="P. Castro St.">P. Castro St.</option>
+                                <option value="San Lorenzo">San Lorenzo</option>
+                                <option value="Intan St.">Intan St.</option>
+                                <option value="Tiwala">Tiwala</option>
+                                <option value="St. Lawrence">St. Lawrence</option>
+                                <option value="Milagrosa">Milagrosa</option>
+                                <option value="Kaisahan">Kaisahan</option>
+                                <option value="PNR Station">PNR Station</option>
+                                <option value="Provincial Road">Provincial Road</option>
+                                <option value="Violeta Complex">Violeta Complex</option>
+                              </optgroup>
+                              <optgroup label="Subdivision / Village">
+                                <option value="Milaflor Subdivision">Milaflor Subdivision</option>
+                                <option value="Divine Grace Village">Divine Grace Village</option>
+                                <option value="Sta. Cruz Village">Sta. Cruz Village</option>
+                                <option value="Mariano Village">Mariano Village</option>
+                              </optgroup>
+                            </>
+                          )}
+                          {(isNonValidResident ? barangay : selectedPerson?.barangay)?.toUpperCase() === 'BOROL 2ND' && (
+                            <>
+                              <optgroup label="Zone / Street">
+                                <option value="Zone 1 Kalye Blangko">Zone 1 Kalye Blangko</option>
+                                <option value="Zone 1 St. Joseph">Zone 1 St. Joseph</option>
+                                <option value="Zone 1 Fatima Wells">Zone 1 Fatima Wells</option>
+                                <option value="Zone 1 Provincial Road">Zone 1 Provincial Road</option>
+                                <option value="Zone 2 Dalig Road">Zone 2 Dalig Road</option>
+                                <option value="Zone 2 Karuyan St.">Zone 2 Karuyan St.</option>
+                                <option value="Zone 2 Nia Road">Zone 2 Nia Road</option>
+                                <option value="Zone 2 Provincial Road">Zone 2 Provincial Road</option>
+                                <option value="Zone 3 St. Peter Compound">Zone 3 St. Peter Compound</option>
+                                <option value="Zone 3 Zuñiga St.">Zone 3 Zuñiga St.</option>
+                                <option value="Zone 3 Dela Cruz Compound">Zone 3 Dela Cruz Compound</option>
+                                <option value="Zone 3 Provincial Road">Zone 3 Provincial Road</option>
+                                <option value="Zone 4 Provincial Road">Zone 4 Provincial Road</option>
+                                <option value="Zone 4 Windmill Road">Zone 4 Windmill Road</option>
+                                <option value="Zone 4 Rocka Compound">Zone 4 Rocka Compound</option>
+                                <option value="Zone 5 NIA Road">Zone 5 NIA Road</option>
+                                <option value="Zone 5 Silverio St.">Zone 5 Silverio St.</option>
+                                <option value="Zone 5 Arellano Compound">Zone 5 Arellano Compound</option>
+                                <option value="Zone 5 Provincial Road">Zone 5 Provincial Road</option>
+                                <option value="Zone 6 Bypass Road">Zone 6 Bypass Road</option>
+                                <option value="Zone 6 Jethro">Zone 6 Jethro</option>
+                                <option value="Zone 6 Windmill">Zone 6 Windmill</option>
+                              </optgroup>
+                              <optgroup label="Subdivision / Village">
+                                <option value="Zone 1 St. Francis Subdivision">Zone 1 St. Francis Subdivision</option>
+                                <option value="Zone 1 Sta. Elene Subdivision">Zone 1 Sta. Elene Subdivision</option>
+                                <option value="Zone 4 Virgen Milagrosa Homes">Zone 4 Virgen Milagrosa Homes</option>
+                                <option value="Zone 5 Villa Juliana Subdivision">Zone 5 Villa Juliana Subdivision</option>
+                              </optgroup>
+                            </>
+                          )}
+                          {(isNonValidResident ? barangay : selectedPerson?.barangay)?.toUpperCase() === 'DALIG' && (
+                            <>
+                              <optgroup label="Zone">
+                                <option value="Zone 1">Zone 1</option>
+                                <option value="Zone 2 Hulo St.">Zone 2 Hulo St.</option>
+                                <option value="Zone 3 Karuyan St.">Zone 3 Karuyan St.</option>
+                              </optgroup>
+                              <optgroup label="Subdivision / Village">
+                                <option value="Jomaville Subdivision">Jomaville Subdivision</option>
+                              </optgroup>
+                            </>
+                          )}
+                          {(isNonValidResident ? barangay : selectedPerson?.barangay)?.toUpperCase() === 'LONGOS' && (
+                            <>
+                              <optgroup label="Purok / Street">
+                                <option value="P. Atienza St.">P. Atienza St.</option>
+                                <option value="C. Galvez St.">C. Galvez St.</option>
+                                <option value="San Gabriel St.">San Gabriel St.</option>
+                                <option value="P. Garcia St.">P. Garcia St.</option>
+                                <option value="P. Castro St.">P. Castro St.</option>
+                                <option value="F. Sison St.">F. Sison St.</option>
+                                <option value="Sitio Karuyan">Sitio Karuyan</option>
+                              </optgroup>
+                              <optgroup label="Subdivision / Village">
+                                <option value="Cresta Verde">Cresta Verde</option>
+                              </optgroup>
+                            </>
+                          )}
+                          {(isNonValidResident ? barangay : selectedPerson?.barangay)?.toUpperCase() === 'PANGINAY' && (
+                            <>
+                              <optgroup label="Purok / Street">
+                                <option value="Florante St.">Florante St.</option>
+                                <option value="Sto. Niño St.">Sto. Niño St.</option>
+                                <option value="Laura St.">Laura St.</option>
+                                <option value="Celia St.">Celia St.</option>
+                                <option value="Santiago St.">Santiago St.</option>
+                                <option value="Flerida St.">Flerida St.</option>
+                                <option value="Tanary St.">Tanary St.</option>
+                                <option value="Bantayan St.">Bantayan St.</option>
+                              </optgroup>
+                            </>
+                          )}
+                          {(isNonValidResident ? barangay : selectedPerson?.barangay)?.toUpperCase() === 'PULONG GUBAT' && (
+                            <>
+                              <optgroup label="Purok / Street / Compound">
+                                <option value="Pook Malaya">Pook Malaya</option>
+                                <option value="Santiago Compound">Santiago Compound</option>
+                                <option value="Bapong Anghel">Bapong Anghel</option>
+                                <option value="Nolasco St.">Nolasco St.</option>
+                                <option value="Simplicio St.">Simplicio St.</option>
+                                <option value="Feliciano St.">Feliciano St.</option>
+                                <option value="Jose St.">Jose St.</option>
+                                <option value="Manolo Galvez St.">Manolo Galvez St.</option>
+                                <option value="Ning-ning St.">Ning-ning St.</option>
+                              </optgroup>
+                              <optgroup label="Subdivision / Village">
+                                <option value="Villa Castro">Villa Castro</option>
+                                <option value="Divine Grace II">Divine Grace II</option>
+                                <option value="Villa Victoria St.">Villa Victoria St.</option>
+                                <option value="Villa Lourdes">Villa Lourdes</option>
+                              </optgroup>
+                            </>
+                          )}
+                          {(isNonValidResident ? barangay : selectedPerson?.barangay)?.toUpperCase() === 'SAN JUAN' && (
+                            <>
+                              <optgroup label="Purok / Street">
+                                <option value="R. Ajose St.">R. Ajose St.</option>
+                                <option value="R. Castro St.">R. Castro St.</option>
+                                <option value="Sampaguita St.">Sampaguita St.</option>
+                                <option value="Nia Road">Nia Road</option>
+                                <option value="Sebastian St.">Sebastian St.</option>
+                                <option value="Mariano Ajose St.">Mariano Ajose St.</option>
+                                <option value="McArthur Highway">McArthur Highway</option>
+                              </optgroup>
+                              <optgroup label="Subdivision / Village">
+                                <option value="Ma. Magdalena Subdivision">Ma. Magdalena Subdivision</option>
+                                <option value="Ma. Corazon Subdivision">Ma. Corazon Subdivision</option>
+                                <option value="RMB Subdivision">RMB Subdivision</option>
+                              </optgroup>
+                            </>
+                          )}
+                          {(isNonValidResident ? barangay : selectedPerson?.barangay)?.toUpperCase() === 'WAWA' && (
+                            <>
+                              <optgroup label="Purok / Street">
+                                <option value="Purok 1 (M. Galvez St.)">Purok 1 (M. Galvez St.)</option>
+                                <option value="Purok 1 (L. Galvez St.)">Purok 1 (L. Galvez St.)</option>
+                                <option value="Purok 2 (F. Santos St.)">Purok 2 (F. Santos St.)</option>
+                                <option value="Purok 3 (Salvador St.)">Purok 3 (Salvador St.)</option>
+                                <option value="Purok 4 (Mc Arthur Highway)">Purok 4 (Mc Arthur Highway)</option>
+                                <option value="Purok 5 (N. Garcia St.)">Purok 5 (N. Garcia St.)</option>
+                                <option value="Purok 6 (F. Sison St.)">Purok 6 (F. Sison St.)</option>
+                                <option value="Purok 6 (Sampaguita St./ Bagong Barrio)">Purok 6 (Sampaguita St./ Bagong Barrio)</option>
+                                <option value="Purok 7 (Fatima St.)">Purok 7 (Fatima St.)</option>
+                                <option value="Purok 7 (Ilang-ilang St.)">Purok 7 (Ilang-ilang St.)</option>
+                                <option value="Purok 7 (Camia St.)">Purok 7 (Camia St.)</option>
+                                <option value="Bantayan St.">Bantayan St.</option>
+                              </optgroup>
                             </>
                           )}
                         </select>

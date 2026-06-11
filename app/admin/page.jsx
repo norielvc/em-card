@@ -4447,7 +4447,7 @@ export default function AdminPage() {
         reg.contact || '',
         birthday,
         dateIssued,
-        reg.qr_token || '',
+        reg.qr_token ? `https://www.em-card.com/card/${reg.qr_token}` : '',
         reg.em_card_no || '',
       ];
     });
