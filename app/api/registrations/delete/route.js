@@ -24,7 +24,21 @@ export async function POST(request) {
       .eq('parent_id', id);
     if (unlinkErr) throw unlinkErr;
 
-    // 2. Delete the member
+    // 2. Delete related message_recipients
+    const { error: msgErr } = await supabase
+      .from('message_recipients')
+      .delete()
+      .eq('registration_id', id);
+    if (msgErr) throw msgErr;
+
+    // 3. Delete related event_scans
+    const { error: scanErr } = await supabase
+      .from('event_scans')
+      .delete()
+      .eq('registration_id', id);
+    if (scanErr) throw scanErr;
+
+    // 4. Delete the member
     const { data, error } = await supabase
       .from('registrations')
       .delete()
