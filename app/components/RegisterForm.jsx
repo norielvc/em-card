@@ -1266,6 +1266,7 @@ export default function RegisterForm({ embedded = false }) {
                                 <option value="Jose St.">Jose St.</option>
                                 <option value="Manolo Galvez St.">Manolo Galvez St.</option>
                                 <option value="Ning-ning St.">Ning-ning St.</option>
+                                <option value="Sitio Galas">Sitio Galas</option>
                               </optgroup>
                               <optgroup label="Subdivision / Village">
                                 <option value="Villa Castro">Villa Castro</option>
