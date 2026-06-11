@@ -1682,8 +1682,46 @@ export default function AdminPage() {
       phase: reg.phase || '',
       referral_name: reg.referral_name || '',
       birthday: reg.birthday || '',
+      photo_url: reg.photo_url || reg.photo_base64 || '',
     });
     setMemberEditMode(true);
+  };
+
+  const compressEditPhoto = (dataUrl, maxKb = 300) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        const maxDim = 800;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+          else { w = Math.round(w * maxDim / h); h = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        let quality = 0.85;
+        let result = canvas.toDataURL('image/jpeg', quality);
+        while (result.length > maxKb * 1024 * 1.37 && quality > 0.1) {
+          quality -= 0.1;
+          result = canvas.toDataURL('image/jpeg', quality);
+        }
+        resolve(result);
+      };
+      img.src = dataUrl;
+    });
+  };
+
+  const handleEditPhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const compressed = await compressEditPhoto(ev.target.result, 300);
+      setEditMemberForm(f => ({ ...f, photo_url: compressed }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleUpdateMember = async () => {
@@ -1721,6 +1759,7 @@ export default function AdminPage() {
           phase: SUBDIVISION_PUROKS.includes(editMemberForm.purok) ? editMemberForm.phase : null,
           referral_name: editMemberForm.referral_name,
           birthday: editMemberForm.birthday,
+          photo_url: editMemberForm.photo_url || null,
         })
         .eq('id', selectedMember.id);
       if (regError) throw regError;
@@ -8083,6 +8122,30 @@ export default function AdminPage() {
               <div className="modal-body">
                 {memberEditMode ? (
                   <div className="member-edit-form">
+                    <div className="member-edit-section">
+                      <h4 className="member-edit-section-title">Photo</h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8 }}>
+                        <div style={{ width: 80, height: 80, borderRadius: '50%', overflow: 'hidden', background: '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #cbd5e1' }}>
+                          {editMemberForm.photo_url ? (
+                            <img src={editMemberForm.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <User size={32} color="#94a3b8" />
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <label className="btn btn-sm btn-edit" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                            <Upload size={14} /> Upload New Photo
+                            <input type="file" accept="image/*" onChange={handleEditPhotoUpload} style={{ display: 'none' }} />
+                          </label>
+                          {editMemberForm.photo_url && (
+                            <button type="button" className="btn btn-sm" style={{ color: '#dc2626', fontSize: 12, padding: '4px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6 }} onClick={() => setEditMemberForm(f => ({ ...f, photo_url: '' }))}>
+                              <Trash2 size={12} /> Remove Photo
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="member-edit-section">
                       <h4 className="member-edit-section-title">Personal Information</h4>
                       <div className="member-edit-grid">
