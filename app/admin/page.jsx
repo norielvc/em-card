@@ -614,10 +614,17 @@ export default function AdminPage() {
 
       const { data: reg, error: regErr } = await supabase
         .from('registrations')
-        .select('id, qr_token, em_card_no, printed_at, first_name, last_name, middle_name, suffix, purok, barangay, contact, photo_url, photo_base64, status')
+        .select('id, qr_token, em_card_no, printed_at, first_name, last_name, middle_name, suffix, purok, barangay, contact, photo_url, photo_base64, status, ValidResidents(first_name, last_name, middle_name, suffix, barangay)')
         .ilike('qr_token', clean)
         .eq('status', 'Approved')
         .maybeSingle();
+
+      const vr = reg?.ValidResidents || {};
+      const scanFirstName = reg?.first_name || vr.first_name || '';
+      const scanLastName = reg?.last_name || vr.last_name || '';
+      const scanMiddleName = reg?.middle_name || vr.middle_name || '';
+      const scanSuffix = reg?.suffix || vr.suffix || '';
+      const scanFullName = `${scanLastName}${scanSuffix ? ' ' + scanSuffix : ''}, ${scanFirstName}${scanMiddleName ? ' ' + scanMiddleName : ''}`.trim();
 
       if (regErr || !reg) {
         setScanQrResult({ type: 'error', message: 'QR not found. This ID is not registered or not approved.' });
@@ -627,9 +634,9 @@ export default function AdminPage() {
           type: 'info',
           message: `Already marked as printed on ${new Date(reg.printed_at).toLocaleDateString()}`,
           member: {
-            name: `${reg.first_name || ''} ${reg.middle_name ? reg.middle_name + ' ' : ''}${reg.last_name || ''}${reg.suffix ? ' ' + reg.suffix : ''}`.trim(),
+            name: scanFullName,
             photo: reg.photo_url || reg.photo_base64,
-            barangay: reg.barangay || '-',
+            barangay: reg.barangay || vr.barangay || '-',
             purok: reg.purok || '-',
             contact: reg.contact || '-',
             emCardNo: reg.em_card_no || '-',
@@ -639,14 +646,14 @@ export default function AdminPage() {
       } else {
         const { error } = await supabase.from('registrations').update({ printed_at: new Date().toISOString() }).eq('id', reg.id);
         if (error) throw error;
-        logAdminAction('scan_event', 'registrations', reg.id, `${reg.first_name || ''} ${reg.last_name || ''}`.trim(), { action: 'mark_printed', em_card_no: reg.em_card_no });
+        logAdminAction('scan_event', 'registrations', reg.id, scanFullName, { action: 'mark_printed', em_card_no: reg.em_card_no });
         setScanQrResult({
           type: 'success',
-          message: `ID for ${reg.first_name || ''} ${reg.last_name || ''} marked as printed!`,
+          message: `ID for ${scanFirstName} ${scanLastName} marked as printed!`,
           member: {
-            name: `${reg.first_name || ''} ${reg.middle_name ? reg.middle_name + ' ' : ''}${reg.last_name || ''}${reg.suffix ? ' ' + reg.suffix : ''}`.trim(),
+            name: scanFullName,
             photo: reg.photo_url || reg.photo_base64,
-            barangay: reg.barangay || '-',
+            barangay: reg.barangay || vr.barangay || '-',
             purok: reg.purok || '-',
             contact: reg.contact || '-',
             emCardNo: reg.em_card_no || '-',
