@@ -94,6 +94,7 @@ export default function Home() {
             <a href="#home" onClick={() => setMenuOpen(false)}>Home</a>
             <a href="#about" onClick={() => setMenuOpen(false)}>About Us</a>
             <a href="#programs" onClick={() => setMenuOpen(false)}>Programs</a>
+            <a href="#sector-programs" onClick={() => setMenuOpen(false)}>Sector Programs</a>
             <a href="#projects" onClick={() => setMenuOpen(false)}>Projects</a>
             <a href="#faqs" onClick={() => setMenuOpen(false)}>FAQs</a>
             <a href="#contact" onClick={() => setMenuOpen(false)}>Contact</a>
@@ -291,6 +292,69 @@ export default function Home() {
                     <h4>Youth Program</h4>
                     <p>Basketball/Volleyball league, Sports, at pagsasanay para sa mga susunod na pinuno ng ating bansa.</p>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* PROGRAMA PARA SA MGA SEKTOR */}
+        <section className="section tinted" id="sector-programs">
+          <div className="container">
+            <div className="section-header">
+              <h2 className="section-title">Programa para sa mga Sektor</h2>
+              <p className="section-subtitle">Mga natatanging programa na nakatuon sa pagpapalakas at suporta sa iba't ibang sektor ng ating komunidad.</p>
+            </div>
+            <div className="sector-programs-grid">
+              {/* TODA Development Program */}
+              <div className="sector-card">
+                <div className="sector-card-image">
+                  <img src="https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=600&q=80" alt="TODA Development Program" />
+                  <div className="sector-card-badge">TODA</div>
+                </div>
+                <div className="sector-card-body">
+                  <h3>Toda Development Program</h3>
+                  <ul className="sector-card-list">
+                    <li>Leadership Training para sa mga opisyal</li>
+                    <li>Organizational Management</li>
+                    <li>Gas Subsidy</li>
+                    <li>Health Insurance</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* PWD Rights and Benefits */}
+              <div className="sector-card">
+                <div className="sector-card-image">
+                  <img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=600&q=80" alt="PWD Rights and Benefits" />
+                  <div className="sector-card-badge">PWD</div>
+                </div>
+                <div className="sector-card-body">
+                  <h3>PWD's Rights and Benefit Orientation</h3>
+                  <ul className="sector-card-list">
+                    <li>Skills and Livelihood Training</li>
+                    <li>Seminar tungkol sa disability awareness at inclusion</li>
+                    <li>Information drive laban sa diskriminasyon</li>
+                    <li>Pagsusulong ng accessibility sa mga pampublikong lugar</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* LGBTQIA+ Community */}
+              <div className="sector-card">
+                <div className="sector-card-image">
+                  <img src="https://images.unsplash.com/photo-1563225409-127c87ed9564?auto=format&fit=crop&w=600&q=80" alt="LGBTQIA+ Community" />
+                  <div className="sector-card-badge">LGBTQIA+</div>
+                </div>
+                <div className="sector-card-body">
+                  <h3>LGBTQIA+ Community Rights and Awareness</h3>
+                  <ul className="sector-card-list">
+                    <li>Karapatang pantao at gender sensitivity</li>
+                    <li>Anti-discrimination awareness</li>
+                    <li>Gender and development (GAD) orientation</li>
+                    <li>Financial literacy seminar</li>
+                    <li>Skills development workshops</li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -945,6 +1009,7 @@ export default function Home() {
             <a href="#home">Home</a>
             <a href="#about">Tungkol sa Amin</a>
             <a href="#programs">Programa</a>
+            <a href="#sector-programs">Sector Programs</a>
             <a href="#projects">Proyekto</a>
             <a href="#faqs">FAQs</a>
             <a href="#contact">Makipag-ugnayan</a>

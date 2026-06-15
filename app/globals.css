@@ -1692,6 +1692,112 @@ p {
   transition: width 0.8s ease;
 }
 
+/* === SECTOR PROGRAMS === */
+.sector-programs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.sector-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.sector-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+.sector-card-image {
+  position: relative;
+  height: 200px;
+  overflow: hidden;
+}
+
+.sector-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.sector-card:hover .sector-card-image img {
+  transform: scale(1.05);
+}
+
+.sector-card-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: linear-gradient(135deg, var(--emerald), var(--green-deep));
+  color: white;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sector-card-body {
+  padding: 20px 24px 24px;
+}
+
+.sector-card-body h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--green-black);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.sector-card-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sector-card-list li {
+  font-size: 0.9rem;
+  color: #4b5563;
+  padding: 6px 0;
+  padding-left: 20px;
+  position: relative;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.sector-card-list li:last-child {
+  border-bottom: none;
+}
+
+.sector-card-list li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--emerald);
+  font-weight: 700;
+}
+
+@media (max-width: 1024px) {
+  .sector-programs-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .sector-programs-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sector-card-image {
+    height: 180px;
+  }
+}
+
 /* === MISSION & VISION === */
 .mv-section {
   background: url('/pexels-denniz-futalan-339724-3453056.jpg') center/cover no-repeat;
