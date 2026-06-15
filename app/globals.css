@@ -2841,6 +2841,24 @@ p {
   white-space: nowrap;
 }
 
+@media (max-width: 768px) {
+  .trend-bar-label {
+    font-size: 0.65rem;
+    transform: rotate(-45deg);
+    transform-origin: center top;
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .trend-bar-label {
+    font-size: 0.55rem;
+    transform: rotate(-60deg);
+    transform-origin: center top;
+  }
+}
+
 .trend-bar-value {
   font-size: 0.9rem;
   font-weight: 700;
@@ -3426,6 +3444,24 @@ p {
   white-space: nowrap;
 }
 
+@media (max-width: 768px) {
+  .growth-bar-label {
+    font-size: 0.65rem;
+    transform: rotate(-45deg);
+    transform-origin: center top;
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .growth-bar-label {
+    font-size: 0.55rem;
+    transform: rotate(-60deg);
+    transform-origin: center top;
+  }
+}
+
 .growth-bar-value {
   font-size: 0.9rem;
   font-weight: 700;
@@ -3888,6 +3924,24 @@ p {
   color: var(--muted);
   text-align: center;
   white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .net-growth-month {
+    font-size: 0.65rem;
+    transform: rotate(-45deg);
+    transform-origin: center top;
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .net-growth-month {
+    font-size: 0.55rem;
+    transform: rotate(-60deg);
+    transform-origin: center top;
+  }
 }
 
 .net-growth-count {
@@ -4381,6 +4435,25 @@ p {
   font-weight: 600;
   color: #6b7280;
   text-align: center;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .yoy-month-label {
+    font-size: 0.65rem;
+    transform: rotate(-45deg);
+    transform-origin: center top;
+    white-space: nowrap;
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .yoy-month-label {
+    font-size: 0.55rem;
+    transform: rotate(-60deg);
+    transform-origin: center top;
+  }
 }
 
 .yoy-legend {
