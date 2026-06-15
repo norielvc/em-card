@@ -330,6 +330,10 @@ export default function AdminPage() {
   const [viewEventRecords, setViewEventRecords] = useState(null);
   const [eventRecords, setEventRecords] = useState([]);
   const [eventRecordsLoading, setEventRecordsLoading] = useState(false);
+  // Scan event delete
+  const [showDeleteScanEventModal, setShowDeleteScanEventModal] = useState(false);
+  const [deleteScanEventData, setDeleteScanEventData] = useState(null);
+  const [deleteScanEventLoading, setDeleteScanEventLoading] = useState(false);
 
   // Reports
   const [reportsData, setReportsData] = useState(null);
@@ -6473,36 +6477,50 @@ export default function AdminPage() {
     }
   };
 
-  const handleDeleteScanEvent = async (evt) => {
-    if (!confirm(`Are you sure you want to delete "${evt.event_name}"? This will also delete all scan records for this event.`)) return;
+  const openDeleteScanEventModal = (evt) => {
+    setDeleteScanEventData(evt);
+    setShowDeleteScanEventModal(true);
+  };
+
+  const executeDeleteScanEvent = async () => {
+    if (!deleteScanEventData) return;
+    setDeleteScanEventLoading(true);
     try {
-      const { error: scansError } = await supabase.from('event_scans').delete().eq('event_id', evt.id);
+      const { error: scansError } = await supabase.from('event_scans').delete().eq('event_id', deleteScanEventData.id);
       if (scansError) throw scansError;
-      const { error } = await supabase.from('scan_events').delete().eq('id', evt.id);
+      const { error } = await supabase.from('scan_events').delete().eq('id', deleteScanEventData.id);
       if (error) throw error;
-      showToast('Event deleted: ' + evt.event_name, 'success');
-      logAdminAction('delete_event', 'scan_events', evt.id, evt.event_name, {});
-      setEvents(prev => prev.filter(e => e.id !== evt.id));
-      if (selectedEvent?.id === evt.id) {
+      showToast('Event deleted: ' + deleteScanEventData.event_name, 'success');
+      logAdminAction('delete_event', 'scan_events', deleteScanEventData.id, deleteScanEventData.event_name, {});
+      setEvents(prev => prev.filter(e => e.id !== deleteScanEventData.id));
+      if (selectedEvent?.id === deleteScanEventData.id) {
         setSelectedEvent(null);
         setScannerMode('select');
       }
+      setShowDeleteScanEventModal(false);
+      setDeleteScanEventData(null);
     } catch (err) {
       showToast('Failed to delete event: ' + err.message, 'error');
+    } finally {
+      setDeleteScanEventLoading(false);
     }
   };
 
-  const openEditScanEvent = (evt) => {
-    setEditingScanEvent(evt);
-    setNewEventForm({
-      event_name: evt.event_name || '',
-      event_date: evt.event_date || '',
-      location: evt.location || '',
-      household_mode: evt.household_mode || false,
-      selected_barangays: evt.selected_barangays || [],
-    });
-    setShowCreateEvent(true);
-    fetchBarangays();
+  const openEditScanEvent = async (evt) => {
+    try {
+      setEditingScanEvent(evt);
+      setNewEventForm({
+        event_name: evt.event_name || '',
+        event_date: evt.event_date || '',
+        location: evt.location || '',
+        household_mode: evt.household_mode || false,
+        selected_barangays: evt.selected_barangays || [],
+      });
+      setShowCreateEvent(true);
+      await fetchBarangays();
+    } catch (err) {
+      showToast('Failed to open edit form: ' + err.message, 'error');
+    }
   };
 
   const resetScanState = () => {
@@ -6794,7 +6812,7 @@ export default function AdminPage() {
                     <button className="btn btn-sm btn-primary" onClick={() => { setSelectedEvent(evt); setScannerMode('scan'); localScanCountRef.current = 0; fetchEventScans(evt.id); }}><Zap size={16} /> Select</button>
                     <button className="btn btn-sm btn-outline" onClick={() => openEventRecords(evt)}><FileText size={16} /> Records</button>
                     <button className="btn btn-sm btn-edit" onClick={() => openEditScanEvent(evt)}><Pencil size={14} /> Edit</button>
-                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteScanEvent(evt)}><Trash2 size={14} /> Delete</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => openDeleteScanEventModal(evt)}><Trash2 size={14} /> Delete</button>
                   </div>
                 </div>
               ))}
@@ -7867,6 +7885,32 @@ export default function AdminPage() {
               <button type="button" className="btn btn-modal-secondary" onClick={() => setShowDeleteMemberModal(false)}>Cancel</button>
               <button type="button" className="btn btn-modal-danger" onClick={handleDeleteMember} disabled={deleteMemberLoading}>
                 {deleteMemberLoading ? 'Deleting...' : 'Delete Member'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE SCAN EVENT CONFIRMATION MODAL */}
+      {showDeleteScanEventModal && (
+        <div className="modal-overlay" onClick={() => setShowDeleteScanEventModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: '8px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
+                <AlertTriangle size={22} /> Delete Event
+              </h3>
+              <button className="modal-close-x" onClick={() => setShowDeleteScanEventModal(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ paddingTop: '0' }}>
+              <p style={{ color: '#4b5563', lineHeight: 1.6 }}>
+                Are you sure you want to delete <strong>{deleteScanEventData?.event_name}</strong>?<br /><br />
+                <span style={{ color: '#dc2626', fontWeight: 500 }}>This will also delete all scan records for this event.</span>
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-modal-secondary" onClick={() => setShowDeleteScanEventModal(false)}>Cancel</button>
+              <button type="button" className="btn btn-modal-danger" onClick={executeDeleteScanEvent} disabled={deleteScanEventLoading}>
+                {deleteScanEventLoading ? 'Deleting...' : 'Delete Event'}
               </button>
             </div>
           </div>
