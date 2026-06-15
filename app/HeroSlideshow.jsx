@@ -6,9 +6,12 @@ const slides = [
   '/pexels-dave-36033605.jpg',
   '/pexels-denniz-futalan-339724-3453056.jpg',
   '/pexels-furdi-de-rivera-93670268-11070005.jpg',
-  '/pexels-gasparclarence01-37364004.jpg',
+  '/pexels-gasparclarence01-37501660.jpg',
   '/pexels-ian-panelo-34239123.jpg',
+  '/pexels-micomedel-37374764.jpg',
+  '/pexels-micomedel-37658345.jpg',
   '/pexels-reynante-lacbain-74116714-8789539.jpg',
+  '/pexels-visionsofnico-36046087.jpg',
 ];
 
 export default function HeroSlideshow() {
