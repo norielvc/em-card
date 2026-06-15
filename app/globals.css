@@ -1695,8 +1695,8 @@ p {
 /* === SECTOR PROGRAMS === */
 .sector-programs-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
 }
 
 .sector-card {
@@ -1782,9 +1782,10 @@ p {
   font-weight: 700;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .sector-programs-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
   }
 }
 

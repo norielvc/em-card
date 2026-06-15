@@ -284,15 +284,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="programs-split-item">
-                  <div className="programs-split-icon-box">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" /></svg>
-                  </div>
-                  <div className="programs-split-info">
-                    <h4>Youth Program</h4>
-                    <p>Basketball/Volleyball league, Sports, at pagsasanay para sa mga susunod na pinuno ng ating bansa.</p>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -354,6 +345,24 @@ export default function Home() {
                     <li>Gender and development (GAD) orientation</li>
                     <li>Financial literacy seminar</li>
                     <li>Skills development workshops</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Youth Program */}
+              <div className="sector-card">
+                <div className="sector-card-image">
+                  <img src="https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=600&q=80" alt="Youth Program" />
+                  <div className="sector-card-badge">Youth</div>
+                </div>
+                <div className="sector-card-body">
+                  <h3>Youth Sports and Leadership Program</h3>
+                  <ul className="sector-card-list">
+                    <li>Basketball/Volleyball league</li>
+                    <li>Sports tournaments at competitions</li>
+                    <li>Leadership training workshops</li>
+                    <li>Youth empowerment seminars</li>
+                    <li>Pagsasanay para sa mga susunod na pinuno</li>
                   </ul>
                 </div>
               </div>
