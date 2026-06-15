@@ -6820,31 +6820,37 @@ export default function AdminPage() {
           )}
 
           <div className="event-create-section">
-            {!showCreateEvent ? (
-              <button className="btn btn-outline" onClick={() => { setShowCreateEvent(true); fetchBarangays(); }}><Plus size={18} /> Create New Event</button>
-            ) : (
-              <form className="event-create-form" onSubmit={editingScanEvent ? handleUpdateScanEvent : handleCreateEvent}>
-                <h5><Calendar size={20} /> {editingScanEvent ? 'Edit Event' : 'Create New Event'}</h5>
-                <div className="event-form-input-group">
-                  <span className="event-form-icon"><Type size={18} /></span>
-                  <input type="text" placeholder="Event Name *" required value={newEventForm.event_name} onChange={e => setNewEventForm(p => ({ ...p, event_name: e.target.value }))} />
+            <button className="btn btn-outline" onClick={() => { setShowCreateEvent(true); fetchBarangays(); }}><Plus size={18} /> Create New Event</button>
+          </div>
+
+          {/* CREATE/EDIT EVENT MODAL */}
+          {showCreateEvent && (
+            <div className="modal-overlay" onClick={() => { setShowCreateEvent(false); setEditingScanEvent(null); setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] }); }}>
+              <div className="modal-card event-form-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h3>{editingScanEvent ? 'Edit Event' : 'Create New Event'}</h3>
+                  <button className="modal-close-x" onClick={() => { setShowCreateEvent(false); setEditingScanEvent(null); setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] }); }}>✕</button>
                 </div>
-                <div className="event-form-input-group">
-                  <span className="event-form-icon"><Clock size={18} /></span>
-                  <input type="date" value={newEventForm.event_date} onChange={e => setNewEventForm(p => ({ ...p, event_date: e.target.value }))} />
-                </div>
-                <div className="event-form-input-group">
-                  <span className="event-form-icon"><MapPin size={18} /></span>
-                  <input type="text" placeholder="Location" value={newEventForm.location} onChange={e => setNewEventForm(p => ({ ...p, location: e.target.value }))} />
-                </div>
-                
-                <div className="event-barangay-section">
-                  <div className="event-barangay-header">
-                    <label className="event-form-label">
-                      <span>Restrict to Barangays (Optional)</span>
-                      <small>Leave empty to allow all barangays</small>
-                    </label>
-                    <div className="event-barangay-actions">
+                <form className="modal-form" onSubmit={editingScanEvent ? handleUpdateScanEvent : handleCreateEvent}>
+                  <div className="form-group">
+                    <label>Event Name <span className="req-star">*</span></label>
+                    <input type="text" placeholder="Enter event name" required value={newEventForm.event_name} onChange={e => setNewEventForm(p => ({ ...p, event_name: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Event Date</label>
+                    <input type="date" value={newEventForm.event_date} onChange={e => setNewEventForm(p => ({ ...p, event_date: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Location</label>
+                    <input type="text" placeholder="Enter location" value={newEventForm.location} onChange={e => setNewEventForm(p => ({ ...p, location: e.target.value }))} />
+                  </div>
+                  
+                  <div className="form-group">
+                    <div className="event-barangay-header" style={{ marginBottom: 8 }}>
+                      <label style={{ margin: 0 }}>
+                        <span>Restrict to Barangays (Optional)</span>
+                        <small style={{ display: 'block', color: '#6b7280', fontWeight: 400 }}>Leave empty to allow all barangays</small>
+                      </label>
                       <button
                         type="button"
                         className="btn btn-sm btn-outline"
@@ -6859,51 +6865,54 @@ export default function AdminPage() {
                         {newEventForm.selected_barangays.length === allBarangays.length && allBarangays.length > 0 ? 'Deselect All' : 'Select All'}
                       </button>
                     </div>
-                  </div>
-                  <div className="event-barangay-grid">
-                    {allBarangays.length === 0 ? (
-                      <p className="event-barangay-loading">Loading barangays...</p>
-                    ) : (
-                      allBarangays.map(brgy => (
-                        <label key={brgy} className="event-barangay-checkbox">
-                          <input
-                            type="checkbox"
-                            checked={newEventForm.selected_barangays.includes(brgy)}
-                            onChange={e => {
-                              if (e.target.checked) {
-                                setNewEventForm(p => ({ ...p, selected_barangays: [...p.selected_barangays, brgy] }));
-                              } else {
-                                setNewEventForm(p => ({ ...p, selected_barangays: p.selected_barangays.filter(b => b !== brgy) }));
-                              }
-                            }}
-                          />
-                          <span>{brgy}</span>
-                        </label>
-                      ))
+                    <div className="event-barangay-grid" style={{ maxHeight: 200, overflowY: 'auto', padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                      {allBarangays.length === 0 ? (
+                        <p className="event-barangay-loading">Loading barangays...</p>
+                      ) : (
+                        allBarangays.map(brgy => (
+                          <label key={brgy} className="event-barangay-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={newEventForm.selected_barangays.includes(brgy)}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  setNewEventForm(p => ({ ...p, selected_barangays: [...p.selected_barangays, brgy] }));
+                                } else {
+                                  setNewEventForm(p => ({ ...p, selected_barangays: p.selected_barangays.filter(b => b !== brgy) }));
+                                }
+                              }}
+                            />
+                            <span>{brgy}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                    {newEventForm.selected_barangays.length > 0 && (
+                      <div className="event-selected-barangays" style={{ marginTop: 8, fontSize: 13, color: '#475569' }}>
+                        <strong>Selected ({newEventForm.selected_barangays.length}/{allBarangays.length}):</strong> {newEventForm.selected_barangays.join(', ')}
+                      </div>
                     )}
                   </div>
-                  {newEventForm.selected_barangays.length > 0 && (
-                    <div className="event-selected-barangays">
-                      <strong>Selected ({newEventForm.selected_barangays.length}/{allBarangays.length}):</strong> {newEventForm.selected_barangays.join(', ')}
-                    </div>
-                  )}
-                </div>
 
-                <label className="event-form-toggle">
-                  <input
-                    type="checkbox"
-                    checked={newEventForm.household_mode}
-                    onChange={e => setNewEventForm(p => ({ ...p, household_mode: e.target.checked }))}
-                  />
-                  <span className="toggle-label"><Home size={16} /> Household Mode — One aid per household (same address only)</span>
-                </label>
-                <div className="form-actions">
-                  <button type="button" className="btn btn-secondary" onClick={() => { setShowCreateEvent(false); setEditingScanEvent(null); setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] }); }}><X size={16} /> Cancel</button>
-                  <button type="submit" className="btn btn-primary"><Check size={16} /> {editingScanEvent ? 'Save Changes' : 'Create Event'}</button>
-                </div>
-              </form>
-            )}
-          </div>
+                  <div className="form-group">
+                    <label className="event-form-toggle" style={{ margin: 0, padding: 12, background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                      <input
+                        type="checkbox"
+                        checked={newEventForm.household_mode}
+                        onChange={e => setNewEventForm(p => ({ ...p, household_mode: e.target.checked }))}
+                      />
+                      <span className="toggle-label"><Home size={16} /> Household Mode — One aid per household (same address only)</span>
+                    </label>
+                  </div>
+                  
+                  <div className="modal-footer" style={{ marginTop: 20 }}>
+                    <button type="button" className="btn btn-modal-secondary" onClick={() => { setShowCreateEvent(false); setEditingScanEvent(null); setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] }); }}>Cancel</button>
+                    <button type="submit" className="btn btn-modal-primary">{editingScanEvent ? 'Save Changes' : 'Create Event'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
