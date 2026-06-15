@@ -1693,81 +1693,125 @@ p {
 }
 
 /* === SECTOR PROGRAMS === */
+#sector-programs {
+  padding: 80px 0;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+#sector-programs .section-header {
+  text-align: center;
+  margin-bottom: 48px;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#sector-programs .section-subtitle {
+  font-size: 1.05rem;
+  color: #64748b;
+  margin-top: 12px;
+  line-height: 1.6;
+}
+
 .sector-programs-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+  gap: 24px;
+  align-items: stretch;
 }
 
 .sector-card {
   background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
   overflow: hidden;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
 }
 
 .sector-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  transform: translateY(-8px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  border-color: var(--emerald);
 }
 
 .sector-card-image {
   position: relative;
-  height: 200px;
+  height: 180px;
   overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sector-card-image::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(to top, rgba(0,0,0,0.3), transparent);
 }
 
 .sector-card-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
+  transition: transform 0.4s ease;
 }
 
 .sector-card:hover .sector-card-image img {
-  transform: scale(1.05);
+  transform: scale(1.08);
 }
 
 .sector-card-badge {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: 16px;
+  left: 16px;
   background: linear-gradient(135deg, var(--emerald), var(--green-deep));
   color: white;
-  padding: 6px 14px;
+  padding: 8px 16px;
   border-radius: 999px;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  z-index: 2;
 }
 
 .sector-card-body {
-  padding: 20px 24px 24px;
+  padding: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .sector-card-body h3 {
-  font-size: 1.1rem;
-  font-weight: 700;
+  font-size: 1.15rem;
+  font-weight: 800;
   color: var(--green-black);
-  margin-bottom: 12px;
-  line-height: 1.4;
+  margin-bottom: 16px;
+  line-height: 1.35;
 }
 
 .sector-card-list {
   list-style: none;
   padding: 0;
   margin: 0;
+  flex: 1;
 }
 
 .sector-card-list li {
-  font-size: 0.9rem;
-  color: #4b5563;
-  padding: 6px 0;
-  padding-left: 20px;
+  font-size: 0.88rem;
+  color: #475569;
+  padding: 8px 0;
+  padding-left: 24px;
   position: relative;
-  border-bottom: 1px solid #f3f4f6;
+  line-height: 1.5;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .sector-card-list li:last-child {
@@ -1778,24 +1822,45 @@ p {
   content: '✓';
   position: absolute;
   left: 0;
+  top: 8px;
   color: var(--emerald);
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 1200px) {
   .sector-programs-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
+    gap: 24px;
+  }
+
+  .sector-card-image {
+    height: 200px;
   }
 }
 
 @media (max-width: 768px) {
+  #sector-programs {
+    padding: 60px 0;
+  }
+
   .sector-programs-grid {
     grid-template-columns: 1fr;
+    gap: 20px;
+    max-width: 480px;
+    margin: 0 auto;
   }
 
   .sector-card-image {
-    height: 180px;
+    height: 220px;
+  }
+
+  .sector-card-body h3 {
+    font-size: 1.2rem;
+  }
+
+  .sector-card-list li {
+    font-size: 0.95rem;
   }
 }
 
