@@ -322,6 +322,7 @@ export default function AdminPage() {
   const [scanLoading, setScanLoading] = useState(false);
   const [scannerMode, setScannerMode] = useState('select'); // select | scan | result
   const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [editingScanEvent, setEditingScanEvent] = useState(null);
   const [newEventForm, setNewEventForm] = useState({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] });
   const [allBarangays, setAllBarangays] = useState([]);
   const [eventScans, setEventScans] = useState([]);
@@ -6450,6 +6451,60 @@ export default function AdminPage() {
     }
   };
 
+  const handleUpdateScanEvent = async (e) => {
+    e.preventDefault();
+    if (!editingScanEvent || !newEventForm.event_name.trim()) return;
+    try {
+      const { data, error } = await supabase.from('scan_events').update({
+        event_name: newEventForm.event_name.trim(),
+        event_date: newEventForm.event_date || null,
+        location: newEventForm.location.trim() || null,
+        household_mode: newEventForm.household_mode || false,
+        selected_barangays: newEventForm.selected_barangays.length > 0 ? newEventForm.selected_barangays : null,
+      }).eq('id', editingScanEvent.id).select().single();
+      if (error) throw error;
+      showToast('Event updated: ' + data.event_name, 'success');
+      setShowCreateEvent(false);
+      setEditingScanEvent(null);
+      setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] });
+      setEvents(prev => prev.map(evt => evt.id === data.id ? data : evt));
+    } catch (err) {
+      showToast('Failed to update event: ' + err.message, 'error');
+    }
+  };
+
+  const handleDeleteScanEvent = async (evt) => {
+    if (!confirm(`Are you sure you want to delete "${evt.event_name}"? This will also delete all scan records for this event.`)) return;
+    try {
+      const { error: scansError } = await supabase.from('event_scans').delete().eq('event_id', evt.id);
+      if (scansError) throw scansError;
+      const { error } = await supabase.from('scan_events').delete().eq('id', evt.id);
+      if (error) throw error;
+      showToast('Event deleted: ' + evt.event_name, 'success');
+      logAdminAction('delete_event', 'scan_events', evt.id, evt.event_name, {});
+      setEvents(prev => prev.filter(e => e.id !== evt.id));
+      if (selectedEvent?.id === evt.id) {
+        setSelectedEvent(null);
+        setScannerMode('select');
+      }
+    } catch (err) {
+      showToast('Failed to delete event: ' + err.message, 'error');
+    }
+  };
+
+  const openEditScanEvent = (evt) => {
+    setEditingScanEvent(evt);
+    setNewEventForm({
+      event_name: evt.event_name || '',
+      event_date: evt.event_date || '',
+      location: evt.location || '',
+      household_mode: evt.household_mode || false,
+      selected_barangays: evt.selected_barangays || [],
+    });
+    setShowCreateEvent(true);
+    fetchBarangays();
+  };
+
   const resetScanState = () => {
     setScanResult(null);
     setFocusPoint(null);
@@ -6738,6 +6793,8 @@ export default function AdminPage() {
                   <div className="event-card-actions">
                     <button className="btn btn-sm btn-primary" onClick={() => { setSelectedEvent(evt); setScannerMode('scan'); localScanCountRef.current = 0; fetchEventScans(evt.id); }}><Zap size={16} /> Select</button>
                     <button className="btn btn-sm btn-outline" onClick={() => openEventRecords(evt)}><FileText size={16} /> Records</button>
+                    <button className="btn btn-sm btn-edit" onClick={() => openEditScanEvent(evt)}><Pencil size={14} /> Edit</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteScanEvent(evt)}><Trash2 size={14} /> Delete</button>
                   </div>
                 </div>
               ))}
@@ -6748,8 +6805,8 @@ export default function AdminPage() {
             {!showCreateEvent ? (
               <button className="btn btn-outline" onClick={() => { setShowCreateEvent(true); fetchBarangays(); }}><Plus size={18} /> Create New Event</button>
             ) : (
-              <form className="event-create-form" onSubmit={handleCreateEvent}>
-                <h5><Calendar size={20} /> Create New Event</h5>
+              <form className="event-create-form" onSubmit={editingScanEvent ? handleUpdateScanEvent : handleCreateEvent}>
+                <h5><Calendar size={20} /> {editingScanEvent ? 'Edit Event' : 'Create New Event'}</h5>
                 <div className="event-form-input-group">
                   <span className="event-form-icon"><Type size={18} /></span>
                   <input type="text" placeholder="Event Name *" required value={newEventForm.event_name} onChange={e => setNewEventForm(p => ({ ...p, event_name: e.target.value }))} />
@@ -6823,8 +6880,8 @@ export default function AdminPage() {
                   <span className="toggle-label"><Home size={16} /> Household Mode — One aid per household (same address only)</span>
                 </label>
                 <div className="form-actions">
-                  <button type="button" className="btn btn-secondary" onClick={() => { setShowCreateEvent(false); setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] }); }}><X size={16} /> Cancel</button>
-                  <button type="submit" className="btn btn-primary"><Check size={16} /> Create Event</button>
+                  <button type="button" className="btn btn-secondary" onClick={() => { setShowCreateEvent(false); setEditingScanEvent(null); setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] }); }}><X size={16} /> Cancel</button>
+                  <button type="submit" className="btn btn-primary"><Check size={16} /> {editingScanEvent ? 'Save Changes' : 'Create Event'}</button>
                 </div>
               </form>
             )}
