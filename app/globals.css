@@ -12999,17 +12999,28 @@ p {
   gap: 8px;
   align-items: stretch;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .event-card-actions .btn {
-  flex: 1;
+  flex: 1 1 calc(50% - 4px);
+  min-width: 80px;
   white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
+  padding: 8px 10px;
+}
+
+@media (min-width: 1200px) {
+  .event-card-actions .btn {
+    flex: 1;
+    font-size: 0.85rem;
+    padding: 10px 14px;
+  }
 }
 
 /* Event Form Modal */
@@ -15875,12 +15886,23 @@ html, body {
 }
 
 .event-card-actions .btn {
-  font-size: 0.8rem;
-  padding: 8px 12px;
+  flex: 1 1 calc(50% - 3px);
+  min-width: 70px;
+  font-size: 0.75rem;
+  padding: 6px 8px;
 }
 
 @media (min-width: 768px) {
   .event-card-actions .btn {
+    flex: 1 1 calc(50% - 4px);
+    font-size: 0.8rem;
+    padding: 8px 10px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .event-card-actions .btn {
+    flex: 1;
     font-size: 0.85rem;
     padding: 10px 14px;
   }
