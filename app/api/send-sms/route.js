@@ -285,7 +285,7 @@ export async function POST(request) {
         return Response.json({ error: 'No valid birthday recipients found with phone numbers' }, { status: 400 });
       }
     } else {
-      let recipientsQuery = supabase.from('registrations').select('id, resident_id, contact, barangay, sector_category, ValidResidents(first_name, last_name, middle_name, suffix)');
+      let recipientsQuery = supabase.from('registrations').select('id, resident_id, contact, barangay, sector_category, ValidResidents(first_name, last_name, middle_name, suffix)').eq('status', 'Approved');
 
       if (targetType === 'sector' && targetValue) {
         recipientsQuery = recipientsQuery.eq('sector_category', targetValue);

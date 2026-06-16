@@ -312,6 +312,7 @@ export default function AdminPage() {
     title: '', body: '', type: 'broadcast', targetType: 'all', targetValue: ''
   });
   const [msgSending, setMsgSending] = useState(false);
+  const [msgRecipientPreview, setMsgRecipientPreview] = useState({ count: 0, loading: false });
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [msgRecipients, setMsgRecipients] = useState([]);
   const [msgUserSearch, setMsgUserSearch] = useState('');
@@ -2608,6 +2609,41 @@ export default function AdminPage() {
       setMsgUserResults(valid);
     } catch (err) {
       setMsgUserResults([]);
+    }
+  };
+
+  // Calculate recipient count preview for SMS
+  const calculateRecipientPreview = async () => {
+    const { targetType, targetValue } = msgForm;
+    
+    if (targetType === 'test') {
+      setMsgRecipientPreview({ count: targetValue ? 1 : 0, loading: false });
+      return;
+    }
+    if (targetType === 'specific') {
+      setMsgRecipientPreview({ count: targetValue ? 1 : 0, loading: false });
+      return;
+    }
+    
+    setMsgRecipientPreview(prev => ({ ...prev, loading: true }));
+    
+    try {
+      let query = supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('status', 'Approved');
+      
+      if (targetType === 'sector' && targetValue) {
+        query = query.eq('sector_category', targetValue);
+      } else if (targetType === 'barangay' && targetValue) {
+        query = query.eq('barangay', targetValue);
+      } else if (targetType === 'leader' && targetValue) {
+        query = query.ilike('referral_name', `%${targetValue}%`);
+      }
+      
+      const { count, error } = await query.not('contact', 'is', null).neq('contact', '');
+      
+      if (error) throw error;
+      setMsgRecipientPreview({ count: count || 0, loading: false });
+    } catch (err) {
+      setMsgRecipientPreview({ count: 0, loading: false });
     }
   };
 
@@ -5186,7 +5222,7 @@ export default function AdminPage() {
                   <select
                     className="msg-select"
                     value={msgForm.targetType}
-                    onChange={e => setMsgForm(f => ({ ...f, targetType: e.target.value, targetValue: '' }))}
+                    onChange={e => { setMsgForm(f => ({ ...f, targetType: e.target.value, targetValue: '' })); setTimeout(() => calculateRecipientPreview(), 100); }}
                   >
                     <option value="all">All Registered Members</option>
                     <option value="sector">By Sector / Organization</option>
@@ -5196,7 +5232,7 @@ export default function AdminPage() {
                     <option value="test">Test: Send to me only</option>
                   </select>
                   {msgForm.targetType === 'sector' && (
-                    <select className="msg-select" value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))}>
+                    <select className="msg-select" value={msgForm.targetValue} onChange={e => { setMsgForm(f => ({ ...f, targetValue: e.target.value })); setTimeout(() => calculateRecipientPreview(), 100); }}>
                       <option value="">Select Sector...</option>
                       <option value="Senior Citizens">Senior Citizens</option>
                       <option value="PWD">PWD</option>
@@ -5212,13 +5248,13 @@ export default function AdminPage() {
                     </select>
                   )}
                   {msgForm.targetType === 'barangay' && (
-                    <select className="msg-select" value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))}>
+                    <select className="msg-select" value={msgForm.targetValue} onChange={e => { setMsgForm(f => ({ ...f, targetValue: e.target.value })); setTimeout(() => calculateRecipientPreview(), 100); }}>
                       <option value="">Select Barangay...</option>
                       {allBarangays.map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                   )}
                   {msgForm.targetType === 'leader' && (
-                    <input type="text" className="msg-input" placeholder="Enter leader name..." value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))} />
+                    <input type="text" className="msg-input" placeholder="Enter leader name..." value={msgForm.targetValue} onChange={e => { setMsgForm(f => ({ ...f, targetValue: e.target.value })); setTimeout(() => calculateRecipientPreview(), 300); }} />
                   )}
                   {msgForm.targetType === 'specific' && (
                     <div className="msg-user-search-wrap">
@@ -5241,6 +5277,7 @@ export default function AdminPage() {
                                   setMsgForm(f => ({ ...f, targetValue: reg.id }));
                                   setMsgUserSearch(name);
                                   setMsgUserResults([]);
+                                  setTimeout(() => calculateRecipientPreview(), 100);
                                 }}
                               >
                                 <span className="msg-user-result-name">{name}</span>
@@ -5254,7 +5291,7 @@ export default function AdminPage() {
                     </div>
                   )}
                   {msgForm.targetType === 'test' && (
-                    <input type="tel" className="msg-input" placeholder="Your phone number (e.g. 09171234567)" value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))} maxLength={11} />
+                    <input type="tel" className="msg-input" placeholder="Your phone number (e.g. 09171234567)" value={msgForm.targetValue} onChange={e => { setMsgForm(f => ({ ...f, targetValue: e.target.value })); setTimeout(() => calculateRecipientPreview(), 100); }} maxLength={11} />
                   )}
                 </div>
               </div>
@@ -5270,7 +5307,7 @@ export default function AdminPage() {
                   rows={5}
                   required
                 />
-                <div className="msg-char-count">{msgForm.body.length}/160 characters · Credits: {Math.ceil(msgForm.body.length / 160) || 1}</div>
+                <div className="msg-char-count">{msgForm.body.length}/160 characters · Credits per SMS: {Math.ceil(msgForm.body.length / 160) || 1}</div>
               </div>
 
               <div className="msg-form-footer">
@@ -5278,9 +5315,23 @@ export default function AdminPage() {
                   <span className="msg-preview-label">Preview:</span>
                   <p className="msg-preview-text">{msgForm.body || 'Your message will appear here...'}</p>
                 </div>
-                <button type="submit" className="btn btn-msg-send" disabled={msgSending || !msgForm.body.trim()}>
-                  {msgSending ? 'Sending...' : 'Send SMS'}
-                </button>
+                <div className="msg-send-info">
+                  <div className="msg-recipient-count">
+                    <span className="msg-info-label">Recipients:</span>
+                    <span className="msg-info-value">
+                      {msgRecipientPreview.loading ? 'Calculating...' : msgRecipientPreview.count.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="msg-total-credits">
+                    <span className="msg-info-label">Total Credits:</span>
+                    <span className="msg-info-value">
+                      {msgRecipientPreview.loading ? '-' : (msgRecipientPreview.count * (Math.ceil(msgForm.body.length / 160) || 1)).toLocaleString()}
+                    </span>
+                  </div>
+                  <button type="submit" className="btn btn-msg-send" disabled={msgSending || !msgForm.body.trim() || msgRecipientPreview.count === 0}>
+                    {msgSending ? 'Sending...' : `Send SMS${msgRecipientPreview.count > 0 ? ` to ${msgRecipientPreview.count}` : ''}`}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
