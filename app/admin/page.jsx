@@ -1,16 +1,30 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabaseClient';
-import { Users, UserPlus, ClipboardList, CheckCircle, Calendar, LayoutDashboard, Network, MessageSquare, BarChart3, FileText, Bell, Download, ShieldCheck, Lock, User, Mail, Eye, EyeOff, HelpCircle, ArrowRight, UserCheck, ScanLine, Camera, X, MapPin, Phone, AlertTriangle, Upload, Shield, Globe, Link2, QrCode, Zap, Clock, Home, Building, Tag, Hash, Pencil, Printer, Monitor, Database, HardDrive, Activity, Server, Folder, Search, Filter, Plus, Type, Check, CreditCard, Ban, ShieldAlert, Cake, Inbox, Megaphone, History, Info, Trash2, TrendingUp, PieChart, Share2 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import RegisterForm from '../components/RegisterForm';
-import html2canvas from 'html2canvas';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
+import RegisterForm from '../components/RegisterForm';
+import { 
+  Users, UserCheck, UserPlus, Trash2, Search, Download, QrCode, X, CheckCircle, 
+  AlertTriangle, ChevronLeft, ChevronRight, Edit3, BarChart3, PieChart, TrendingUp, 
+  Filter, RefreshCw, Printer, ScanLine, MessageSquare, Send, Calendar, Home, 
+  Smartphone, Pencil, Settings, LogOut, Menu, Bell, MapPin, ChevronDown, Eye, 
+  EyeOff, FileText, Activity, Clock, ShieldCheck, Info, Check, Copy, Upload,
+  HeartHandshake, GraduationCap, Landmark, HeartPulse, Sprout, Telescope,
+  PlayCircle, Sprout as PlantIcon, Gift, Facebook, Twitter, Instagram, Share2,
+  Camera, RefreshCw as RotateCw, User, ArrowLeft, LayoutDashboard, ClipboardList, Network, Shield,
+  ArrowRight, Ban, Building, Cake, CreditCard, Database, Folder, Globe, HardDrive, Hash,
+  History, Inbox, Lock, Mail, Megaphone, Monitor, Phone, Plus, Server, ShieldAlert,
+  ShieldCheck as ShieldCheckIcon, Tag, Zap
+} from 'lucide-react';
 
-const SUBDIVISION_PUROKS = ['North Ville 6', 'Balagtas Heights', 'Milaflor Subdivision', 'Divine Grace Village', 'Sta. Cruz Village', 'Mariano Village', 'Zone 1 St. Francis Subdivision', 'Zone 1 Sta. Elene Subdivision', 'Zone 5 Villa Juliana Subdivision', 'Zone 4 Virgen Milagrosa Homes', 'Jomaville Subdivision', 'Cresta Verde', 'Jordan Valley Subdivision'];
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Helper: fetch with auth token for admin API routes
+// Subdivision puroks that use Lot/Block/Phase instead of House Number
+const SUBDIVISION_PUROKS = ['North Ville 6', 'Balagtas Heights', 'Milaflor Subdivision', 'Divine Grace Village', 'Sta. Cruz Village', 'Mariano Village', 'Zone 1 St. Francis Subdivision', 'Zone 1 Sta. Elene Subdivision', 'Zone 5 Villa Juliana Subdivision', 'Zone 4 Virgen Milagrosa Homes', 'Jomaville Subdivision', 'Cresta Verde', 'Villa Castro', 'Divine Grace II', 'Villa Victoria St.', 'Villa Lourdes', 'Ma. Magdalena Subdivision', 'Ma. Corazon Subdivision', 'RMB Subdivision', 'Jordan Valley Subdivision'];
+
 async function authFetch(url, options = {}) {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -120,6 +134,7 @@ export default function AdminPage() {
   const [membersPage, setMembersPage] = useState(1);
   const membersPerPage = 50;
   const [membersTab, setMembersTab] = useState('all');
+  const [selectedMemberIds, setSelectedMemberIds] = useState([]);
   const [filterBarangay, setFilterBarangay] = useState('');
   const [filterPurok, setFilterPurok] = useState('');
   const [filterSector, setFilterSector] = useState('');
@@ -548,6 +563,22 @@ export default function AdminPage() {
     }
   }, [activeTab]);
 
+  // Fetch barangays list when Messages tab is opened (for dropdown)
+  useEffect(() => {
+    if (activeTab === 'messages' && allBarangays.length === 0) {
+      (async () => {
+        try {
+          const { data, error } = await supabase.rpc('get_voters_by_barangay');
+          if (error) throw error;
+          const barangayList = (data || []).map(v => v.barangay).sort();
+          setAllBarangays(barangayList);
+        } catch (err) {
+          // silent
+        }
+      })();
+    }
+  }, [activeTab]);
+
   // Auto-fetch contact inquiries when switching to inquiries tab
   useEffect(() => {
     if (activeTab === 'messages' && msgTab === 'inquiries') {
@@ -894,7 +925,7 @@ export default function AdminPage() {
       setValidResidentMembers(validCount || 0);
       setNonValidResidentMembers(nonValidCount || 0);
     } catch (err) {
-      // silent
+      showToast('Member source error: ' + err.message, 'error');
     }
   };
 
@@ -1460,7 +1491,7 @@ export default function AdminPage() {
       // Fetch comparative analytics
       await fetchComparativeAnalytics();
     } catch (err) {
-      // silent
+      showToast('Dashboard error: ' + err.message, 'error');
     } finally {
       setDashLoading(false);
     }
@@ -4193,7 +4224,14 @@ export default function AdminPage() {
     return (
       <div className="admin-panel">
         <div className="panel-header">
-          <h3>Approved Members</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h3>Approved Members</h3>
+            {selectedMemberIds.length > 0 && (
+              <span className="panel-badge" style={{ background: '#10b981', color: '#fff' }}>
+                {selectedMemberIds.length} SELECTED
+              </span>
+            )}
+          </div>
           <span className="panel-badge">{totalFiltered} TOTAL</span>
         </div>
 
@@ -4265,8 +4303,17 @@ export default function AdminPage() {
             <button className="btn btn-scan-start" onClick={() => { setScanQrMember({ open: true }); setScanQrToken(''); setScanQrResult(null); }}>
               <ScanLine size={14} /> Scan ID
             </button>
-            <button className="btn btn-action-outline" onClick={() => downloadMembersExcel(members)}>
-              <Download size={14} /> Export Excel
+            <button 
+              className="btn btn-action-outline" 
+              onClick={() => {
+                const membersToExport = selectedMemberIds.length > 0 
+                  ? members.filter(m => selectedMemberIds.includes(m.id))
+                  : members;
+                downloadMembersExcel(membersToExport);
+              }}
+              title={selectedMemberIds.length > 0 ? `Export ${selectedMemberIds.length} selected members` : 'Export all members'}
+            >
+              <Download size={14} /> {selectedMemberIds.length > 0 ? `Export Selected (${selectedMemberIds.length})` : 'Export Excel'}
             </button>
           </div>
         </div>
@@ -4281,6 +4328,20 @@ export default function AdminPage() {
               <table className="admin-table">
                 <thead>
                   <tr>
+                    <th style={{ width: 40, textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedMemberIds.length === pageMembers.length && pageMembers.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedMemberIds(pageMembers.map(m => m.id));
+                          } else {
+                            setSelectedMemberIds([]);
+                          }
+                        }}
+                        title="Select all on this page"
+                      />
+                    </th>
                     <th>Name</th>
                     <th>Barangay</th>
                     <th>Purok</th>
@@ -4296,28 +4357,46 @@ export default function AdminPage() {
                   {pageMembers.map((reg) => {
                     const r = reg.ValidResidents || {};
                     const name = memberFullName(reg);
+                    const isSelected = selectedMemberIds.includes(reg.id);
                     return (
-                      <tr key={reg.id} className="member-row-clickable" onClick={() => setSelectedMember(reg)}>
-                        <td><strong>{name}</strong></td>
-                        <td>{reg.barangay || r.barangay || '-'}</td>
-                        <td>{reg.purok || r.purok || '-'}</td>
-                        <td><span className="sector-badge">{reg.sector_category || '-'}</span></td>
-                        <td>
+                      <tr 
+                        key={reg.id} 
+                        className="member-row-clickable" 
+                        style={{ background: isSelected ? 'rgba(16, 185, 129, 0.05)' : undefined }}
+                      >
+                        <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMemberIds(prev => [...prev, reg.id]);
+                              } else {
+                                setSelectedMemberIds(prev => prev.filter(id => id !== reg.id));
+                              }
+                            }}
+                          />
+                        </td>
+                        <td onClick={() => setSelectedMember(reg)}><strong>{name}</strong></td>
+                        <td onClick={() => setSelectedMember(reg)}>{reg.barangay || r.barangay || '-'}</td>
+                        <td onClick={() => setSelectedMember(reg)}>{reg.purok || r.purok || '-'}</td>
+                        <td onClick={() => setSelectedMember(reg)}><span className="sector-badge">{reg.sector_category || '-'}</span></td>
+                        <td onClick={() => setSelectedMember(reg)}>
                           {reg.em_card_no ? (
                             <code className="em-card-code">{reg.em_card_no}</code>
                           ) : (
                             <span className="qr-token-missing">Needs QR</span>
                           )}
                         </td>
-                        <td>
+                        <td onClick={() => setSelectedMember(reg)}>
                           {reg.printed_at ? (
                             <span className="print-status printed" title={`Printed on ${new Date(reg.printed_at).toLocaleDateString()}`}><Printer size={13} /> Printed</span>
                           ) : (
                             <span className="print-status not-printed">Not printed</span>
                           )}
                         </td>
-                        <td>{reg.contact || '-'}</td>
-                        <td>{new Date(reg.created_at).toLocaleDateString()}</td>
+                        <td onClick={() => setSelectedMember(reg)}>{reg.contact || '-'}</td>
+                        <td onClick={() => setSelectedMember(reg)}>{new Date(reg.created_at).toLocaleDateString()}</td>
                         <td>
                           <div className="resident-actions">
                             <button className="action-btn action-edit" onClick={(e) => { e.stopPropagation(); setSelectedMember(reg); openEditMember(reg); }} title="Edit member">
@@ -5133,7 +5212,10 @@ export default function AdminPage() {
                     </select>
                   )}
                   {msgForm.targetType === 'barangay' && (
-                    <input type="text" className="msg-input" placeholder="Enter barangay name..." value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))} />
+                    <select className="msg-select" value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))}>
+                      <option value="">Select Barangay...</option>
+                      {allBarangays.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
                   )}
                   {msgForm.targetType === 'leader' && (
                     <input type="text" className="msg-input" placeholder="Enter leader name..." value={msgForm.targetValue} onChange={e => setMsgForm(f => ({ ...f, targetValue: e.target.value }))} />
@@ -5188,7 +5270,7 @@ export default function AdminPage() {
                   rows={5}
                   required
                 />
-                <div className="msg-char-count">{msgForm.body.length}/480 characters</div>
+                <div className="msg-char-count">{msgForm.body.length}/160 characters · Credits: {Math.ceil(msgForm.body.length / 160) || 1}</div>
               </div>
 
               <div className="msg-form-footer">
@@ -5254,7 +5336,7 @@ export default function AdminPage() {
                     maxLength={480}
                     rows={4}
                   />
-                  <div className="msg-char-count">{birthdayMessage.length}/480 characters</div>
+                  <div className="msg-char-count">{birthdayMessage.length}/160 characters · Credits: {Math.ceil(birthdayMessage.length / 160) || 1}</div>
 
                   <div className="msg-birthday-preview-section">
                     <span className="msg-preview-label">What each celebrator will receive:</span>
