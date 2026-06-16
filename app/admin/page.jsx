@@ -315,6 +315,7 @@ export default function AdminPage() {
   const [msgSending, setMsgSending] = useState(false);
   const [sendProgress, setSendProgress] = useState({ stage: '', message: '', percent: 0 });
   const [msgRecipientPreview, setMsgRecipientPreview] = useState({ count: 0, loading: false });
+  const previewRequestIdRef = useRef(0);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [msgRecipients, setMsgRecipients] = useState([]);
   const [msgUserSearch, setMsgUserSearch] = useState('');
@@ -2626,8 +2627,13 @@ export default function AdminPage() {
   };
 
   // Calculate recipient count preview for SMS
-  const calculateRecipientPreview = async () => {
-    const { targetType, targetValue } = msgForm;
+  const calculateRecipientPreview = async (targetType, targetValue) => {
+    // Use passed values or fall back to current state
+    targetType = targetType || msgForm.targetType;
+    targetValue = targetValue || msgForm.targetValue;
+    
+    // Increment request ID - only latest request updates state
+    const currentRequestId = ++previewRequestIdRef.current;
     
     if (targetType === 'test') {
       setMsgRecipientPreview({ count: targetValue ? 1 : 0, loading: false });
@@ -2653,9 +2659,14 @@ export default function AdminPage() {
       
       const { count, error } = await query.not('contact', 'is', null).neq('contact', '');
       
+      // Only update if this is still the latest request
+      if (currentRequestId !== previewRequestIdRef.current) return;
+      
       if (error) throw error;
       setMsgRecipientPreview({ count: count || 0, loading: false });
     } catch (err) {
+      // Only update if this is still the latest request
+      if (currentRequestId !== previewRequestIdRef.current) return;
       setMsgRecipientPreview({ count: 0, loading: false });
     }
   };
@@ -5226,7 +5237,7 @@ export default function AdminPage() {
                   <select
                     className="msg-select"
                     value={msgForm.targetType}
-                    onChange={e => { setMsgForm(f => ({ ...f, targetType: e.target.value, targetValue: '' })); setTimeout(() => calculateRecipientPreview(), 100); }}
+                    onChange={e => { const type = e.target.value; setMsgForm(f => ({ ...f, targetType: type, targetValue: '' })); if (type === 'all') calculateRecipientPreview(type, ''); }}
                   >
                     <option value="all">All Registered Members</option>
                     <option value="sector">By Sector / Organization</option>
@@ -5236,7 +5247,7 @@ export default function AdminPage() {
                     <option value="test">Test: Send to me only</option>
                   </select>
                   {msgForm.targetType === 'sector' && (
-                    <select className="msg-select" value={msgForm.targetValue} onChange={e => { setMsgForm(f => ({ ...f, targetValue: e.target.value })); setTimeout(() => calculateRecipientPreview(), 100); }}>
+                    <select className="msg-select" value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); calculateRecipientPreview('sector', val); }}>
                       <option value="">Select Sector...</option>
                       <option value="Senior Citizens">Senior Citizens</option>
                       <option value="PWD">PWD</option>
@@ -5252,13 +5263,13 @@ export default function AdminPage() {
                     </select>
                   )}
                   {msgForm.targetType === 'barangay' && (
-                    <select className="msg-select" value={msgForm.targetValue} onChange={e => { setMsgForm(f => ({ ...f, targetValue: e.target.value })); setTimeout(() => calculateRecipientPreview(), 100); }}>
+                    <select className="msg-select" value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); calculateRecipientPreview('barangay', val); }}>
                       <option value="">Select Barangay...</option>
                       {allBarangays.map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                   )}
                   {msgForm.targetType === 'leader' && (
-                    <input type="text" className="msg-input" placeholder="Enter leader name..." value={msgForm.targetValue} onChange={e => { setMsgForm(f => ({ ...f, targetValue: e.target.value })); setTimeout(() => calculateRecipientPreview(), 300); }} />
+                    <input type="text" className="msg-input" placeholder="Enter leader name..." value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); if (val.length > 2) calculateRecipientPreview('leader', val); }} />
                   )}
                   {msgForm.targetType === 'specific' && (
                     <div className="msg-user-search-wrap">
@@ -5281,7 +5292,7 @@ export default function AdminPage() {
                                   setMsgForm(f => ({ ...f, targetValue: reg.id }));
                                   setMsgUserSearch(name);
                                   setMsgUserResults([]);
-                                  setTimeout(() => calculateRecipientPreview(), 100);
+                                  calculateRecipientPreview('specific', reg.id);
                                 }}
                               >
                                 <span className="msg-user-result-name">{name}</span>
@@ -5295,7 +5306,7 @@ export default function AdminPage() {
                     </div>
                   )}
                   {msgForm.targetType === 'test' && (
-                    <input type="tel" className="msg-input" placeholder="Your phone number (e.g. 09171234567)" value={msgForm.targetValue} onChange={e => { setMsgForm(f => ({ ...f, targetValue: e.target.value })); setTimeout(() => calculateRecipientPreview(), 100); }} maxLength={11} />
+                    <input type="tel" className="msg-input" placeholder="Your phone number (e.g. 09171234567)" value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); calculateRecipientPreview('test', val); }} maxLength={11} />
                   )}
                 </div>
               </div>
