@@ -11282,6 +11282,164 @@ p {
   color: var(--emerald-dark);
 }
 
+/* SMS Sending Progress Overlay */
+.msg-sending-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.msg-progress-card {
+  background: var(--white);
+  border-radius: 16px;
+  padding: 32px 40px;
+  min-width: 400px;
+  max-width: 500px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s ease;
+}
+
+.msg-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.msg-progress-header h4 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.msg-progress-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--green-deep), var(--emerald-dark));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.msg-progress-bar-wrap {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.msg-progress-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.msg-progress-message {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin: 0 0 24px 0;
+}
+
+.msg-progress-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.msg-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.msg-step-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.msg-step.active .msg-step-dot {
+  background: var(--emerald-light);
+  color: var(--emerald-dark);
+}
+
+.msg-step.current .msg-step-dot {
+  background: linear-gradient(135deg, var(--green-deep), var(--emerald-dark));
+  color: white;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+}
+
+.msg-step-label {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.msg-step.active .msg-step-label {
+  color: var(--emerald-dark);
+}
+
+.msg-step-connector {
+  width: 30px;
+  height: 2px;
+  background: #e2e8f0;
+}
+
+.btn-sending-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sending-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* History */
 .msg-history-wrap {
   padding: 20px 24px;

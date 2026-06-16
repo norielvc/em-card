@@ -312,6 +312,7 @@ export default function AdminPage() {
     title: '', body: '', type: 'broadcast', targetType: 'all', targetValue: ''
   });
   const [msgSending, setMsgSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState({ stage: '', message: '', percent: 0 });
   const [msgRecipientPreview, setMsgRecipientPreview] = useState({ count: 0, loading: false });
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [msgRecipients, setMsgRecipients] = useState([]);
@@ -564,19 +565,26 @@ export default function AdminPage() {
     }
   }, [activeTab]);
 
-  // Fetch barangays list when Messages tab is opened (for dropdown)
+  // Fetch barangays list and allRegs when Messages tab is opened (for dropdown and search)
   useEffect(() => {
-    if (activeTab === 'messages' && allBarangays.length === 0) {
-      (async () => {
-        try {
-          const { data, error } = await supabase.rpc('get_voters_by_barangay');
-          if (error) throw error;
-          const barangayList = (data || []).map(v => v.barangay).sort();
-          setAllBarangays(barangayList);
-        } catch (err) {
-          // silent
-        }
-      })();
+    if (activeTab === 'messages') {
+      // Fetch barangays
+      if (allBarangays.length === 0) {
+        (async () => {
+          try {
+            const { data, error } = await supabase.rpc('get_voters_by_barangay');
+            if (error) throw error;
+            const barangayList = (data || []).map(v => v.barangay).sort();
+            setAllBarangays(barangayList);
+          } catch (err) {
+            // silent
+          }
+        })();
+      }
+      // Fetch all registrations for specific user search (same as members page)
+      if (allRegs.length === 0) {
+        fetchAllRegistrations();
+      }
     }
   }, [activeTab]);
 
@@ -2594,22 +2602,26 @@ export default function AdminPage() {
     }
   };
 
-  const searchSpecificUser = async (query) => {
+  const searchSpecificUser = (query) => {
     if (!query || query.length < 2) { setMsgUserResults([]); return; }
-    try {
-      const { data } = await supabase
-        .from('registrations')
-        .select('id, resident_id, contact, barangay, sector_category, referral_name, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
-        .not('contact', 'is', null)
-        .neq('contact', '')
-        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`, { foreignTable: 'ValidResidents' })
-        .limit(8);
-      // Filter out entries without a valid name
-      const valid = (data || []).filter(reg => reg.ValidResidents && (reg.ValidResidents.first_name || reg.ValidResidents.last_name));
-      setMsgUserResults(valid);
-    } catch (err) {
-      setMsgUserResults([]);
-    }
+    
+    // Filter from allRegs - only approved members with valid names
+    const lowerQuery = query.toLowerCase();
+    const filtered = allRegs.filter(reg => {
+      if (reg.status !== 'Approved') return false;
+      const vr = reg.ValidResidents;
+      if (!vr) return false;
+      const firstName = (vr.first_name || '').toLowerCase();
+      const lastName = (vr.last_name || '').toLowerCase();
+      const middleName = (vr.middle_name || '').toLowerCase();
+      const emCardNo = (reg.em_card_no || '').toLowerCase();
+      return firstName.includes(lowerQuery) || 
+             lastName.includes(lowerQuery) || 
+             middleName.includes(lowerQuery) ||
+             emCardNo.includes(lowerQuery);
+    }).slice(0, 8);
+    
+    setMsgUserResults(filtered);
   };
 
   // Calculate recipient count preview for SMS
@@ -2651,7 +2663,11 @@ export default function AdminPage() {
     e.preventDefault();
     if (!msgForm.body.trim()) { showToast('Message body is required', 'error'); return; }
     setMsgSending(true);
+    setSendProgress({ stage: 'preparing', message: 'Preparing recipient list...', percent: 10 });
+    
     try {
+      setSendProgress({ stage: 'sending', message: `Sending SMS to ${msgRecipientPreview.count} recipients...`, percent: 40 });
+      
       const res = await authFetch('/api/send-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2663,8 +2679,11 @@ export default function AdminPage() {
           targetValue: msgForm.targetValue,
         }),
       });
+      setSendProgress({ stage: 'finalizing', message: 'Finalizing...', percent: 80 });
+      
       const data = await res.json();
       if (data.success) {
+        setSendProgress({ stage: 'complete', message: 'Complete!', percent: 100 });
         showToast(`SMS campaign sent to ${data.totalRecipients} recipients`, 'success');
         setMsgForm({ title: '', body: '', type: 'broadcast', targetType: 'all', targetValue: '' });
         fetchMessages();
@@ -2672,9 +2691,13 @@ export default function AdminPage() {
         showToast(data.error || 'Failed to send', 'error');
       }
     } catch (err) {
+      setSendProgress({ stage: 'error', message: 'Failed to send', percent: 0 });
       showToast(err.message || 'Network error', 'error');
     } finally {
-      setMsgSending(false);
+      setTimeout(() => {
+        setMsgSending(false);
+        setSendProgress({ stage: '', message: '', percent: 0 });
+      }, 500);
     }
   };
 
@@ -5261,7 +5284,7 @@ export default function AdminPage() {
                       <input
                         type="text"
                         className="msg-input"
-                        placeholder="Search user by name..."
+                        placeholder="Search by name or EM card no..."
                         value={msgUserSearch}
                         onChange={e => { setMsgUserSearch(e.target.value); searchSpecificUser(e.target.value); }}
                       />
@@ -5329,10 +5352,57 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <button type="submit" className="btn btn-msg-send" disabled={msgSending || !msgForm.body.trim() || msgRecipientPreview.count === 0}>
-                    {msgSending ? 'Sending...' : `Send SMS${msgRecipientPreview.count > 0 ? ` to ${msgRecipientPreview.count}` : ''}`}
+                    {msgSending ? (
+                      <span className="btn-sending-content">
+                        <span className="sending-spinner"></span>
+                        {sendProgress.message || 'Sending...'}
+                      </span>
+                    ) : `Send SMS${msgRecipientPreview.count > 0 ? ` to ${msgRecipientPreview.count}` : ''}`}
                   </button>
                 </div>
               </div>
+
+              {/* Progress Overlay */}
+              {msgSending && (
+                <div className="msg-sending-overlay">
+                  <div className="msg-progress-card">
+                    <div className="msg-progress-header">
+                      <span className="msg-progress-icon">
+                        {sendProgress.stage === 'complete' ? '✓' : sendProgress.stage === 'error' ? '✗' : '⏳'}
+                      </span>
+                      <h4>Sending SMS Campaign</h4>
+                    </div>
+                    <div className="msg-progress-bar-wrap">
+                      <div 
+                        className="msg-progress-bar" 
+                        style={{ width: `${sendProgress.percent}%`, backgroundColor: sendProgress.stage === 'error' ? '#ef4444' : sendProgress.stage === 'complete' ? '#10b981' : '#059669' }}
+                      ></div>
+                    </div>
+                    <p className="msg-progress-message">{sendProgress.message}</p>
+                    <div className="msg-progress-steps">
+                      <div className={`msg-step ${['preparing', 'sending', 'finalizing', 'complete'].includes(sendProgress.stage) ? 'active' : ''} ${sendProgress.stage === 'preparing' ? 'current' : ''}`}>
+                        <span className="msg-step-dot">1</span>
+                        <span className="msg-step-label">Prepare</span>
+                      </div>
+                      <div className="msg-step-connector"></div>
+                      <div className={`msg-step ${['sending', 'finalizing', 'complete'].includes(sendProgress.stage) ? 'active' : ''} ${sendProgress.stage === 'sending' ? 'current' : ''}`}>
+                        <span className="msg-step-dot">2</span>
+                        <span className="msg-step-label">Send</span>
+                      </div>
+                      <div className="msg-step-connector"></div>
+                      <div className={`msg-step ${['finalizing', 'complete'].includes(sendProgress.stage) ? 'active' : ''} ${sendProgress.stage === 'finalizing' ? 'current' : ''}`}>
+                        <span className="msg-step-dot">3</span>
+                        <span className="msg-step-label">Finalize</span>
+                      </div>
+                      <div className="msg-step-connector"></div>
+                      <div className={`msg-step ${sendProgress.stage === 'complete' ? 'active' : ''} ${sendProgress.stage === 'complete' ? 'current' : ''}`}>
+                        <span className="msg-step-dot">4</span>
+                        <span className="msg-step-label">Done</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         )}
