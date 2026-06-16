@@ -11625,6 +11625,145 @@ p {
   cursor: help;
 }
 
+/* Mobile Responsive for Messages */
+@media (max-width: 768px) {
+  .msg-history-wrap {
+    padding: 12px 16px;
+  }
+
+  .msg-card {
+    padding: 14px 16px;
+  }
+
+  .msg-card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .msg-card-date {
+    font-size: 0.7rem;
+  }
+
+  .msg-card-title {
+    font-size: 0.9rem;
+  }
+
+  .msg-card-body {
+    font-size: 0.8rem;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+
+  .msg-card-stats {
+    gap: 10px;
+  }
+
+  .msg-stat {
+    font-size: 0.75rem;
+  }
+
+  /* Delivery Status Modal Mobile */
+  .msg-recipients-modal {
+    width: 96%;
+    max-width: none;
+    margin: 16px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .msg-recipients-summary {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .msg-recipients-count,
+  .msg-recipients-sent,
+  .msg-recipients-failed {
+    font-size: 0.75rem;
+    padding: 5px 10px;
+  }
+
+  .msg-recipients-list {
+    max-height: 60vh;
+  }
+
+  .msg-recipient-row {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px;
+  }
+
+  .msg-recipient-name {
+    flex: 1 1 100%;
+    font-size: 0.9rem;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .msg-recipient-phone {
+    font-size: 0.75rem;
+    order: 3;
+  }
+
+  .msg-recipient-badge {
+    order: 2;
+    font-size: 0.65rem;
+    padding: 2px 6px;
+  }
+
+  .msg-recipient-error {
+    order: 4;
+  }
+}
+
+@media (max-width: 480px) {
+  .msg-history-wrap {
+    padding: 10px 12px;
+  }
+
+  .msg-card {
+    padding: 12px;
+  }
+
+  .msg-card-stats {
+    gap: 8px;
+  }
+
+  .msg-status-pill {
+    font-size: 0.65rem;
+    padding: 3px 8px;
+  }
+
+  /* Progress Card Mobile */
+  .msg-progress-card {
+    min-width: unset;
+    width: 92%;
+    padding: 24px;
+  }
+
+  .msg-progress-header h4 {
+    font-size: 1.1rem;
+  }
+
+  .msg-progress-steps {
+    gap: 4px;
+  }
+
+  .msg-step-dot {
+    width: 24px;
+    height: 24px;
+    font-size: 0.7rem;
+  }
+
+  .msg-step-label {
+    font-size: 0.6rem;
+  }
+
+  .msg-step-connector {
+    width: 16px;
+  }
+}
+
 /* Specific user search dropdown */
 .msg-user-search-wrap {
   position: relative;
