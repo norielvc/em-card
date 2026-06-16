@@ -2784,6 +2784,85 @@ p {
     width: calc(100% - 32px);
   }
 
+  /* Track Application Section Mobile Optimization */
+  .track-section {
+    padding: 60px 0 !important;
+  }
+
+  .track-section .container {
+    padding: 0 16px;
+  }
+
+  .track-section h2 {
+    font-size: 1.6rem !important;
+    line-height: 1.3;
+  }
+
+  .track-section p {
+    font-size: 0.9rem !important;
+  }
+
+  .track-section form {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .track-section input {
+    width: 100% !important;
+    padding: 16px !important;
+    font-size: 16px !important; /* Prevents zoom on iOS */
+  }
+
+  .track-section button[type="submit"] {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 16px !important;
+    font-size: 1rem !important;
+  }
+
+  .track-section > div > div:nth-child(2) {
+    padding: 20px !important;
+    margin: 0 4px;
+  }
+
+  /* Track result mobile styles */
+  .track-section [style*="flexDirection: 'column'"] {
+    gap: 8px !important;
+  }
+
+  /* Progress bar mobile */
+  .track-section [style*="justifyContent: 'space-between'"] {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .track-section [style*="width: '28px'"] {
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 0.65rem !important;
+  }
+
+  .track-section [style*="fontSize: '0.68rem'"] {
+    font-size: 0.6rem !important;
+    max-width: 50px;
+    white-space: normal !important;
+    line-height: 1.1 !important;
+  }
+
+  /* Result details mobile */
+  .track-section [style*="justifyContent: 'space-between'"] span {
+    font-size: 0.8rem !important;
+  }
+
+  /* Print button mobile */
+  .track-section button[style*="background: 'linear-gradient"] {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 14px !important;
+    font-size: 0.95rem !important;
+    margin-top: 12px !important;
+  }
+
   .nav-menu-toggle {
     display: flex;
     align-items: center;
