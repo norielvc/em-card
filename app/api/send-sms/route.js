@@ -99,6 +99,19 @@ async function _semaphoreCall(apiKey, phone, body, senderName) {
  * Uses comma-separated numbers format
  */
 async function sendSemaphoreBulk(apiKey, phones, body, senderName) {
+  // Check for test mode - simulate bulk send without consuming credits
+  if (process.env.SMS_TEST_MODE === 'true') {
+    console.log(`[SMS TEST MODE] Would send bulk to ${phones.length} phones: ${body.slice(0, 50)}...`);
+    // Simulate bulk response
+    const results = phones.map((phone, i) => ({
+      message_id: `test_bulk_${Date.now()}_${i}`,
+      status: 'Pending',
+      number: phone,
+      testMode: true
+    }));
+    return { results, status: 'sent', testMode: true };
+  }
+
   // Format all phone numbers
   const formattedPhones = phones.map(phone => {
     let formatted = phone.replace(/\D/g, '');
@@ -217,6 +230,16 @@ function getProvider() {
  * Send single SMS
  */
 async function sendSMS(phone, body) {
+  // Check for test mode - simulate send without consuming credits
+  if (process.env.SMS_TEST_MODE === 'true') {
+    console.log(`[SMS TEST MODE] Would send to ${phone}: ${body.slice(0, 50)}...`);
+    return {
+      sid: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      status: 'sent',
+      testMode: true
+    };
+  }
+
   const provider = getProvider();
   if (!provider) {
     throw new Error('No SMS provider configured. Add Twilio or Semaphore credentials.');
