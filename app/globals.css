@@ -8245,11 +8245,10 @@ p {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(2, 44, 34, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: grid;
-  place-items: center;
+  background: rgba(2, 44, 34, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 9999;
   padding: 20px;
   animation: fadeIn 0.25s ease both;
@@ -8259,11 +8258,14 @@ p {
   background: var(--white);
   border-radius: 16px;
   width: min(560px, 100%);
+  max-width: 560px;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
   animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  margin: auto;
+  overflow: hidden;
 }
 
 .modal-header {
@@ -11065,6 +11067,13 @@ p {
 .sms-provider-dot.ok { background: #10b981; }
 .sms-provider-dot.warn { background: #f59e0b; }
 
+/* Message tabs container */
+.msg-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* Tab buttons */
 .msg-tab-btn {
   padding: 8px 18px;
@@ -11077,6 +11086,10 @@ p {
   cursor: pointer;
   transition: all 0.15s ease;
   font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .msg-tab-btn:hover {
@@ -11627,6 +11640,24 @@ p {
 
 /* Mobile Responsive for Messages */
 @media (max-width: 768px) {
+  .msg-tabs {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .msg-tab-btn {
+    padding: 6px 4px;
+    font-size: 0.65rem;
+    flex: 1;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .msg-tab-btn svg {
+    width: 12px;
+    height: 12px;
+  }
+
   .msg-history-wrap {
     padding: 12px 16px;
   }
@@ -11664,11 +11695,9 @@ p {
 
   /* Delivery Status Modal Mobile */
   .msg-recipients-modal {
-    width: 96%;
-    max-width: none;
-    margin: 16px;
-    max-height: 90vh;
-    overflow-y: auto;
+    width: 92%;
+    max-width: 480px;
+    max-height: 85vh;
   }
 
   .msg-recipients-summary {

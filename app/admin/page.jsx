@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 import RegisterForm from '../components/RegisterForm';
@@ -5170,17 +5171,17 @@ export default function AdminPage() {
       <div className="admin-panel">
         <div className="panel-header">
           <h3>Messages</h3>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className={`msg-tab-btn ${msgTab === 'compose' ? 'active' : ''}`} onClick={() => setMsgTab('compose')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <div className="msg-tabs">
+            <button className={`msg-tab-btn ${msgTab === 'compose' ? 'active' : ''}`} onClick={() => setMsgTab('compose')}>
               <Pencil size={14} /> Compose
             </button>
-            <button className={`msg-tab-btn ${msgTab === 'birthday' ? 'active' : ''}`} onClick={() => setMsgTab('birthday')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <button className={`msg-tab-btn ${msgTab === 'birthday' ? 'active' : ''}`} onClick={() => setMsgTab('birthday')}>
               <Cake size={14} /> Birthdays
             </button>
-            <button className={`msg-tab-btn ${msgTab === 'inquiries' ? 'active' : ''}`} onClick={() => { setMsgTab('inquiries'); fetchContactInquiries(); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <button className={`msg-tab-btn ${msgTab === 'inquiries' ? 'active' : ''}`} onClick={() => { setMsgTab('inquiries'); fetchContactInquiries(); }}>
               <Inbox size={14} /> Inquiries
             </button>
-            <button className={`msg-tab-btn ${msgTab === 'history' ? 'active' : ''}`} onClick={() => { setMsgTab('history'); fetchMessages(); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <button className={`msg-tab-btn ${msgTab === 'history' ? 'active' : ''}`} onClick={() => { setMsgTab('history'); fetchMessages(); }}>
               <History size={14} /> History
             </button>
           </div>
@@ -5207,26 +5208,6 @@ export default function AdminPage() {
               </div>
             )}
             <form onSubmit={handleSendMessage} className="msg-compose-form">
-              <div className="msg-type-selector">
-                {Object.entries(typeNames).map(([key, name]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`msg-type-chip ${msgForm.type === key ? 'active' : ''}`}
-                    onClick={() => setMsgForm(f => ({ ...f, type: key }))}
-                    style={{ 
-                      '--chip-color': typeColors[key],
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    {typeIcons[key]}
-                    <span>{name}</span>
-                  </button>
-                ))}
-              </div>
-
               <div className="msg-form-row">
                 <label className="msg-label">Title / Subject</label>
                 <input
@@ -5545,7 +5526,7 @@ export default function AdminPage() {
                 )}
 
             {/* Recipients Detail Modal */}
-            {selectedMessage && (
+            {selectedMessage && createPortal(
               <div className="modal-overlay" onClick={() => setSelectedMessage(null)}>
                 <div className="modal-card msg-recipients-modal" onClick={e => e.stopPropagation()}>
                   <div className="modal-header">
@@ -5570,7 +5551,8 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         )}
