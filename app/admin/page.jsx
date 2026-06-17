@@ -7177,36 +7177,50 @@ export default function AdminPage() {
                     setScanResult(null);
                     setScanLoading(true);
 
-                    // GLOBAL TIMEOUT: if anything hangs, force-stop after 10s
-                    const globalTimeout = setTimeout(() => {
+                    // Hard 8-second deadline: if ANY native API hangs, we bail
+                    const deadline = { fired: false };
+                    const deadlineTimer = setTimeout(() => {
+                      deadline.fired = true;
                       setScanLoading(false);
-                      setScanResult({ type: 'invalid', message: 'Image analysis timed out. The photo may be in an unsupported format (e.g. HEIC). Please use Camera or Manual mode instead.' });
-                    }, 10000);
+                      setScanResult({ type: 'invalid', message: 'Image analysis timed out. Please use Camera or Manual mode instead.' });
+                    }, 8000);
 
-                    let decodedText = null;
-                    let methodUsed = 'none';
+                    const cleanup = () => {
+                      clearTimeout(deadlineTimer);
+                      setScanLoading(false);
+                      e.target.value = '';
+                    };
+
                     try {
-                      // ── 1. FAST PATH: Native BarcodeDetector (hardware-accelerated on iOS/Android)
-                      if (!decodedText && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+                      // ── 1. FAST PATH: Native BarcodeDetector (pass Blob directly — no createImageBitmap)
+                      let decodedText = null;
+                      if (!deadline.fired && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
                         try {
+                          const detector = new BarcodeDetector({ formats: ['qr_code'] });
                           const codes = await Promise.race([
-                            (async () => {
-                              const detector = new BarcodeDetector({ formats: ['qr_code'] });
-                              const bitmap = await createImageBitmap(file);
-                              return await detector.detect(bitmap);
-                            })(),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('BarcodeDetector timeout')), 3000)),
+                            detector.detect(file),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500)),
                           ]);
-                          if (codes.length > 0 && codes[0].rawValue) {
+                          if (codes && codes.length > 0 && codes[0].rawValue) {
                             decodedText = codes[0].rawValue;
-                            methodUsed = 'BarcodeDetector';
                           }
-                        } catch (bdErr) { /* silent */ }
+                        } catch (bdErr) { /* silent fallback */ }
                       }
 
-                      // ── 2. FALLBACK: jsQR with FileReader (avoids HEIC blob-URL hang on iOS)
-                      if (!decodedText) {
-                        const jsQR = (await import('jsqr')).default;
+                      // ── 2. FALLBACK: jsQR via FileReader (safe for HEIC / large files)
+                      if (!deadline.fired && !decodedText) {
+                        let jsQR;
+                        try {
+                          jsQR = (await Promise.race([
+                            import('jsqr'),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('jsqr load timeout')), 2000)),
+                          ])).default;
+                        } catch {
+                          cleanup();
+                          setScanResult({ type: 'invalid', message: 'QR decoder failed to load. Please use Camera or Manual mode.' });
+                          return;
+                        }
+
                         const dataUrl = await new Promise((resolve, reject) => {
                           const reader = new FileReader();
                           reader.onload = () => resolve(reader.result);
@@ -7216,11 +7230,9 @@ export default function AdminPage() {
 
                         decodedText = await new Promise((resolve) => {
                           const img = new Image();
-                          const timer = setTimeout(() => {
-                            resolve(null); // 5s image-load safety timeout
-                          }, 5000);
+                          const imgTimer = setTimeout(() => resolve(null), 4000);
                           img.onload = () => {
-                            clearTimeout(timer);
+                            clearTimeout(imgTimer);
                             const canvas = document.createElement('canvas');
                             const ctx = canvas.getContext('2d');
                             const maxSize = 1200;
@@ -7271,13 +7283,12 @@ export default function AdminPage() {
                             }
                             resolve(null);
                           };
-                          img.onerror = () => { clearTimeout(timer); resolve(null); };
+                          img.onerror = () => { clearTimeout(imgTimer); resolve(null); };
                           img.src = dataUrl;
                         });
-                        if (decodedText) methodUsed = 'jsQR';
                       }
 
-                      clearTimeout(globalTimeout);
+                      if (deadline.fired) return; // safety: don't overwrite timeout message
 
                       if (decodedText) {
                         if (scanInProgressRef.current) {
@@ -7289,11 +7300,11 @@ export default function AdminPage() {
                         setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                       }
                     } catch (err) {
-                      clearTimeout(globalTimeout);
-                      setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
+                      if (!deadline.fired) {
+                        setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
+                      }
                     } finally {
-                      setScanLoading(false);
-                      e.target.value = '';
+                      cleanup();
                     }
                   }}
                 />
