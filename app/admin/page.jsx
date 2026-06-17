@@ -7176,13 +7176,19 @@ export default function AdminPage() {
                     if (!file) return;
                     setScanResult(null);
                     setScanLoading(true);
+
+                    // GLOBAL TIMEOUT: if anything hangs, force-stop after 10s
+                    const globalTimeout = setTimeout(() => {
+                      setScanLoading(false);
+                      setScanResult({ type: 'invalid', message: 'Image analysis timed out. The photo may be in an unsupported format (e.g. HEIC). Please use Camera or Manual mode instead.' });
+                    }, 10000);
+
                     let decodedText = null;
                     let methodUsed = 'none';
                     try {
                       // ── 1. FAST PATH: Native BarcodeDetector (hardware-accelerated on iOS/Android)
                       if (!decodedText && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
                         try {
-                          // Wrap entire BarcodeDetector operation in 3s timeout to prevent iOS hangs
                           const codes = await Promise.race([
                             (async () => {
                               const detector = new BarcodeDetector({ formats: ['qr_code'] });
@@ -7198,15 +7204,23 @@ export default function AdminPage() {
                         } catch (bdErr) { /* silent */ }
                       }
 
-                      // ── 2. FALLBACK: jsQR with grayscale + threshold preprocessing
+                      // ── 2. FALLBACK: jsQR with FileReader (avoids HEIC blob-URL hang on iOS)
                       if (!decodedText) {
                         const jsQR = (await import('jsqr')).default;
-                        const img = new Image();
-                        const url = URL.createObjectURL(file);
+                        const dataUrl = await new Promise((resolve, reject) => {
+                          const reader = new FileReader();
+                          reader.onload = () => resolve(reader.result);
+                          reader.onerror = () => reject(reader.error);
+                          reader.readAsDataURL(file);
+                        });
+
                         decodedText = await new Promise((resolve) => {
+                          const img = new Image();
+                          const timer = setTimeout(() => {
+                            resolve(null); // 5s image-load safety timeout
+                          }, 5000);
                           img.onload = () => {
-                            URL.revokeObjectURL(url);
-                            // Draw oriented image to a reasonably-sized canvas
+                            clearTimeout(timer);
                             const canvas = document.createElement('canvas');
                             const ctx = canvas.getContext('2d');
                             const maxSize = 1200;
@@ -7220,7 +7234,6 @@ export default function AdminPage() {
                             canvas.height = height;
                             ctx.drawImage(img, 0, 0, width, height);
 
-                            // Helper: convert imageData to grayscale / thresholded
                             const preprocess = (imageData, mode) => {
                               const d = new Uint8ClampedArray(imageData.data);
                               for (let i = 0; i < d.length; i += 4) {
@@ -7241,40 +7254,30 @@ export default function AdminPage() {
                               { inversionAttempts: 'attemptBoth' },
                             ];
 
-                            // Try: original color image
                             const colorData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                             for (const opts of inversionOptions) {
                               const result = jsQR(colorData.data, colorData.width, colorData.height, opts);
-                              if (result && result.data) {
-                                return resolve(result.data);
-                              }
+                              if (result && result.data) return resolve(result.data);
                             }
-
-                            // Try: grayscale (helps with poor lighting)
                             const grayData = preprocess(colorData, 'gray');
                             for (const opts of inversionOptions) {
                               const result = jsQR(grayData.data, grayData.width, grayData.height, opts);
-                              if (result && result.data) {
-                                return resolve(result.data);
-                              }
+                              if (result && result.data) return resolve(result.data);
                             }
-
-                            // Try: black & white threshold (helps with glare/shadows)
                             const threshData = preprocess(colorData, 'thresh');
                             for (const opts of inversionOptions) {
                               const result = jsQR(threshData.data, threshData.width, threshData.height, opts);
-                              if (result && result.data) {
-                                return resolve(result.data);
-                              }
+                              if (result && result.data) return resolve(result.data);
                             }
-
                             resolve(null);
                           };
-                          img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
-                          img.src = url;
+                          img.onerror = () => { clearTimeout(timer); resolve(null); };
+                          img.src = dataUrl;
                         });
                         if (decodedText) methodUsed = 'jsQR';
                       }
+
+                      clearTimeout(globalTimeout);
 
                       if (decodedText) {
                         if (scanInProgressRef.current) {
@@ -7286,6 +7289,7 @@ export default function AdminPage() {
                         setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                       }
                     } catch (err) {
+                      clearTimeout(globalTimeout);
                       setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                     } finally {
                       setScanLoading(false);
