@@ -6617,11 +6617,11 @@ export default function AdminPage() {
       if (recentScanCacheRef.current.has(cacheKey)) {
         setScanResult({
           type: 'duplicate',
-          name: '—',
-          barangay: '-',
-          purok: '-',
-          houseNo: '-',
-          contact: '-',
+          name: 'Recently Scanned',
+          barangay: 'N/A',
+          purok: 'N/A',
+          houseNo: 'N/A',
+          contact: 'N/A',
           photo: null,
           emCardNo: '-',
           qrToken: cleanToken,
