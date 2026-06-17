@@ -401,6 +401,7 @@ export default function AdminPage() {
   const scanInProgressRef = useRef(false);
   const fileInputRef = useRef(null);
   const localScanCountRef = useRef(0); // optimistic counter for mass scanning (40k+ events)
+  const recentScanCacheRef = useRef(new Set()); // client-side dedup cache for speed (last ~500 scans)
   const idCardNameRef = useRef(null);
 
   // Auto-resize ID card name to fit container
@@ -6595,17 +6596,13 @@ export default function AdminPage() {
         .trim()
         .replace(/[^\x20-\x7E]/g, '') // Remove non-printable chars
         .replace(/\s/g, '')             // Remove all whitespace
-        .replace(/^[\uFEFF]/, '');      // Remove BOM
+        .replace(/^\uFEFF/, '');      // Remove BOM
 
       // If the QR contains a URL, extract the token from it
-      // e.g. https://www.em-card.com/card/EM-1234567890
       const urlTokenMatch = cleanToken.match(/\/card\/(EM[A-Za-z0-9-]+)/);
-      if (urlTokenMatch) {
-        cleanToken = urlTokenMatch[1];
-      }
+      if (urlTokenMatch) cleanToken = urlTokenMatch[1];
 
       // SECURITY: Strict token format validation
-      // Accept either new format (EM-10digits) or old format (EM+24chars)
       const validTokenPattern = /^(EM[A-Za-z0-9]{24}|EM-\d{10})$/;
       if (!validTokenPattern.test(cleanToken)) {
         setScanResult({ type: 'invalid', message: 'SECURITY ALERT: Invalid QR format. This is NOT a valid EM Card.', rawText: cleanToken });
@@ -6615,199 +6612,59 @@ export default function AdminPage() {
         return;
       }
 
-      // 1. Look up registration by QR token
-      const { data: reg, error: regErr } = await supabase
-        .from('registrations')
-        .select('*, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
-        .ilike('qr_token', cleanToken)
-        .eq('status', 'Approved')
-        .maybeSingle();
-
-      if (regErr || !reg) {
-        setScanResult({ type: 'invalid', message: 'SECURITY ALERT: Unregistered or unauthorized EM Card. This QR code is not in our system.', rawText: cleanToken });
-        setScanLoading(false);
-        setScanToken('');
-        scanInProgressRef.current = false;
-        return;
-      }
-
-      const person = reg.ValidResidents || {};
-      const fullName = `${person.first_name || ''} ${person.middle_name ? person.middle_name + ' ' : ''}${person.last_name || ''}${person.suffix ? ' ' + person.suffix : ''}`.trim();
-
-      // 1b. Check if event is restricted to specific barangays
-      const allowedBarangays = selectedEvent.selected_barangays || [];
-      if (Array.isArray(allowedBarangays) && allowedBarangays.length > 0) {
-        const memberBarangay = reg.barangay || person.barangay || '';
-        // Normalize barangay names for comparison (trim whitespace, case-insensitive)
-        const normalizedMemberBarangay = memberBarangay.trim().toUpperCase();
-        const normalizedAllowed = allowedBarangays.map(b => (typeof b === 'string' ? b.trim().toUpperCase() : ''));
-        
-        if (!normalizedAllowed.includes(normalizedMemberBarangay)) {
-          setScanResult({
-            type: 'barangay_restricted',
-            name: fullName,
-            barangay: memberBarangay || '-',
-            purok: reg.purok || person.purok || '-',
-            houseNo: reg.house_no || '-',
-            contact: reg.contact || '-',
-            photo: reg.photo_url || reg.photo_base64 || person.photo_base64,
-            emCardNo: reg.em_card_no || '-',
-            qrToken: reg.qr_token,
-            allowedBarangays: allowedBarangays.join(', '),
-          });
-          setScanLoading(false);
-          setScanToken('');
-          scanInProgressRef.current = false;
-          return;
-        }
-      }
-
-      // 2. Check if already scanned at THIS event (cryptographic duplicate prevention)
-      const { data: existingScan, error: dupErr } = await supabase
-        .from('event_scans')
-        .select('scanned_at, scanned_by')
-        .eq('event_id', selectedEvent.id)
-        .eq('registration_id', reg.id)
-        .maybeSingle();
-
-      if (dupErr) {
-        // silent
-      }
-
-      if (existingScan) {
-        // DUPLICATE — show RED warning
+      // FAST-PATH: client-side duplicate cache (zero HTTP call for recent re-scans)
+      const cacheKey = `${selectedEvent.id}:${cleanToken}`;
+      if (recentScanCacheRef.current.has(cacheKey)) {
         setScanResult({
           type: 'duplicate',
-          name: fullName,
-          barangay: person.barangay || '-',
-          purok: reg.purok || person.purok || '-',
-          houseNo: reg.house_no || '-',
-          contact: reg.contact || '-',
-          photo: reg.photo_url || reg.photo_base64 || person.photo_base64,
-          emCardNo: reg.em_card_no || '-',
-          qrToken: reg.qr_token,
-          scannedAt: existingScan.scanned_at,
-          scannedBy: existingScan.scanned_by,
+          name: '—',
+          barangay: '-',
+          purok: '-',
+          houseNo: '-',
+          contact: '-',
+          photo: null,
+          emCardNo: '-',
+          qrToken: cleanToken,
+          scannedAt: new Date().toISOString(),
+          scannedBy: 'this device (cached)',
         });
         setScanLoading(false);
         setScanToken('');
         return;
       }
 
-      // 2b. HOUSEHOLD duplicate check — only for events in household mode (same address only)
-      if (selectedEvent.household_mode) {
-        let householdQuery = supabase
-          .from('registrations')
-          .select('id, house_no, purok, lot, block, phase, barangay, gender, civil_status, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
-          .eq('barangay', reg.barangay || '');
-        if (reg.house_no) householdQuery = householdQuery.eq('house_no', reg.house_no);
-        if (reg.purok) householdQuery = householdQuery.eq('purok', reg.purok);
-        householdQuery = householdQuery.not('id', 'eq', reg.id);
-
-        const { data: householdMembers } = await householdQuery;
-        const householdIds = (householdMembers || []).map(m => m.id);
-
-        if (householdIds.length > 0) {
-          const { data: householdScan, error: hhErr } = await supabase
-            .from('event_scans')
-            .select('scanned_at, scanned_by, registration_id')
-            .eq('event_id', selectedEvent.id)
-            .in('registration_id', householdIds)
-            .order('scanned_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (hhErr) {
-            // silent
-          }
-
-          if (householdScan) {
-            const hhReg = householdMembers.find(m => m.id === householdScan.registration_id);
-            const hhPerson = hhReg?.ValidResidents || {};
-            const hhName = `${hhPerson.first_name || ''} ${hhPerson.middle_name ? hhPerson.middle_name + ' ' : ''}${hhPerson.last_name || ''}${hhPerson.suffix ? ' ' + hhPerson.suffix : ''}`.trim() || 'Family member';
-
-            setScanResult({
-              type: 'household_duplicate',
-              name: fullName,
-              barangay: person.barangay || '-',
-              purok: reg.purok || person.purok || '-',
-              houseNo: reg.house_no || '-',
-              contact: reg.contact || '-',
-              photo: reg.photo_url || reg.photo_base64 || person.photo_base64,
-              emCardNo: reg.em_card_no || '-',
-              qrToken: reg.qr_token,
-              scannedAt: householdScan.scanned_at,
-              scannedBy: householdScan.scanned_by,
-              claimedBy: hhName,
-            });
-            setScanLoading(false);
-            setScanToken('');
-            return;
-          }
-        }
-      }
-
-      // 3. Record the scan in event_scans (permanent lock)
-      const { error: insertErr } = await supabase.from('event_scans').insert({
-        event_id: selectedEvent.id,
-        registration_id: reg.id,
-        scanned_by: username,
-      });
-      logAdminAction('scan_event', 'event_scans', reg.id, fullName, { event: selectedEvent.title, em_card_no: reg.em_card_no });
-
-      if (insertErr) {
-        // Could be a race condition — check again
-        const { data: raceCheck } = await supabase
-          .from('event_scans')
-          .select('scanned_at')
-          .eq('event_id', selectedEvent.id)
-          .eq('registration_id', reg.id)
-          .maybeSingle();
-        if (raceCheck) {
-          setScanResult({
-            type: 'duplicate',
-            name: fullName,
-            barangay: person.barangay || '-',
-            purok: reg.purok || person.purok || '-',
-            houseNo: reg.house_no || '-',
-            contact: reg.contact || '-',
-            photo: reg.photo_url || reg.photo_base64 || person.photo_base64,
-            emCardNo: reg.em_card_no || '-',
-            qrToken: reg.qr_token,
-            scannedAt: raceCheck.scanned_at,
-            scannedBy: 'another staff',
-          });
-          setScanLoading(false);
-          setScanToken('');
-          scanInProgressRef.current = false;
-          return;
-        }
-        throw insertErr;
-      }
-
-      // 4. Update registration global scan stats + mark printed if first scan
-      await supabase.from('registrations').update({
-        last_scanned_at: new Date().toISOString(),
-        scan_count: (reg.scan_count || 0) + 1,
-        printed_at: reg.printed_at || new Date().toISOString(),
-      }).eq('id', reg.id);
-
-      setScanResult({
-        type: 'success',
-        name: fullName,
-        barangay: person.barangay || '-',
-        purok: reg.purok || person.purok || '-',
-        houseNo: reg.house_no || '-',
-        contact: reg.contact || '-',
-        photo: reg.photo_url || reg.photo_base64 || person.photo_base64,
-        emCardNo: reg.em_card_no || '-',
-        qrToken: reg.qr_token,
-        scanCount: (reg.scan_count || 0) + 1,
+      // Single server-side API call replaces 6+ client-side DB round-trips
+      const res = await authFetch('/api/event-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawToken: cleanToken,
+          event_id: selectedEvent.id,
+          scanned_by: username,
+          household_mode: selectedEvent.household_mode,
+        }),
       });
 
-      // Optimistic local count — zero HTTP calls during mass scanning
-      localScanCountRef.current += 1;
-      setScanStats(prev => ({ ...prev, total: localScanCountRef.current }));
+      const result = await res.json();
+
+      if (!res.ok) {
+        setScanResult({ type: 'error', message: result.message || result.error || 'Network error. Try again.' });
+        return;
+      }
+
+      setScanResult(result);
+
+      if (result.type === 'success') {
+        // Add to client-side cache for fast duplicate detection
+        recentScanCacheRef.current.add(cacheKey);
+        if (recentScanCacheRef.current.size > 500) {
+          const first = recentScanCacheRef.current.values().next().value;
+          recentScanCacheRef.current.delete(first);
+        }
+        // Optimistic local count — zero HTTP calls during mass scanning
+        localScanCountRef.current += 1;
+        setScanStats(prev => ({ ...prev, total: localScanCountRef.current }));
+      }
     } catch (err) {
       setScanResult({ type: 'error', message: err.message || 'Network error. Try again.' });
     } finally {
@@ -6858,7 +6715,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div className="event-card-actions">
-                    <button className="btn btn-sm btn-primary" onClick={() => { setSelectedEvent(evt); setScannerMode('scan'); localScanCountRef.current = 0; fetchEventScans(evt.id); }}><Zap size={16} /> Select</button>
+                    <button className="btn btn-sm btn-primary" onClick={() => { setSelectedEvent(evt); setScannerMode('scan'); localScanCountRef.current = 0; recentScanCacheRef.current.clear(); fetchEventScans(evt.id); }}><Zap size={16} /> Select</button>
                     <button className="btn btn-sm btn-outline" onClick={() => openEventRecords(evt)}><FileText size={16} /> Records</button>
                     <button className="btn btn-sm btn-edit" onClick={() => openEditScanEvent(evt)}><Pencil size={14} /> Edit</button>
                     <button className="btn btn-sm btn-danger" onClick={() => openDeleteScanEventModal(evt)}><Trash2 size={14} /> Delete</button>
@@ -6977,7 +6834,7 @@ export default function AdminPage() {
           </div>
           <div className="event-scanner-actions">
             <span className="scan-stat-badge">{scanStats.total.toLocaleString()} Scanned</span>
-            <button className="btn-change-event" onClick={() => { setSelectedEvent(null); setScannerMode('select'); localScanCountRef.current = 0; resetScanState(); }}>Back to Events</button>
+            <button className="btn-change-event" onClick={() => { setSelectedEvent(null); setScannerMode('select'); localScanCountRef.current = 0; recentScanCacheRef.current.clear(); resetScanState(); }}>Back to Events</button>
           </div>
         </div>
 

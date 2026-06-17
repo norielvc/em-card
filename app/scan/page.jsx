@@ -15,6 +15,7 @@ export default function ScanPage() {
   const [recentScans, setRecentScans] = useState([]);
   const [debugToken, setDebugToken] = useState('');
   const inputRef = useRef(null);
+  const recentScanCacheRef = useRef(new Set()); // fast dedup for mass scanning
 
   // Focus input on mount for quick scanning
   useEffect(() => {
@@ -56,11 +57,28 @@ export default function ScanPage() {
       // Show debug info
       setDebugToken(`Raw: ${scannedToken.length} chars | Cleaned: ${cleanToken}`);
       
-      // Look up the card by QR token
+      // FAST-PATH: skip DB entirely for recent re-scans
+      const cacheKey = `${eventName}:${cleanToken}`;
+      if (recentScanCacheRef.current.has(cacheKey)) {
+        setResult({
+          type: 'duplicate',
+          name: '—',
+          barangay: '-',
+          purok: '-',
+          photo: null,
+          scannedAt: new Date().toISOString(),
+          event: eventName,
+        });
+        setScanning(false);
+        setToken('');
+        return;
+      }
+
+      // Look up the card by QR token (exact match is faster than ilike)
       const { data: reg, error: regErr } = await supabase
         .from('registrations')
         .select('*, ValidResidents(first_name, last_name, middle_name, suffix, barangay)')
-        .ilike('qr_token', cleanToken)
+        .eq('qr_token', cleanToken)
         .eq('status', 'Approved')
         .maybeSingle();
 
@@ -91,20 +109,19 @@ export default function ScanPage() {
         return;
       }
 
-      // Record the scan
-      const { error: updateErr } = await supabase
+      // Record the scan (non-blocking — don't wait for update)
+      const now = new Date().toISOString();
+      supabase
         .from('registrations')
         .update({
-          last_scanned_at: new Date().toISOString(),
+          last_scanned_at: now,
           scan_count: (reg.scan_count || 0) + 1,
           scan_event: eventName,
-          printed_at: reg.printed_at || new Date().toISOString(),
+          printed_at: reg.printed_at || now,
         })
-        .eq('id', reg.id);
-
-      if (updateErr) {
-        // silent
-      }
+        .eq('id', reg.id)
+        .then(() => {})
+        .catch(() => {});
 
       setResult({
         type: 'success',
@@ -115,7 +132,12 @@ export default function ScanPage() {
         scanCount: (reg.scan_count || 0) + 1,
       });
 
-      // Add to recent scans
+      // Add to client-side cache and recent scans list
+      recentScanCacheRef.current.add(cacheKey);
+      if (recentScanCacheRef.current.size > 500) {
+        const first = recentScanCacheRef.current.values().next().value;
+        recentScanCacheRef.current.delete(first);
+      }
       setRecentScans(prev => [{ name: fullName, barangay: person.barangay, time: new Date().toLocaleTimeString() }, ...prev].slice(0, 10));
     } catch (err) {
       setError('Network error. Please try again.');
