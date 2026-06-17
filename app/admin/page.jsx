@@ -7177,118 +7177,80 @@ export default function AdminPage() {
                     setScanResult(null);
                     setScanLoading(true);
 
-                    // Hard 8-second deadline: if ANY native API hangs, we bail
-                    const deadline = { fired: false };
-                    const deadlineTimer = setTimeout(() => {
-                      deadline.fired = true;
+                    // Last-resort safety: force reset UI after 8s no matter what
+                    const safetyTimer = setTimeout(() => {
                       setScanLoading(false);
                       setScanResult({ type: 'invalid', message: 'Image analysis timed out. Please use Camera or Manual mode instead.' });
                     }, 8000);
 
-                    const cleanup = () => {
-                      clearTimeout(deadlineTimer);
-                      setScanLoading(false);
-                      e.target.value = '';
-                    };
-
                     try {
-                      // ── 1. FAST PATH: Native BarcodeDetector (pass Blob directly — no createImageBitmap)
-                      let decodedText = null;
-                      if (!deadline.fired && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-                        try {
-                          const detector = new BarcodeDetector({ formats: ['qr_code'] });
-                          const codes = await Promise.race([
-                            detector.detect(file),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500)),
-                          ]);
-                          if (codes && codes.length > 0 && codes[0].rawValue) {
-                            decodedText = codes[0].rawValue;
+                      // ── Simple, proven QR detection (matching reference project pattern)
+                      const decodedText = await new Promise((resolve) => {
+                        const img = new Image();
+                        const url = URL.createObjectURL(file);
+
+                        img.onload = async () => {
+                          URL.revokeObjectURL(url);
+                          const canvas = document.createElement('canvas');
+                          const ctx = canvas.getContext('2d');
+
+                          // Reference project uses 600 — much safer on mobile than 1200
+                          const maxSize = 600;
+                          let { width, height } = img;
+                          if (width > maxSize || height > maxSize) {
+                            const ratio = Math.min(maxSize / width, maxSize / height);
+                            width = Math.floor(width * ratio);
+                            height = Math.floor(height * ratio);
                           }
-                        } catch (bdErr) { /* silent fallback */ }
-                      }
 
-                      // ── 2. FALLBACK: jsQR via FileReader (safe for HEIC / large files)
-                      if (!deadline.fired && !decodedText) {
-                        let jsQR;
-                        try {
-                          jsQR = (await Promise.race([
-                            import('jsqr'),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('jsqr load timeout')), 2000)),
-                          ])).default;
-                        } catch {
-                          cleanup();
-                          setScanResult({ type: 'invalid', message: 'QR decoder failed to load. Please use Camera or Manual mode.' });
-                          return;
-                        }
+                          canvas.width = width;
+                          canvas.height = height;
+                          ctx.drawImage(img, 0, 0, width, height);
 
-                        const dataUrl = await new Promise((resolve, reject) => {
-                          const reader = new FileReader();
-                          reader.onload = () => resolve(reader.result);
-                          reader.onerror = () => reject(reader.error);
-                          reader.readAsDataURL(file);
-                        });
+                          const imageData = ctx.getImageData(0, 0, width, height);
 
-                        decodedText = await new Promise((resolve) => {
-                          const img = new Image();
-                          const imgTimer = setTimeout(() => resolve(null), 4000);
-                          img.onload = () => {
-                            clearTimeout(imgTimer);
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-                            const maxSize = 1200;
-                            let { width, height } = img;
-                            if (width > maxSize || height > maxSize) {
-                              const ratio = Math.min(maxSize / width, maxSize / height);
-                              width = Math.floor(width * ratio);
-                              height = Math.floor(height * ratio);
+                          // Load jsQR — local first, then CDN fallback (same as reference)
+                          let jsQR;
+                          try {
+                            const mod = await import('jsqr');
+                            jsQR = mod.default;
+                          } catch (importErr) {
+                            try {
+                              const script = document.createElement('script');
+                              script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+                              document.head.appendChild(script);
+                              await new Promise((res, rej) => { script.onload = res; script.onerror = rej; });
+                              jsQR = window.jsQR;
+                            } catch (cdnErr) {
+                              resolve(null);
+                              return;
                             }
-                            canvas.width = width;
-                            canvas.height = height;
-                            ctx.drawImage(img, 0, 0, width, height);
+                          }
 
-                            const preprocess = (imageData, mode) => {
-                              const d = new Uint8ClampedArray(imageData.data);
-                              for (let i = 0; i < d.length; i += 4) {
-                                const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
-                                if (mode === 'gray') {
-                                  d[i] = d[i + 1] = d[i + 2] = avg;
-                                } else if (mode === 'thresh') {
-                                  const v = avg > 128 ? 255 : 0;
-                                  d[i] = d[i + 1] = d[i + 2] = v;
-                                }
-                              }
-                              return new ImageData(d, imageData.width, imageData.height);
-                            };
-
-                            const inversionOptions = [
-                              { inversionAttempts: 'dontInvert' },
-                              { inversionAttempts: 'onlyInvert' },
-                              { inversionAttempts: 'attemptBoth' },
-                            ];
-
-                            const colorData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                            for (const opts of inversionOptions) {
-                              const result = jsQR(colorData.data, colorData.width, colorData.height, opts);
-                              if (result && result.data) return resolve(result.data);
-                            }
-                            const grayData = preprocess(colorData, 'gray');
-                            for (const opts of inversionOptions) {
-                              const result = jsQR(grayData.data, grayData.width, grayData.height, opts);
-                              if (result && result.data) return resolve(result.data);
-                            }
-                            const threshData = preprocess(colorData, 'thresh');
-                            for (const opts of inversionOptions) {
-                              const result = jsQR(threshData.data, threshData.width, threshData.height, opts);
-                              if (result && result.data) return resolve(result.data);
-                            }
+                          if (typeof jsQR !== 'function') {
                             resolve(null);
-                          };
-                          img.onerror = () => { clearTimeout(imgTimer); resolve(null); };
-                          img.src = dataUrl;
-                        });
-                      }
+                            return;
+                          }
 
-                      if (deadline.fired) return; // safety: don't overwrite timeout message
+                          const detectionOptions = [
+                            { inversionAttempts: 'dontInvert' },
+                            { inversionAttempts: 'onlyInvert' },
+                            { inversionAttempts: 'attemptBoth' },
+                          ];
+
+                          for (const opts of detectionOptions) {
+                            const result = jsQR(imageData.data, imageData.width, imageData.height, opts);
+                            if (result && result.data) {
+                              resolve(result.data);
+                              return;
+                            }
+                          }
+                          resolve(null);
+                        };
+
+                        img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+                        img.src = url;
+                      });
 
                       if (decodedText) {
                         if (scanInProgressRef.current) {
@@ -7300,11 +7262,11 @@ export default function AdminPage() {
                         setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                       }
                     } catch (err) {
-                      if (!deadline.fired) {
-                        setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
-                      }
+                      setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                     } finally {
-                      cleanup();
+                      clearTimeout(safetyTimer);
+                      setScanLoading(false);
+                      e.target.value = '';
                     }
                   }}
                 />
