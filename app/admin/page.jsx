@@ -7277,15 +7277,18 @@ export default function AdminPage() {
                       }
 
                       if (decodedText) {
-                        handleEventScan(decodedText);
+                        if (scanInProgressRef.current) {
+                          setScanResult({ type: 'invalid', message: 'A scan is already in progress. Please wait.' });
+                        } else {
+                          await handleEventScan(decodedText);
+                        }
                       } else {
                         setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
-                        setScanLoading(false);
                       }
                     } catch (err) {
                       setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
-                      setScanLoading(false);
                     } finally {
+                      setScanLoading(false);
                       e.target.value = '';
                     }
                   }}
