@@ -65,24 +65,27 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // 2. Fetch event (for barangay restrictions & household_mode)
-    const { data: event, error: eventErr } = await supabaseAdmin
-      .from('scan_events')
-      .select('id, event_name, selected_barangays, household_mode')
-      .eq('id', event_id)
-      .single();
+    // 2. Fetch event + registration in parallel (independent queries)
+    const [
+      { data: event, error: eventErr },
+      { data: reg, error: regErr },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('scan_events')
+        .select('id, event_name, selected_barangays, household_mode')
+        .eq('id', event_id)
+        .single(),
+      supabaseAdmin
+        .from('registrations')
+        .select('*, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+        .eq('qr_token', token)
+        .eq('status', 'Approved')
+        .maybeSingle(),
+    ]);
 
     if (eventErr || !event) {
       return Response.json({ error: 'Event not found' }, { status: 404 });
     }
-
-    // 3. Look up registration by exact qr_token (faster than ilike)
-    const { data: reg, error: regErr } = await supabaseAdmin
-      .from('registrations')
-      .select('*, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
-      .eq('qr_token', token)
-      .eq('status', 'Approved')
-      .maybeSingle();
 
     if (regErr || !reg) {
       return Response.json({
@@ -222,12 +225,12 @@ export async function POST(request) {
       throw insertErr;
     }
 
-    // 8. Update registration global scan stats
-    await supabaseAdmin.from('registrations').update({
+    // 8. Update registration global scan stats (non-blocking — analytics only)
+    supabaseAdmin.from('registrations').update({
       last_scanned_at: now,
       scan_count: (reg.scan_count || 0) + 1,
       printed_at: reg.printed_at || now,
-    }).eq('id', reg.id);
+    }).eq('id', reg.id).then(() => {}).catch(() => {});
 
     // 9. Fire admin log in background (never block)
     logAdminAction('scan_event', 'event_scans', reg.id, fullName, { event: event.event_name, em_card_no: reg.em_card_no }, scanned_by);
