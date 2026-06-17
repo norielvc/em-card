@@ -6931,8 +6931,8 @@ p {
 
 .member-edit-section {
   background: var(--green-soft);
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: 12px;
+  padding: 18px 20px;
   border: 1.5px solid var(--border);
 }
 
@@ -6947,8 +6947,8 @@ p {
 
 .member-edit-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
 }
 
 .member-edit-field {
@@ -6958,8 +6958,8 @@ p {
 }
 
 .member-edit-field label {
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -7124,9 +7124,12 @@ p {
   box-shadow: 0 2px 6px rgba(0,0,0,0.12);
 }
 
-@media (max-width: 480px) {
+@media (max-width: 520px) {
   .member-edit-grid {
     grid-template-columns: 1fr;
+  }
+  .member-edit-section {
+    padding: 14px 14px;
   }
 }
 
@@ -11640,22 +11643,43 @@ p {
 
 /* Mobile Responsive for Messages */
 @media (max-width: 768px) {
+  .admin-panel .panel-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .msg-tabs {
     flex-wrap: nowrap;
     gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .msg-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .msg-tab-btn {
-    padding: 6px 4px;
+    padding: 6px 8px;
     font-size: 0.65rem;
-    flex: 1;
-    min-width: 0;
+    flex-shrink: 0;
+    flex-grow: 0;
+    min-width: auto;
     justify-content: center;
+    white-space: nowrap;
+    gap: 4px;
   }
 
   .msg-tab-btn svg {
     width: 12px;
     height: 12px;
+    flex-shrink: 0;
   }
 
   .msg-history-wrap {

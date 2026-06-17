@@ -18,9 +18,10 @@ export async function GET(request) {
 
     const { count: regCount } = await supabase
       .from('registrations')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'Approved');
 
-    // Month-over-month registration counts
+    // Month-over-month registration counts (approved only)
     const now = new Date();
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
@@ -28,11 +29,13 @@ export async function GET(request) {
     const { count: thisMonthRegs } = await supabase
       .from('registrations')
       .select('*', { count: 'exact', head: true })
+      .eq('status', 'Approved')
       .gte('created_at', thisMonthStart);
 
     const { count: lastMonthRegs } = await supabase
       .from('registrations')
       .select('*', { count: 'exact', head: true })
+      .eq('status', 'Approved')
       .gte('created_at', lastMonthStart)
       .lt('created_at', thisMonthStart);
 
@@ -41,14 +44,27 @@ export async function GET(request) {
       .rpc('get_voters_by_barangay');
     if (vErr) throw vErr;
 
-    const { data: regsByBarangay, error: rErr } = await supabase
-      .rpc('get_regs_by_barangay');
+    // Approved registrations by barangay
+    const { data: regsRaw, error: rErr } = await supabase
+      .from('registrations')
+      .select('barangay')
+      .eq('status', 'Approved');
     if (rErr) throw rErr;
 
-    // Aid = members with at least one scan (received aid at an event)
+    const regMap = {};
+    (regsRaw || []).forEach(r => {
+      const b = (r.barangay || 'Unknown').trim();
+      regMap[b] = (regMap[b] || 0) + 1;
+    });
+    const regsByBarangay = Object.entries(regMap)
+      .map(([barangay, count]) => ({ barangay, count: Number(count) }))
+      .sort((a, b) => b.count - a.count);
+
+    // Aid = approved members with at least one scan (received aid at an event)
     const { data: aidData, error: aErr } = await supabase
       .from('registrations')
       .select('barangay')
+      .eq('status', 'Approved')
       .gt('scan_count', 0);
     if (aErr) throw aErr;
 

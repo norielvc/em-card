@@ -5,8 +5,9 @@ import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 import RegisterForm from '../components/RegisterForm';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
-  Users, UserCheck, UserPlus, Trash2, Search, Download, QrCode, X, CheckCircle, 
+  Users, UserCheck, UserPlus, Trash2, Search, Download, QrCode, X, CheckCircle, Link2, 
   AlertTriangle, ChevronLeft, ChevronRight, Edit3, BarChart3, PieChart, TrendingUp, 
   Filter, RefreshCw, Printer, ScanLine, MessageSquare, Send, Calendar, Home, 
   Smartphone, Pencil, Settings, LogOut, Menu, Bell, MapPin, ChevronDown, Eye, 
@@ -50,6 +51,12 @@ export default function AdminPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [notifOpen, setNotifOpen] = useState(false);
+  const [lastNotifSeen, setLastNotifSeen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('emcard_last_notif_seen') || null;
+    }
+    return null;
+  });
 
   // Persist / Restore admin active tab on refresh
   const ADMIN_TAB_KEY = 'emcard_admin_tab';
@@ -140,6 +147,7 @@ export default function AdminPage() {
   const [filterPurok, setFilterPurok] = useState('');
   const [filterSector, setFilterSector] = useState('');
   const [filterPrinted, setFilterPrinted] = useState('');
+  const [filterVoterSource, setFilterVoterSource] = useState(''); // 'voter' | 'non-voter'
 
   // Modals & Forms
   const [showAddModal, setShowAddModal] = useState(false);
@@ -151,6 +159,9 @@ export default function AdminPage() {
   const [adminReferralValid, setAdminReferralValid] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberEditMode, setMemberEditMode] = useState(false);
+  const [editReferralQuery, setEditReferralQuery] = useState('');
+  const [editReferralResults, setEditReferralResults] = useState([]);
+  const [editReferralValid, setEditReferralValid] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   // Resident edit / delete
   const [showEditResidentModal, setShowEditResidentModal] = useState(false);
@@ -279,6 +290,19 @@ export default function AdminPage() {
   const [showMemberNetwork, setShowMemberNetwork] = useState(false);
   const [editMemberForm, setEditMemberForm] = useState({});
   const [editMemberLoading, setEditMemberLoading] = useState(false);
+  const [editCameraActive, setEditCameraActive] = useState(false);
+  const editVideoRef = useRef(null);
+  const editCanvasRef = useRef(null);
+  const editCameraStreamRef = useRef(null);
+
+  // Re-attach camera stream to video element whenever it mounts
+  useEffect(() => {
+    if (editCameraActive && editVideoRef.current && editCameraStreamRef.current && !editVideoRef.current.srcObject) {
+      editVideoRef.current.srcObject = editCameraStreamRef.current;
+      editVideoRef.current.play().catch(() => {});
+    }
+  });
+
   const [newResident, setNewResident] = useState({
     last_name: '', first_name: '', middle_name: '', suffix: '', barangay: 'Borol 1st', precinct: ''
   });
@@ -326,6 +350,10 @@ export default function AdminPage() {
   const [contactInquiries, setContactInquiries] = useState([]);
   const [contactInquiriesLoading, setContactInquiriesLoading] = useState(false);
 
+  // Citizen Feedback / Grievances
+  const [grievances, setGrievances] = useState([]);
+  const [grievancesLoading, setGrievancesLoading] = useState(false);
+
   // Birthday SMS
   const [birthdayRecipients, setBirthdayRecipients] = useState([]);
   const [birthdayLoading, setBirthdayLoading] = useState(false);
@@ -353,11 +381,6 @@ export default function AdminPage() {
   const [showDeleteScanEventModal, setShowDeleteScanEventModal] = useState(false);
   const [deleteScanEventData, setDeleteScanEventData] = useState(null);
   const [deleteScanEventLoading, setDeleteScanEventLoading] = useState(false);
-
-  // Reports
-  const [reportsData, setReportsData] = useState(null);
-  const [reportsLoading, setReportsLoading] = useState(false);
-  const [reportsTab, setReportsTab] = useState('overview'); // overview | events | barangays | network | messages
 
   // Admin Account Creation
   const [showCreateAccount, setShowCreateAccount] = useState(false);
@@ -500,8 +523,7 @@ export default function AdminPage() {
     if (activeTab === 'residents') fetchAllResidents(residentsPage, residentSearch, resFilterBarangay, resFilterPrecinct, resFilterStatus);
     if (activeTab === 'eventScanner') fetchEvents();
     if (activeTab === 'events') fetchUpcomingEvents();
-    if (activeTab === 'reports') fetchReportsData();
-    if (activeTab === 'adminLogs') fetchAdminLogs();
+    if (activeTab === 'adminLogs') { fetchAdminLogs(); if (accounts.length === 0) fetchAccounts(); }
   }, [isLoggedIn, activeTab]);
 
   useEffect(() => {
@@ -594,6 +616,13 @@ export default function AdminPage() {
   useEffect(() => {
     if (activeTab === 'messages' && msgTab === 'inquiries') {
       fetchContactInquiries();
+    }
+  }, [activeTab, msgTab]);
+
+  // Auto-fetch grievances when switching to feedback tab
+  useEffect(() => {
+    if (activeTab === 'messages' && msgTab === 'feedback') {
+      fetchGrievances();
     }
   }, [activeTab, msgTab]);
 
@@ -1011,10 +1040,20 @@ export default function AdminPage() {
         .rpc('get_voters_by_barangay');
       if (vErr) throw vErr;
 
-      // Fetch registration counts by barangay using RPC
-      const { data: regsByBarangay, error: rErr } = await supabase
-        .rpc('get_regs_by_barangay');
+      // Fetch approved registration counts by barangay
+      const { data: regsRaw, error: rErr } = await supabase
+        .from('registrations')
+        .select('barangay')
+        .eq('status', 'Approved');
       if (rErr) throw rErr;
+      const regMap = {};
+      (regsRaw || []).forEach(r => {
+        const b = (r.barangay || 'Unknown').trim();
+        regMap[b] = (regMap[b] || 0) + 1;
+      });
+      const regsByBarangay = Object.entries(regMap)
+        .map(([barangay, count]) => ({ barangay, count: Number(count) }))
+        .sort((a, b) => b.count - a.count);
 
       // Create maps for easy lookup
       const residentsMap = {};
@@ -1731,6 +1770,9 @@ export default function AdminPage() {
       birthday: reg.birthday || '',
       photo_url: reg.photo_url || reg.photo_base64 || '',
     });
+    setEditReferralQuery(reg.referral_name || '');
+    setEditReferralValid(!!reg.referral_name);
+    setEditReferralResults([]);
     setMemberEditMode(true);
   };
 
@@ -1738,22 +1780,51 @@ export default function AdminPage() {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        let w = img.width, h = img.height;
-        const maxDim = 800;
-        if (w > maxDim || h > maxDim) {
-          if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
-          else { w = Math.round(w * maxDim / h); h = maxDim; }
-        }
         const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
-        let quality = 0.85;
+
+        // Start with original dimensions, cap at 1200px on longest side
+        let width = img.width;
+        let height = img.height;
+        const maxDimension = 1200;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Iteratively reduce quality until under max size
+        let quality = 0.92;
         let result = canvas.toDataURL('image/jpeg', quality);
-        while (result.length > maxKb * 1024 * 1.37 && quality > 0.1) {
-          quality -= 0.1;
+        const maxChars = maxKb * 1024;
+
+        while (result.length > maxChars && quality > 0.15) {
+          quality -= 0.05;
           result = canvas.toDataURL('image/jpeg', quality);
         }
+
+        // If still too large, scale down dimensions further
+        while (result.length > maxChars && (width > 200 || height > 200)) {
+          width = Math.round(width * 0.85);
+          height = Math.round(height * 0.85);
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+          quality = 0.8;
+          result = canvas.toDataURL('image/jpeg', quality);
+          while (result.length > maxChars && quality > 0.15) {
+            quality -= 0.05;
+            result = canvas.toDataURL('image/jpeg', quality);
+          }
+        }
+
         resolve(result);
       };
       img.src = dataUrl;
@@ -1769,6 +1840,45 @@ export default function AdminPage() {
       setEditMemberForm(f => ({ ...f, photo_url: compressed }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const startEditCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      editCameraStreamRef.current = stream;
+      if (editVideoRef.current) {
+        editVideoRef.current.srcObject = stream;
+        await editVideoRef.current.play();
+      }
+      setEditCameraActive(true);
+    } catch (err) {
+      showToast('Camera not available: ' + err.message, 'error');
+      setEditCameraActive(false);
+    }
+  };
+
+  const stopEditCamera = () => {
+    if (editCameraStreamRef.current) {
+      editCameraStreamRef.current.getTracks().forEach(track => track.stop());
+      editCameraStreamRef.current = null;
+    }
+    setEditCameraActive(false);
+  };
+
+  const captureEditPhoto = async () => {
+    const video = editVideoRef.current;
+    const canvas = editCanvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    stopEditCamera();
+    const compressed = await compressEditPhoto(dataUrl, 300);
+    setEditMemberForm(f => ({ ...f, photo_url: compressed }));
   };
 
   const handleUpdateMember = async () => {
@@ -1790,6 +1900,22 @@ export default function AdminPage() {
         if (resError) throw resError;
       }
 
+      // Upload photo to storage if it's a base64 data URL (avoid PG index row size limit)
+      let photoUrl = editMemberForm.photo_url || null;
+      if (photoUrl && photoUrl.startsWith('data:image')) {
+        try {
+          const uploadRes = await fetch('/api/upload-member-photo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64: photoUrl, residentId: selectedMember.id }),
+          });
+          const uploadData = await uploadRes.json();
+          if (uploadData.url) photoUrl = uploadData.url;
+        } catch (uploadErr) {
+          // silent: keep base64 as fallback
+        }
+      }
+
       // Update registrations
       const { error: regError } = await supabase
         .from('registrations')
@@ -1806,7 +1932,7 @@ export default function AdminPage() {
           phase: SUBDIVISION_PUROKS.includes(editMemberForm.purok) ? editMemberForm.phase : null,
           referral_name: editMemberForm.referral_name,
           birthday: editMemberForm.birthday,
-          photo_url: editMemberForm.photo_url || null,
+          photo_url: photoUrl,
         })
         .eq('id', selectedMember.id);
       if (regError) throw regError;
@@ -2027,9 +2153,8 @@ export default function AdminPage() {
     if (tab === 'network' && allRegs.length === 0) fetchAllRegistrations();
     if (tab === 'eventScanner') fetchEvents();
     if (tab === 'events') fetchUpcomingEvents();
-    if (tab === 'reports') fetchReportsData();
     if (tab === 'accounts') fetchAccounts();
-    if (tab === 'adminLogs') fetchAdminLogs();
+    if (tab === 'adminLogs') { fetchAdminLogs(); if (accounts.length === 0) fetchAccounts(); }
     if (tab === 'system') fetchSystemStats();
   };
 
@@ -2443,7 +2568,6 @@ export default function AdminPage() {
     { id: 'events', label: 'Upcoming Events', icon: <Calendar size={20} strokeWidth={1.8} /> },
     { id: 'network', label: 'Network', icon: <Network size={20} strokeWidth={1.8} /> },
     { id: 'messages', label: 'Messages', icon: <MessageSquare size={20} strokeWidth={1.8} /> },
-    { id: 'reports', label: 'Reports', icon: <BarChart3 size={20} strokeWidth={1.8} /> },
     { id: 'accounts', label: 'Accounts', icon: <Shield size={20} strokeWidth={1.8} /> },
     { id: 'adminLogs', label: 'Admin Logs', icon: <History size={20} strokeWidth={1.8} /> },
     { id: 'system', label: 'System', icon: <Monitor size={20} strokeWidth={1.8} /> },
@@ -2588,6 +2712,19 @@ export default function AdminPage() {
       setSelectedMessage(msgId);
     } catch (err) {
       // silent
+    }
+  };
+
+  const fetchGrievances = async () => {
+    setGrievancesLoading(true);
+    try {
+      const res = await authFetch('/api/grievances');
+      const data = await res.json();
+      setGrievances(data.grievances || []);
+    } catch (err) {
+      // silent
+    } finally {
+      setGrievancesLoading(false);
     }
   };
 
@@ -2784,8 +2921,8 @@ export default function AdminPage() {
     const regChangeStr = `${regChange >= 0 ? '↑' : '↓'} ${Math.abs(regChange).toFixed(1)}% vs last month`;
     const regChangeClass = regChange >= 0 ? 'up' : 'down';
 
-    const currentRate = totalRegistrations / (totalResidents || 1);
-    const lastMonthRate = (totalRegistrations - thisMonth) / (totalResidents || 1);
+    const currentRate = totalApprovedMembers / (totalResidents || 1);
+    const lastMonthRate = (totalApprovedMembers - thisMonth) / (totalResidents || 1);
     const rateChange = (currentRate - lastMonthRate) * 100;
     const rateChangeStr = `${rateChange >= 0 ? '↑' : '↓'} ${Math.abs(rateChange).toFixed(1)}pp vs last month`;
     const rateChangeClass = rateChange >= 0 ? 'up' : 'down';
@@ -2900,7 +3037,7 @@ export default function AdminPage() {
               <div className="panel-header">
                 <div className="panel-header-left">
                   <h3>Card Production Status</h3>
-                  <span className="panel-subtitle">Printed vs Pending</span>
+                  <span className="panel-subtitle">Printed vs Not Printed</span>
                 </div>
               </div>
               <div className="card-production-stats">
@@ -2919,7 +3056,7 @@ export default function AdminPage() {
                     <Clock size={24} strokeWidth={1.5} />
                   </div>
                   <div className="production-stat-content">
-                    <span className="production-stat-label">Pending Approval</span>
+                    <span className="production-stat-label">Not Printed</span>
                     <span className="production-stat-value">{cardsPending.toLocaleString()}</span>
                   </div>
                 </div>
@@ -2970,7 +3107,7 @@ export default function AdminPage() {
               <div className="panel-header">
                 <div className="panel-header-left">
                   <h3>Member Source Breakdown</h3>
-                  <span className="panel-subtitle">Registered Voters vs Not-Registered</span>
+                  <span className="panel-subtitle">Registered Voters vs Non-registered voters</span>
                 </div>
               </div>
               <div className="card-production-stats">
@@ -2989,7 +3126,7 @@ export default function AdminPage() {
                     <UserPlus size={24} strokeWidth={1.5} />
                   </div>
                   <div className="production-stat-content">
-                    <span className="production-stat-label">Not-Registered</span>
+                    <span className="production-stat-label">Non-registered voters</span>
                     <span className="production-stat-value">{nonValidResidentMembers.toLocaleString()}</span>
                   </div>
                 </div>
@@ -4235,6 +4372,12 @@ export default function AdminPage() {
         return filterPrinted === 'printed' ? isPrinted : !isPrinted;
       });
     }
+    if (filterVoterSource) {
+      members = members.filter(reg => {
+        const isVoter = reg.is_valid_resident === true;
+        return filterVoterSource === 'voter' ? isVoter : !isVoter;
+      });
+    }
 
     const totalFiltered = members.length;
     const totalPages = Math.ceil(totalFiltered / membersPerPage) || 1;
@@ -4368,6 +4511,15 @@ export default function AdminPage() {
                 <option value="printed">Printed</option>
                 <option value="not-printed">Not Printed</option>
               </select>
+              <select
+                className="filter-select"
+                value={filterVoterSource}
+                onChange={(e) => { setFilterVoterSource(e.target.value); setMembersPage(1); }}
+              >
+                <option value="">All Sources</option>
+                <option value="voter">Registered Voter</option>
+                <option value="non-voter">Non-registered Voter</option>
+              </select>
             </div>
           </div>
           <div className="action-bar-right">
@@ -4417,6 +4569,7 @@ export default function AdminPage() {
                     <th>Barangay</th>
                     <th>Purok</th>
                     <th>Sector</th>
+                    <th>Voter Status</th>
                     <th>EM Card No</th>
                     <th>Print Status</th>
                     <th>Contact</th>
@@ -4452,6 +4605,13 @@ export default function AdminPage() {
                         <td onClick={() => setSelectedMember(reg)}>{reg.barangay || r.barangay || '-'}</td>
                         <td onClick={() => setSelectedMember(reg)}>{reg.purok || r.purok || '-'}</td>
                         <td onClick={() => setSelectedMember(reg)}><span className="sector-badge">{reg.sector_category || '-'}</span></td>
+                        <td onClick={() => setSelectedMember(reg)}>
+                          {reg.is_valid_resident ? (
+                            <span className="status-badge status-approved" style={{ fontSize: 11 }}>Registered Voter</span>
+                          ) : (
+                            <span className="status-badge status-pending" style={{ fontSize: 11 }}>Non-registered</span>
+                          )}
+                        </td>
                         <td onClick={() => setSelectedMember(reg)}>
                           {reg.em_card_no ? (
                             <code className="em-card-code">{reg.em_card_no}</code>
@@ -4712,6 +4872,9 @@ export default function AdminPage() {
   };
 
   const renderNetwork = () => {
+    // Only use approved members for the referral network
+    const approvedRegs = allRegs.filter(r => r.status === 'Approved');
+
     // Helper: build children map and compute leaders from any set of registrations
     const computeLeadersFromRegs = (regs) => {
       const map = new Map();
@@ -4758,16 +4921,16 @@ export default function AdminPage() {
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     endOfWeek.setHours(23, 59, 59, 999);
 
-    const monthRegs = allRegs.filter(r => {
+    const monthRegs = approvedRegs.filter(r => {
       const d = new Date(r.created_at);
       return d.getMonth() === filterMonth - 1 && d.getFullYear() === filterYear;
     });
-    const weekRegs = allRegs.filter(r => {
+    const weekRegs = approvedRegs.filter(r => {
       const d = new Date(r.created_at);
       return d >= startOfWeek && d <= endOfWeek;
     });
 
-    const allTimeLeaders = computeLeadersFromRegs(allRegs);
+    const allTimeLeaders = computeLeadersFromRegs(approvedRegs);
     const monthLeaders = computeLeadersFromRegs(monthRegs);
     const weekLeaders = computeLeadersFromRegs(weekRegs);
 
@@ -4780,9 +4943,9 @@ export default function AdminPage() {
       monthOptions.push({ value: val, label });
     }
 
-    // For the tree forest, use all-time
+    // For the tree forest, use only approved members
     const allTimeMap = new Map();
-    allRegs.forEach(reg => {
+    approvedRegs.forEach(reg => {
       const parentName = reg.referral_name || 'No Referral';
       if (!allTimeMap.has(parentName)) allTimeMap.set(parentName, []);
       allTimeMap.get(parentName).push(reg);
@@ -4878,7 +5041,7 @@ export default function AdminPage() {
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, marginTop: '2px' }}>Leaders</div>
               </div>
               <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 20px', textAlign: 'center', minWidth: '90px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>{allRegs.length}</div>
+                <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>{approvedRegs.length}</div>
                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, marginTop: '2px' }}>Members</div>
               </div>
             </div>
@@ -4970,7 +5133,7 @@ export default function AdminPage() {
                 setNetworkSearch(q);
                 setSelectedNetworkMember(null);
                 if (q.trim().length < 2) { setNetworkSearchResults([]); return; }
-                const matches = allRegs.filter(r => getResidentName(r).toLowerCase().includes(q.toLowerCase()));
+                const matches = approvedRegs.filter(r => getResidentName(r).toLowerCase().includes(q.toLowerCase()));
                 setNetworkSearchResults(matches.slice(0, 8));
               }}
               className="network-search-input"
@@ -5130,7 +5293,7 @@ export default function AdminPage() {
         {!selectedNetworkMember && (
           <div className="tree-forest">
             {regsLoading ? <div className="table-loading">Loading...</div>
-              : allRegs.length === 0 ? <div className="table-empty">No registrations yet to build network.</div>
+              : approvedRegs.length === 0 ? <div className="table-empty">No approved members yet to build network.</div>
                 : allTimeLeaders.map(({ name, l1, l2, l3, l4plus, total }) => {
                     const rootKey = `root:${name}`;
                     const isOpen = expandedNodes.has(rootKey);
@@ -5191,6 +5354,9 @@ export default function AdminPage() {
             </button>
             <button className={`msg-tab-btn ${msgTab === 'inquiries' ? 'active' : ''}`} onClick={() => { setMsgTab('inquiries'); fetchContactInquiries(); }}>
               <Inbox size={14} /> Inquiries
+            </button>
+            <button className={`msg-tab-btn ${msgTab === 'feedback' ? 'active' : ''}`} onClick={() => { setMsgTab('feedback'); fetchGrievances(); }}>
+              <MessageSquare size={14} /> Feedback
             </button>
             <button className={`msg-tab-btn ${msgTab === 'history' ? 'active' : ''}`} onClick={() => { setMsgTab('history'); fetchMessages(); }}>
               <History size={14} /> History
@@ -5509,6 +5675,51 @@ export default function AdminPage() {
           </div>
         )}
 
+        {msgTab === 'feedback' && (
+          <div className="msg-history-wrap">
+            {grievancesLoading ? <div className="table-loading">Loading feedback...</div>
+              : grievances.length === 0 ? <div className="table-empty">No citizen feedback yet.</div>
+                : (
+                  <div className="msg-list">
+                    {grievances.map(g => (
+                      <div key={g.id} className={`msg-card msg-status-${g.status || 'open'}`}>
+                        <div className="msg-card-header">
+                          <span className="msg-card-type" style={{ background: '#10b981', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '6px', borderRadius: '4px', color: '#fff' }}>
+                            <MessageSquare size={14} />
+                          </span>
+                          <span className="msg-card-date">{new Date(g.created_at).toLocaleString()}</span>
+                        </div>
+                        <div className="msg-card-body">
+                          <div className="msg-card-title" style={{ fontSize: '0.85rem', marginBottom: '6px' }}>
+                            <strong>{g.type || 'Feedback'}</strong>
+                            {(() => {
+                              const r = g.registrations;
+                              if (!r) return null;
+                              // Try ValidResidents first, then fall back to registrations direct fields
+                              const vr = r.ValidResidents;
+                              const firstName = vr?.first_name || r.first_name;
+                              const lastName = vr?.last_name || r.last_name;
+                              const barangay = vr?.barangay || r.barangay;
+                              if (!firstName && !lastName) return null;
+                              return (
+                                <span style={{ color: '#6b7280', marginLeft: '8px' }}>
+                                  — {firstName} {lastName} ({barangay || '-'})
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div className="msg-card-preview" style={{ fontSize: '0.8rem', color: '#374151', lineHeight: '1.5' }}>
+                            {g.message}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+            }
+          </div>
+        )}
+
         {msgTab === 'history' && (
           <div className="msg-history-wrap">
             {messagesLoading ? <div className="table-loading">Loading messages...</div>
@@ -5565,281 +5776,6 @@ export default function AdminPage() {
               </div>,
               document.body
             )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderReports = () => {
-    const d = reportsData;
-    const tabs = [
-      { id: 'overview', label: 'Overview' },
-      { id: 'events', label: 'Events' },
-      { id: 'barangays', label: 'Barangays' },
-      { id: 'network', label: 'Network' },
-      { id: 'messages', label: 'Messages' },
-    ];
-
-    const maxMonthly = Math.max(...(d?.monthlyTrend || []).map(m => m.count), 1);
-    const maxSector = Math.max(...(d?.sectorBreakdown || []).map(s => s.count), 1);
-    const maxReferrer = Math.max(...(d?.topReferrers || []).map(r => r.count), 1);
-    const maxEventScans = Math.max(...(d?.events || []).map(e => e.scanCount), 1);
-    const maxBrgyAid = Math.max(...(d?.barangays || []).map(b => b.aid), 1);
-
-    return (
-      <div className="admin-panel">
-        <div className="panel-header">
-          <h3>📊 Analytics & Reports</h3>
-          {reportsLoading && <span className="panel-badge">Loading...</span>}
-        </div>
-
-        {/* Report Tabs */}
-        <div className="report-tabs">
-          {tabs.map(t => (
-            <button key={t.id} className={`report-tab ${reportsTab === t.id ? 'active' : ''}`} onClick={() => setReportsTab(t.id)}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {!d && !reportsLoading && (
-          <div className="table-empty" style={{ padding: '60px 24px' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📊</div>
-            <button className="btn btn-primary" onClick={fetchReportsData}>Load Analytics</button>
-          </div>
-        )}
-
-        {reportsLoading && (
-          <div className="table-loading" style={{ padding: '60px 24px' }}>Loading analytics...</div>
-        )}
-
-        {d && reportsTab === 'overview' && (
-          <>
-            {/* KPI Row */}
-            <div className="kpi-grid four-col" style={{ marginBottom: 24 }}>
-              <div className="kpi-card">
-                <div className="kpi-icon kpi-green"><Users size={20} strokeWidth={1.5} /></div>
-                <div className="kpi-body">
-                  <span className="kpi-label">Registered Voters</span>
-                  <span className="kpi-value">{d.totals.totalResidents.toLocaleString()}</span>
-                </div>
-              </div>
-              <div className="kpi-card">
-                <div className="kpi-icon kpi-blue"><ClipboardList size={20} strokeWidth={1.5} /></div>
-                <div className="kpi-body">
-                  <span className="kpi-label">EM Card Members</span>
-                  <span className="kpi-value">{d.totals.totalRegistrations.toLocaleString()}</span>
-                  <span className="kpi-change">{((d.totals.totalRegistrations / (d.totals.totalResidents || 1)) * 100).toFixed(1)}% penetration</span>
-                </div>
-              </div>
-              <div className="kpi-card">
-                <div className="kpi-icon kpi-amber"><CheckCircle size={20} strokeWidth={1.5} /></div>
-                <div className="kpi-body">
-                  <span className="kpi-label">Aid Distributed</span>
-                  <span className="kpi-value">{d.totals.totalAid.toLocaleString()}</span>
-                  <span className="kpi-change">{d.events.length} event{d.events.length !== 1 ? 's' : ''} held</span>
-                </div>
-              </div>
-              <div className="kpi-card">
-                <div className="kpi-icon kpi-purple"><MessageSquare size={20} strokeWidth={1.5} /></div>
-                <div className="kpi-body">
-                  <span className="kpi-label">SMS Delivery</span>
-                  <span className="kpi-value">{d.sms.totalRecipients > 0 ? Math.round((d.sms.deliveredRecipients / d.sms.totalRecipients) * 100) : 0}%</span>
-                  <span className="kpi-change">{d.sms.deliveredRecipients.toLocaleString()} / {d.sms.totalRecipients.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="dashboard-main-grid two-col">
-              {/* Monthly Trend */}
-              <div className="admin-panel dash-panel">
-                <div className="panel-header">
-                  <div className="panel-header-left"><h3>Registration Trend (6 Months)</h3></div>
-                </div>
-                <div className="analytics-chart-wrap">
-                  {d.monthlyTrend.map(({ label, count }, i) => {
-                    const barWidth = Math.max((count / maxMonthly) * 100, 1.5);
-                    const colors = ['#10b981', '#34d399', '#059669', '#6ee7b7', '#047857', '#a7f3d0'];
-                    return (
-                      <div key={label} className="analytics-bar-row">
-                        <span className="analytics-bar-name">{label}</span>
-                        <div className="analytics-bar-track">
-                          <div className="analytics-bar-fill" style={{ width: `${barWidth}%`, backgroundColor: colors[i % colors.length] }} />
-                        </div>
-                        <span className="analytics-bar-count">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Sector Breakdown */}
-              <div className="admin-panel dash-panel">
-                <div className="panel-header">
-                  <div className="panel-header-left"><h3>Sector Breakdown</h3></div>
-                </div>
-                <div className="analytics-chart-wrap">
-                  {d.sectorBreakdown.map(({ name, count }, i) => {
-                    const pct = d.totals.totalRegistrations > 0 ? ((count / d.totals.totalRegistrations) * 100).toFixed(1) : '0.0';
-                    const barWidth = Math.max((count / maxSector) * 100, 1.5);
-                    const colors = ['#3b82f6', '#2563eb', '#60a5fa', '#93c5fd', '#1d4ed8', '#0ea5e9', '#0284c7', '#38bdf8'];
-                    return (
-                      <div key={name} className="analytics-bar-row">
-                        <span className="analytics-bar-name">{name}</span>
-                        <div className="analytics-bar-track">
-                          <div className="analytics-bar-fill" style={{ width: `${barWidth}%`, backgroundColor: colors[i % colors.length] }} />
-                        </div>
-                        <span className="analytics-bar-count">{count}</span>
-                        <span className="analytics-bar-pct">{pct}%</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {d && reportsTab === 'events' && (
-          <div className="admin-panel dash-panel">
-            <div className="panel-header">
-              <div className="panel-header-left"><h3>Event Performance</h3><span className="panel-subtitle">{d.events.length} events · {d.totals.totalAid.toLocaleString()} total scans</span></div>
-            </div>
-            <div className="analytics-chart-wrap">
-              {d.events.map((evt, i) => {
-                const barWidth = Math.max((evt.scanCount / maxEventScans) * 100, 1.5);
-                const colors = ['#f59e0b', '#d97706', '#fbbf24', '#fcd34d', '#b45309', '#f97316'];
-                return (
-                  <div key={evt.id} className="analytics-bar-row">
-                    <span className="analytics-bar-name">{evt.event_name} {evt.household_mode && <span className="event-badge-hh">🏠</span>}</span>
-                    <div className="analytics-bar-track">
-                      <div className="analytics-bar-fill" style={{ width: `${barWidth}%`, backgroundColor: colors[i % colors.length] }} />
-                    </div>
-                    <span className="analytics-bar-count">{evt.scanCount.toLocaleString()}</span>
-                    <span className="analytics-bar-pct">{evt.event_date ? new Date(evt.event_date).toLocaleDateString() : ''}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {d && reportsTab === 'barangays' && (
-          <div className="admin-panel dash-panel">
-            <div className="panel-header">
-              <div className="panel-header-left"><h3>Barangay Performance</h3><span className="panel-subtitle">{d.barangays.length} barangays · sorted by voters</span></div>
-            </div>
-            <div className="analytics-chart-wrap" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-              {d.barangays.map((b, i) => {
-                const barWidth = Math.max((b.aid / maxBrgyAid) * 100, 1.5);
-                const colors = ['#10b981', '#34d399', '#059669', '#6ee7b7', '#047857', '#a7f3d0', '#6b7280', '#9ca3af'];
-                return (
-                  <div key={b.barangay} className="analytics-bar-row">
-                    <span className="analytics-bar-name">{b.barangay}</span>
-                    <div className="analytics-bar-track">
-                      <div className="analytics-bar-fill" style={{ width: `${barWidth}%`, backgroundColor: colors[i % colors.length] }} />
-                    </div>
-                    <span className="analytics-bar-count" title={`${b.members} members / ${b.voters} voters`}>{b.aid} aid</span>
-                    <span className="analytics-bar-pct">{b.regRate}% reg</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {d && reportsTab === 'network' && (
-          <div className="dashboard-main-grid two-col">
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left"><h3>Top Referrers</h3><span className="panel-subtitle">{d.topReferrers.length} leaders</span></div>
-              </div>
-              <div className="analytics-chart-wrap">
-                {d.topReferrers.map((r, i) => {
-                  const barWidth = Math.max((r.count / maxReferrer) * 100, 1.5);
-                  const colors = ['#8b5cf6', '#7c3aed', '#a78bfa', '#c4b5fd', '#6d28d9', '#5b21b9'];
-                  return (
-                    <div key={r.name} className="analytics-bar-row">
-                      <span className="analytics-bar-name">{r.name}</span>
-                      <div className="analytics-bar-track">
-                        <div className="analytics-bar-fill" style={{ width: `${barWidth}%`, backgroundColor: colors[i % colors.length] }} />
-                      </div>
-                      <span className="analytics-bar-count">{r.count}</span>
-                      <span className="analytics-bar-pct">referrals</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left"><h3>Network Summary</h3></div>
-              </div>
-              <div className="analytics-chart-wrap">
-                <div className="analytics-bar-row" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
-                  <span className="analytics-bar-name">Total Referral Links</span>
-                  <span className="analytics-bar-count" style={{ marginLeft: 'auto' }}>{d.topReferrers.reduce((sum, r) => sum + r.count, 0).toLocaleString()}</span>
-                </div>
-                <div className="analytics-bar-row" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
-                  <span className="analytics-bar-name">Unique Referrers</span>
-                  <span className="analytics-bar-count" style={{ marginLeft: 'auto' }}>{d.topReferrers.length.toLocaleString()}</span>
-                </div>
-                <div className="analytics-bar-row" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
-                  <span className="analytics-bar-name">Avg Referrals per Leader</span>
-                  <span className="analytics-bar-count" style={{ marginLeft: 'auto' }}>{d.topReferrers.length > 0 ? (d.topReferrers.reduce((sum, r) => sum + r.count, 0) / d.topReferrers.length).toFixed(1) : '0.0'}</span>
-                </div>
-                <div className="analytics-bar-row">
-                  <span className="analytics-bar-name">Top Performer</span>
-                  <span className="analytics-bar-count" style={{ marginLeft: 'auto' }}>{d.topReferrers[0]?.name || '—'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {d && reportsTab === 'messages' && (
-          <div className="dashboard-main-grid two-col">
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left"><h3>SMS Campaign Overview</h3></div>
-              </div>
-              <div className="analytics-chart-wrap">
-                <div className="analytics-bar-row" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
-                  <span className="analytics-bar-name">Total Campaigns</span>
-                  <span className="analytics-bar-count" style={{ marginLeft: 'auto' }}>{d.sms.totalMessages.toLocaleString()}</span>
-                </div>
-                <div className="analytics-bar-row" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
-                  <span className="analytics-bar-name">Sent Successfully</span>
-                  <span className="analytics-bar-count" style={{ marginLeft: 'auto', color: 'var(--emerald)' }}>{d.sms.sentMessages.toLocaleString()}</span>
-                </div>
-                <div className="analytics-bar-row" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 12 }}>
-                  <span className="analytics-bar-name">Total Recipients</span>
-                  <span className="analytics-bar-count" style={{ marginLeft: 'auto' }}>{d.sms.totalRecipients.toLocaleString()}</span>
-                </div>
-                <div className="analytics-bar-row">
-                  <span className="analytics-bar-name">Delivered</span>
-                  <span className="analytics-bar-count" style={{ marginLeft: 'auto', color: 'var(--emerald)' }}>{d.sms.deliveredRecipients.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left"><h3>Delivery Rate</h3></div>
-              </div>
-              <div className="analytics-chart-wrap" style={{ alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '3.5rem', fontWeight: 800, color: 'var(--emerald)' }}>
-                    {d.sms.totalRecipients > 0 ? Math.round((d.sms.deliveredRecipients / d.sms.totalRecipients) * 100) : 0}%
-                  </div>
-                  <div style={{ fontSize: '0.9rem', color: 'var(--muted)', marginTop: 8 }}>
-                    {d.sms.deliveredRecipients.toLocaleString()} of {d.sms.totalRecipients.toLocaleString()} messages delivered
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>
@@ -6231,6 +6167,17 @@ export default function AdminPage() {
               <option value="scan_event">Scan Event</option>
               <option value="bulk_upload">Bulk Upload</option>
             </select>
+            <select
+              className="filter-select"
+              value={logsFilterAdmin}
+              onChange={(e) => { setLogsFilterAdmin(e.target.value); setLogsPage(1); fetchAdminLogs(1); }}
+              style={{ minWidth: 180 }}
+            >
+              <option value="">All Users</option>
+              {accounts.map(acc => (
+                <option key={acc.id} value={acc.email}>{acc.email}</option>
+              ))}
+            </select>
             <input
               type="date"
               className="filter-select"
@@ -6520,100 +6467,6 @@ export default function AdminPage() {
       if (!error) setEventRecords(data || []);
     } catch (e) { /* silent */ }
     setEventRecordsLoading(false);
-  };
-
-  const fetchReportsData = async () => {
-    setReportsLoading(true);
-    try {
-      // 1. All events with scan counts
-      const { data: allEvents } = await supabase.from('scan_events').select('*').order('created_at', { ascending: false });
-      const eventIds = (allEvents || []).map(e => e.id);
-      let eventScanCounts = {};
-      if (eventIds.length > 0) {
-        const { data: scanCounts } = await supabase.rpc('get_event_scan_counts');
-        (scanCounts || []).forEach(r => { eventScanCounts[r.event_id] = r.count; });
-      }
-      const eventsWithCounts = (allEvents || []).map(e => ({ ...e, scanCount: eventScanCounts[e.id] || 0 }));
-
-      // 2. Monthly registration trend (last 6 months)
-      const now = new Date();
-      const monthLabels = [];
-      const monthQueries = [];
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const label = d.toLocaleString('default', { month: 'short', year: 'numeric' });
-        monthLabels.push(label);
-        const start = d.toISOString();
-        const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString();
-        monthQueries.push(
-          supabase.from('registrations').select('*', { count: 'exact', head: true }).gte('created_at', start).lt('created_at', end)
-        );
-      }
-      const monthlyCounts = await Promise.all(monthQueries);
-      const monthlyTrend = monthLabels.map((label, i) => ({ label, count: monthlyCounts[i].count || 0 }));
-
-      // 3. Sector breakdown
-      const { data: sectorData } = await supabase.from('registrations').select('sector_category');
-      const sectorMap = {};
-      (sectorData || []).forEach(r => {
-        const s = r.sector_category || 'Unspecified';
-        sectorMap[s] = (sectorMap[s] || 0) + 1;
-      });
-      const sectorBreakdown = Object.entries(sectorMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-
-      // 4. Top referrers
-      const { data: allRegistrations } = await supabase.from('registrations').select('referral_name');
-      const refMap = {};
-      (allRegistrations || []).forEach(r => {
-        if (r.referral_name) {
-          refMap[r.referral_name] = (refMap[r.referral_name] || 0) + 1;
-        }
-      });
-      const topReferrers = Object.entries(refMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10);
-
-      // 5. SMS stats
-      const { count: totalMessages } = await supabase.from('messages').select('*', { count: 'exact', head: true });
-      const { count: sentMessages } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('status', 'sent');
-      const { count: totalRecipients } = await supabase.from('message_recipients').select('*', { count: 'exact', head: true });
-      const { count: deliveredRecipients } = await supabase.from('message_recipients').select('*', { count: 'exact', head: true }).eq('status', 'sent');
-
-      // 6. Barangay combined (voters + members + aid)
-      const { data: votersByBrgy } = await supabase.rpc('get_voters_by_barangay');
-      const { data: regsByBrgy } = await supabase.rpc('get_regs_by_barangay');
-      const { data: aidData } = await supabase.from('registrations').select('barangay').gt('scan_count', 0);
-      const aidMap = {};
-      (aidData || []).forEach(r => {
-        const b = (r.barangay || 'Unknown').trim();
-        aidMap[b] = (aidMap[b] || 0) + 1;
-      });
-      const brgyPerformance = (votersByBrgy || []).map(v => {
-        const regEntry = (regsByBrgy || []).find(r => r.barangay === v.barangay);
-        const regCount = regEntry ? regEntry.count : 0;
-        const aidCount = aidMap[v.barangay] || 0;
-        return {
-          barangay: v.barangay,
-          voters: v.count,
-          members: regCount,
-          aid: aidCount,
-          regRate: v.count > 0 ? ((regCount / v.count) * 100).toFixed(1) : '0.0',
-          aidRate: v.count > 0 ? ((aidCount / v.count) * 100).toFixed(1) : '0.0',
-        };
-      }).sort((a, b) => b.voters - a.voters);
-
-      setReportsData({
-        events: eventsWithCounts,
-        monthlyTrend,
-        sectorBreakdown,
-        topReferrers,
-        sms: { totalMessages: totalMessages || 0, sentMessages: sentMessages || 0, totalRecipients: totalRecipients || 0, deliveredRecipients: deliveredRecipients || 0 },
-        barangays: brgyPerformance,
-        totals: { totalResidents, totalRegistrations, totalAid: (aidData || []).length },
-      });
-    } catch (err) {
-      // silent
-    } finally {
-      setReportsLoading(false);
-    }
   };
 
   const fetchBarangays = async () => {
@@ -7890,32 +7743,53 @@ export default function AdminPage() {
             <span className="topbar-date">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
 
             <div className="topbar-notify-wrap">
-              <div className="topbar-notify" onClick={() => setNotifOpen(!notifOpen)}>
+              <div className="topbar-notify" onClick={() => {
+                const newOpenState = !notifOpen;
+                setNotifOpen(newOpenState);
+                if (newOpenState) {
+                  // Mark notifications as seen when opening
+                  const now = new Date().toISOString();
+                  setLastNotifSeen(now);
+                  localStorage.setItem('emcard_last_notif_seen', now);
+                }
+              }}>
                 <Bell size={18} />
-                {allRegs.filter(r => r.status === 'Pending').length > 0 && (
-                  <span className="topbar-notify-count">{allRegs.filter(r => r.status === 'Pending').length}</span>
-                )}
+                {(() => {
+                  const pendingRegs = allRegs.filter(r => r.status === 'Pending');
+                  const newCount = lastNotifSeen 
+                    ? pendingRegs.filter(r => new Date(r.created_at) > new Date(lastNotifSeen)).length
+                    : pendingRegs.length;
+                  return newCount > 0 ? (
+                    <span className="topbar-notify-count">{newCount}</span>
+                  ) : null;
+                })()}
               </div>
               {notifOpen && (
                 <div className="notif-dropdown">
                   <div className="notif-dropdown-header">
                     <h4>Notifications</h4>
                     {allRegs.filter(r => r.status === 'Pending').length > 0 && (
-                      <span className="notif-badge">{allRegs.filter(r => r.status === 'Pending').length} new</span>
+                      <span className="notif-badge">{allRegs.filter(r => r.status === 'Pending').length} pending</span>
                     )}
                   </div>
                   <div className="notif-dropdown-body">
                     {allRegs.filter(r => r.status === 'Pending').length > 0 ? (
-                      allRegs.filter(r => r.status === 'Pending').slice(0, 5).map(reg => (
-                        <div key={reg.id} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('registrations'); }}>
-                          <div className="notif-icon"><UserCheck size={16} /></div>
-                          <div className="notif-content">
-                            <p className="notif-title">New registration pending approval</p>
-                            <p className="notif-desc">{getResidentName(reg)} — {reg.barangay || 'No barangay'}</p>
-                            <span className="notif-time">{new Date(reg.created_at).toLocaleDateString()}</span>
+                      allRegs.filter(r => r.status === 'Pending').slice(0, 5).map(reg => {
+                        const fullName = getResidentName(reg);
+                        const shortName = fullName.length > 25 ? fullName.slice(0, 22) + '...' : fullName;
+                        const barangay = reg.barangay || 'No barangay';
+                        const shortBarangay = barangay.length > 15 ? barangay.slice(0, 12) + '...' : barangay;
+                        return (
+                          <div key={reg.id} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('registrations'); }}>
+                            <div className="notif-icon"><UserCheck size={16} /></div>
+                            <div className="notif-content">
+                              <p className="notif-title">New registration</p>
+                              <p className="notif-desc" title={`${fullName} — ${barangay}`}>{shortName} — {shortBarangay}</p>
+                              <span className="notif-time">{new Date(reg.created_at).toLocaleDateString()}</span>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="notif-empty">
                         <Info size={24} />
@@ -7953,7 +7827,6 @@ export default function AdminPage() {
           {activeTab === 'events' && renderUpcomingEvents()}
           {activeTab === 'network' && renderNetwork()}
           {activeTab === 'messages' && renderMessages()}
-          {activeTab === 'reports' && renderReports()}
           {activeTab === 'accounts' && renderAccounts()}
           {activeTab === 'adminLogs' && renderAdminLogs()}
           {activeTab === 'system' && renderSystem()}
@@ -8417,7 +8290,7 @@ export default function AdminPage() {
             <div className={`modal-card member-detail-card${showMemberNetwork ? ' network-open' : ''}`} onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h3>{memberEditMode ? 'Edit Member' : (showMemberNetwork ? 'Member Network' : 'Member Profile')}</h3>
-                <button className="modal-close-x" onClick={() => { setSelectedMember(null); setMemberEditMode(false); setMemberScanHistory([]); setShowMemberNetwork(false); }}>✕</button>
+                <button className="modal-close-x" onClick={() => { setSelectedMember(null); setMemberEditMode(false); setMemberScanHistory([]); setShowMemberNetwork(false); stopEditCamera(); }}>✕</button>
               </div>
               {!memberEditMode && (
                 <div className="member-modal-tabs">
@@ -8430,26 +8303,49 @@ export default function AdminPage() {
                   <div className="member-edit-form">
                     <div className="member-edit-section">
                       <h4 className="member-edit-section-title">Photo</h4>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8 }}>
-                        <div style={{ width: 80, height: 80, borderRadius: '50%', overflow: 'hidden', background: '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #cbd5e1' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                        <div style={{ width: 96, height: 96, borderRadius: '50%', overflow: 'hidden', background: '#e2e8f0', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2.5px solid #cbd5e1' }}>
                           {editMemberForm.photo_url ? (
-                            <img src={editMemberForm.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img key={editMemberForm.photo_url} src={editMemberForm.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
                           ) : (
-                            <User size={32} color="#94a3b8" />
+                            <User size={40} color="#94a3b8" />
                           )}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          <label className="btn btn-sm btn-edit" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                            <Upload size={14} /> Upload New Photo
-                            <input type="file" accept="image/*" onChange={handleEditPhotoUpload} style={{ display: 'none' }} />
-                          </label>
-                          {editMemberForm.photo_url && (
-                            <button type="button" className="btn btn-sm" style={{ color: '#dc2626', fontSize: 12, padding: '4px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6 }} onClick={() => setEditMemberForm(f => ({ ...f, photo_url: '' }))}>
-                              <Trash2 size={12} /> Remove Photo
-                            </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+                          {!editCameraActive && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              <label className="btn btn-sm btn-edit" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, flex: '1 1 auto', justifyContent: 'center', minWidth: 120 }}>
+                                <Upload size={14} /> Upload New Photo
+                                <input type="file" accept="image/*" onChange={handleEditPhotoUpload} style={{ display: 'none' }} />
+                              </label>
+                              <button type="button" className="btn btn-sm btn-edit" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0', flex: '1 1 auto', justifyContent: 'center', minWidth: 120 }} onClick={startEditCamera}>
+                                <Camera size={14} /> Capture Photo
+                              </button>
+                              {editMemberForm.photo_url && (
+                                <button type="button" className="btn btn-sm" style={{ color: '#dc2626', fontSize: 12, padding: '6px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4, flex: '1 1 auto', justifyContent: 'center', minWidth: 100 }} onClick={() => setEditMemberForm(f => ({ ...f, photo_url: '' }))}>
+                                  <Trash2 size={12} /> Remove Photo
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {editCameraActive && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+                              <div style={{ width: 240, height: 180, background: '#0f172a', borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
+                                <video ref={editVideoRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} autoPlay playsInline muted />
+                              </div>
+                              <div style={{ display: 'flex', gap: 10 }}>
+                                <button type="button" className="btn btn-sm" style={{ background: '#059669', color: '#fff', border: 'none', padding: '8px 16px' }} onClick={captureEditPhoto}>
+                                  <Camera size={14} /> Take Photo
+                                </button>
+                                <button type="button" className="btn btn-sm" style={{ background: '#e2e8f0', color: '#475569', padding: '8px 16px' }} onClick={stopEditCamera}>
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>
+                      <canvas ref={editCanvasRef} style={{ display: 'none' }} />
                     </div>
 
                     <div className="member-edit-section">
@@ -8564,13 +8460,133 @@ export default function AdminPage() {
                             <option value="Widowed">Widowed</option>
                           </select>
                         </div>
-                        <div className="member-edit-field">
+                        <div className="member-edit-field" style={{ position: 'relative' }}>
                           <label>Referral Name</label>
-                          <input type="text" value={editMemberForm.referral_name} onChange={e => setEditMemberForm(f => ({ ...f, referral_name: e.target.value }))} />
+                          <input
+                            type="text"
+                            placeholder="Start typing referral name..."
+                            value={editReferralQuery}
+                            onChange={async (e) => {
+                              const val = e.target.value;
+                              setEditReferralQuery(val);
+                              setEditReferralValid(false);
+                              const trimmedVal = val.trim();
+                              if (trimmedVal.length >= 2) {
+                                try {
+                                  // Search approved members
+                                  const { data: members } = await supabase
+                                    .from('registrations')
+                                    .select('id, first_name, middle_name, last_name, suffix')
+                                    .eq('status', 'Approved')
+                                    .or(`first_name.ilike.%${trimmedVal}%,last_name.ilike.%${trimmedVal}%`)
+                                    .limit(10);
+                                  // Search registered voters
+                                  const { data: voters } = await supabase
+                                    .from('ValidResidents')
+                                    .select('id, first_name, middle_name, last_name, suffix')
+                                    .or(`first_name.ilike.%${trimmedVal}%,last_name.ilike.%${trimmedVal}%`)
+                                    .limit(10);
+                                  const memberNames = (members || []).map(p => ({
+                                    id: `m-${p.id}`,
+                                    name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
+                                  }));
+                                  const voterNames = (voters || []).map(p => ({
+                                    id: `v-${p.id}`,
+                                    name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
+                                  }));
+                                  // Merge and deduplicate by name
+                                  const all = [...memberNames, ...voterNames];
+                                  const seen = new Set();
+                                  const unique = all.filter(item => {
+                                    if (seen.has(item.name)) return false;
+                                    seen.add(item.name);
+                                    return true;
+                                  });
+                                  setEditReferralResults(unique.slice(0, 10));
+                                } catch (err) {
+                                  setEditReferralResults([]);
+                                }
+                              } else {
+                                setEditReferralResults([]);
+                              }
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
+                              borderRadius: '10px',
+                              border: editReferralValid ? '2px solid #10b981' : '1px solid rgba(6, 78, 59, 0.15)',
+                              outline: 'none',
+                              fontSize: '0.92rem',
+                              background: editReferralValid ? '#f0fdf4' : '#fff',
+                              transition: 'all 0.2s'
+                            }}
+                          />
+                          {editReferralValid && (
+                            <span style={{
+                              position: 'absolute',
+                              right: '12px',
+                              top: '38px',
+                              color: '#10b981',
+                              fontSize: '0.8rem',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}>
+                              ✓ Verified
+                            </span>
+                          )}
+                          {!editReferralValid && editReferralResults.length > 0 && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '100%',
+                              left: 0,
+                              right: 0,
+                              background: '#fff',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '10px',
+                              boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                              maxHeight: '200px',
+                              overflowY: 'auto',
+                              zIndex: 1000,
+                              marginTop: '4px'
+                            }}>
+                              {editReferralResults.map((p) => (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setEditReferralQuery(p.name);
+                                    setEditReferralValid(true);
+                                    setEditReferralResults([]);
+                                    setEditMemberForm(f => ({ ...f, referral_name: p.name }));
+                                  }}
+                                  style={{
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    padding: '10px 14px',
+                                    border: 'none',
+                                    background: 'transparent',
+                                    cursor: 'pointer',
+                                    fontSize: '0.9rem',
+                                    borderBottom: '1px solid #f3f4f6',
+                                    color: '#111'
+                                  }}
+                                >
+                                  {p.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {!editReferralValid && editReferralQuery.length >= 2 && editReferralResults.length === 0 && (
+                            <p style={{ margin: '4px 0 0', color: '#ef4444', fontSize: '0.8rem' }}>
+                              No matching referrals found.
+                            </p>
+                          )}
                         </div>
                         <div className="member-edit-field">
                           <label>Birthday</label>
-                          <input type="text" value={editMemberForm.birthday} onChange={e => setEditMemberForm(f => ({ ...f, birthday: e.target.value }))} placeholder="e.g. January 15, 1990" />
+                          <input type="date" value={editMemberForm.birthday} onChange={e => setEditMemberForm(f => ({ ...f, birthday: e.target.value }))} />
                         </div>
                       </div>
                     </div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
-import { User, MapPin, Phone, Calendar, ShieldCheck, Send, MessageSquare, Gift, CheckCircle, HeartHandshake, ClipboardList, Home } from 'lucide-react';
+import { Send, MessageSquare, CheckCircle, Home, ShieldCheck } from 'lucide-react';
 
 export default function CardDashboardPage() {
   const params = useParams();
@@ -72,18 +72,24 @@ export default function CardDashboardPage() {
 
     setGrievanceLoading(true);
     try {
-      const { error } = await supabase.from('grievances').insert({
-        registration_id: data.id,
-        token: token,
-        type: grievanceType,
-        message: grievanceMsg.trim(),
+      const res = await fetch('/api/submit-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registration_id: data.id,
+          token: token,
+          type: grievanceType,
+          message: grievanceMsg.trim(),
+        }),
       });
-      if (error) throw error;
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'Failed to submit');
       setGrievanceSent(true);
       setGrievanceMsg('');
       setTimeout(() => setGrievanceSent(false), 4000);
-    } catch {
-      alert('Failed to submit. Please try again.');
+    } catch (err) {
+      console.error('Grievance submit error:', err);
+      alert('Failed to submit: ' + (err?.message || 'Please try again.'));
     } finally {
       setGrievanceLoading(false);
     }
@@ -134,101 +140,51 @@ export default function CardDashboardPage() {
         {/* Greeting */}
         <div className="card-dash-greeting">
           <h1>{greeting()}, <span>{data.name.split(' ')[0]}!</span></h1>
-          <p>Welcome to your EM Card Citizen Dashboard</p>
         </div>
 
-        {/* Profile Card */}
-        <div className="card-dash-profile">
-          <div className="card-dash-photo">
-            {data.photo ? <img src={data.photo} alt="" /> : <User size={48} />}
-          </div>
-          <div className="card-dash-info">
-            <h2>{data.name}</h2>
-            <p><MapPin size={14} /> {data.barangay} · Purok {data.purok}</p>
-            {data.contact !== '-' && <p><Phone size={14} /> {data.contact}</p>}
-            <div className="card-dash-badge"><ShieldCheck size={14} /> Verified EM Card Holder</div>
-          </div>
-        </div>
-
-        {/* Benefits Section */}
-        <div className="card-dash-section">
-          <h3><Gift size={18} /> Active Benefits & Programs</h3>
-          <div className="card-dash-benefits">
-            <div className="card-dash-benefit">
-              <CheckCircle size={18} />
-              <div>
-                <h4>Community Relief Aid</h4>
-                <p>Eligible for food and medical supply distribution</p>
-              </div>
-            </div>
-            <div className="card-dash-benefit">
-              <HeartHandshake size={18} />
-              <div>
-                <h4>Referral Program</h4>
-                <p>Earn points by referring new community members</p>
-              </div>
-            </div>
-            <div className="card-dash-benefit">
-              <ClipboardList size={18} />
-              <div>
-                <h4>Local Events Access</h4>
-                <p>Priority access to barangay programs and seminars</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Scan History */}
-        <div className="card-dash-section">
-          <h3><Calendar size={18} /> Scan History</h3>
-          {data.lastScanned ? (
-            <div className="card-dash-scan-history">
-              <p><strong>Last scanned:</strong> {new Date(data.lastScanned).toLocaleString()}</p>
-              <p><strong>Total scans:</strong> {data.scanCount}</p>
-            </div>
-          ) : (
-            <p className="card-dash-empty">No scans recorded yet.</p>
-          )}
-        </div>
-
-        {/* Grievance / Suggestion Box */}
+        {/* Feedback / Suggestion Box - Tagalog */}
         <div className="card-dash-section card-dash-grievance">
-          <h3><MessageSquare size={18} /> Digital Suggestion & Grievance Box</h3>
-          <p className="card-dash-grievance-desc">Your voice matters. Submit suggestions, complaints, or feedback directly to your barangay coordinator.</p>
+          <h3><MessageSquare size={18} /> Suhestyon at Reklamo</h3>
+          <p className="card-dash-grievance-desc">Mahalaga ang iyong boses. Maaari kang magbigay ng suhestyon, reklamo, o feedback direkta sa iyong barangay coordinator.</p>
 
           {grievanceSent && (
             <div className="card-dash-grievance-success">
-              <CheckCircle size={20} /> Submitted successfully! Thank you for your feedback.
+              <CheckCircle size={20} /> Natapos na! Salamat sa iyong feedback.
             </div>
           )}
 
           <form onSubmit={submitGrievance}>
             <div className="card-dash-grievance-type">
-              {['Feedback','Suggestion','Grievance','Complaint'].map(t => (
+              {[
+                { key: 'Feedback', label: 'Feedback' },
+                { key: 'Suggestion', label: 'Suhestyon' },
+                { key: 'Grievance', label: 'Reklamo' },
+                { key: 'Complaint', label: 'Sumamo' }
+              ].map(t => (
                 <button
-                  key={t}
+                  key={t.key}
                   type="button"
-                  className={grievanceType === t ? 'active' : ''}
-                  onClick={() => setGrievanceType(t)}
+                  className={grievanceType === t.key ? 'active' : ''}
+                  onClick={() => setGrievanceType(t.key)}
                 >
-                  {t}
+                  {t.label}
                 </button>
               ))}
             </div>
             <textarea
               value={grievanceMsg}
               onChange={(e) => setGrievanceMsg(e.target.value)}
-              placeholder={`Type your ${grievanceType.toLowerCase()} here...`}
+              placeholder={`Ilagay ang iyong ${grievanceType === 'Suggestion' ? 'suhestyon' : grievanceType === 'Grievance' ? 'reklamo' : grievanceType === 'Complaint' ? 'sumamo' : 'feedback'} dito...`}
               rows={4}
               required
             />
             <button type="submit" className="btn btn-card-submit" disabled={grievanceLoading}>
-              <Send size={16} /> {grievanceLoading ? 'Sending...' : 'Submit'}
+              <Send size={16} /> {grievanceLoading ? 'Nagpapadala...' : 'Ipadala'}
             </button>
           </form>
         </div>
 
-        <a href="/" className="card-dash-home-link"><Home size={14} /> Back to Homepage</a>
+        <a href="/" className="card-dash-home-link"><Home size={14} /> Bumalik sa Homepage</a>
       </div>
 
       <p className="card-dash-footer">© 2026 EM Card · Epektibong Mamamayan</p>
