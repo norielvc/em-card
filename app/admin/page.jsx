@@ -2604,8 +2604,8 @@ export default function AdminPage() {
     { id: 'system', label: 'System', icon: <Monitor size={20} strokeWidth={1.8} /> },
   ].filter(item => {
     if (userRole !== 'staff') return true;
-    // Staff sees: Event Scanner + Member Registration + Members + Registrations
-    const staffTabs = new Set(['eventScanner', 'registerMember', 'members', 'registrations']);
+    // Staff sees: Event Scanner + Register Member (assist residents to register)
+    const staffTabs = new Set(['eventScanner', 'registerMember']);
     return staffTabs.has(item.id);
   });
 
