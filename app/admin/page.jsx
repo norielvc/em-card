@@ -6624,9 +6624,16 @@ export default function AdminPage() {
   };
 
   const detectQRSimple = async (file) => {
-    return new Promise((resolve) => {
-      const img = new Image();
+    // Helper: check if decoded text contains something that looks like an EM token
+    const looksLikeEMToken = (text) => {
+      if (!text) return false;
+      const cleaned = text.replace(/[^\x20-\x7E]/g, '').replace(/\s/g, '').replace(/^\uFEFF/, '');
+      return /(EM[A-Za-z0-9]{24}|EM-\d{10})/.test(cleaned);
+    };
 
+    // ── PASS 1: jsQR (fast, works great on iOS and clear photos)
+    const tryJsQR = () => new Promise((resolve) => {
+      const img = new Image();
       img.onload = async () => {
         try {
           const canvas = document.createElement('canvas');
@@ -6634,7 +6641,6 @@ export default function AdminPage() {
 
           const maxSize = 600;
           let { width, height } = img;
-
           if (width > maxSize || height > maxSize) {
             const ratio = Math.min(maxSize / width, maxSize / height);
             width = Math.floor(width * ratio);
@@ -6644,55 +6650,75 @@ export default function AdminPage() {
           canvas.width = width;
           canvas.height = height;
           ctx.drawImage(img, 0, 0, width, height);
-
           const imageData = ctx.getImageData(0, 0, width, height);
 
           let jsQR;
           try {
             const jsQRModule = await import('jsqr');
             jsQR = jsQRModule.default;
-          } catch (importError) {
+          } catch {
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
             document.head.appendChild(script);
-
             await new Promise((res, rej) => {
               script.onload = () => res();
               script.onerror = () => rej(new Error('CDN load failed'));
             });
-
             jsQR = window.jsQR;
           }
 
           if (typeof jsQR === 'function') {
-            const detectionOptions = [
+            const opts = [
               { inversionAttempts: 'dontInvert' },
               { inversionAttempts: 'onlyInvert' },
               { inversionAttempts: 'attemptBoth' },
             ];
-
-            for (const options of detectionOptions) {
-              const code = jsQR(
-                imageData.data,
-                imageData.width,
-                imageData.height,
-                options,
-              );
-              if (code && code.data) {
-                resolve(code.data);
-                return;
-              }
+            for (const o of opts) {
+              const code = jsQR(imageData.data, imageData.width, imageData.height, o);
+              if (code && code.data) { resolve(code.data); return; }
             }
           }
           resolve(null);
-        } catch {
-          resolve(null);
-        }
+        } catch { resolve(null); }
       };
-
       img.onerror = () => { resolve(null); };
       img.src = URL.createObjectURL(file);
     });
+
+    // ── PASS 2: Html5Qrcode.scanFile (better image preprocessing, works on tricky Android photos)
+    const tryHtml5Qrcode = async () => {
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        const divId = 'capture-fallback-' + Date.now();
+        const div = document.createElement('div');
+        div.id = divId;
+        div.style.display = 'none';
+        document.body.appendChild(div);
+
+        let decodedText = null;
+        try {
+          const scanner = new Html5Qrcode(divId);
+          decodedText = await scanner.scanFile(file, false);
+          await scanner.clear();
+        } catch {
+          decodedText = null;
+        } finally {
+          const el = document.getElementById(divId);
+          if (el) document.body.removeChild(el);
+        }
+        return decodedText;
+      } catch { return null; }
+    };
+
+    const jsQRResult = await tryJsQR();
+    if (looksLikeEMToken(jsQRResult)) return jsQRResult;
+
+    const html5Result = await tryHtml5Qrcode();
+    if (looksLikeEMToken(html5Result)) return html5Result;
+
+    // Return whichever found something, even if it doesn't look valid
+    // (handleEventScan will show the proper error with raw text for debugging)
+    return html5Result || jsQRResult || null;
   };
 
   const handleEventScan = async (rawToken) => {
