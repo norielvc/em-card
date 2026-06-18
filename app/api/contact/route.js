@@ -90,8 +90,8 @@ async function sendEmailNotification({ name, email, inquiry_type, message }) {
       `,
     });
     return { sent: true, id: info.messageId };
-  } catch (err) {
-    return { error: err.message, code: err.code || null };
+  } catch {
+    return { error: 'Email notification failed', code: null };
   }
 }
 

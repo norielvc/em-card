@@ -235,7 +235,7 @@ async function sendSMS(phone, body) {
   if (process.env.SMS_TEST_MODE === 'true') {
     console.log(`[SMS TEST MODE] Would send to 1 phone`);
     return {
-      sid: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      sid: `test_${Date.now()}_${crypto.randomUUID().slice(0, 9)}`,
       status: 'sent',
       testMode: true
     };

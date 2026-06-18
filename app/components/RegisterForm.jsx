@@ -696,7 +696,12 @@ export default function RegisterForm({ embedded = false }) {
       }
 
       // Generate short reference number for display + UUID for DB id
-      const refId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const fallbackId = () => {
+        const arr = new Uint8Array(10);
+        crypto.getRandomValues(arr);
+        return `${Date.now()}-${Array.from(arr).map(b => b.toString(36).slice(0, 1)).join('')}`;
+      };
+      const refId = crypto.randomUUID ? crypto.randomUUID() : fallbackId();
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
       const refArr = new Uint8Array(6);
       crypto.getRandomValues(refArr);

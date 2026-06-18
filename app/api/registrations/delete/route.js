@@ -38,7 +38,7 @@ export async function POST(request) {
         }
       } catch (storageErr) {
         // Log but don't fail deletion if storage cleanup fails
-        console.warn('Failed to delete storage file:', storageErr.message);
+        console.warn('Failed to delete storage file');
       }
     }
 
