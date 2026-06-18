@@ -6651,6 +6651,7 @@ export default function AdminPage() {
 
           const imageData = ctx.getImageData(0, 0, width, height);
           debug.push(`img:${width}x${height}`);
+          debug.push(`data:${imageData.data.length}/${width * height * 4}`);
 
           // ── Get jsQR by any means: static import → dynamic import → CDN ──
           let jsQRInstance = jsQR;
@@ -6682,23 +6683,39 @@ export default function AdminPage() {
 
           if (typeof jsQRInstance === 'function') {
             debug.push('jsQR:func');
+
+            // PASS A: try without options first (avoids potential bundler interop issues)
+            try {
+              const code = jsQRInstance(imageData.data, imageData.width, imageData.height);
+              if (code && code.data) {
+                debug.push(`found-noopts:${code.data.substring(0, 20)}...`);
+                resolve({ data: code.data, debug: debug.join(' | ') });
+                return;
+              }
+            } catch (e) { debug.push(`noopts-err:${e.message}`); }
+
+            // PASS B: try with inversion options
             const detectionOptions = [
               { inversionAttempts: 'dontInvert' },
               { inversionAttempts: 'onlyInvert' },
               { inversionAttempts: 'attemptBoth' },
             ];
 
-            for (const options of detectionOptions) {
-              const code = jsQRInstance(
-                imageData.data,
-                imageData.width,
-                imageData.height,
-                options,
-              );
-              if (code && code.data) {
-                debug.push(`found:${code.data.substring(0, 20)}...`);
-                resolve({ data: code.data, debug: debug.join(' | ') });
-                return;
+            for (const opts of detectionOptions) {
+              try {
+                const code = jsQRInstance(
+                  imageData.data,
+                  imageData.width,
+                  imageData.height,
+                  opts,
+                );
+                if (code && code.data) {
+                  debug.push(`found-opts:${code.data.substring(0, 20)}...`);
+                  resolve({ data: code.data, debug: debug.join(' | ') });
+                  return;
+                }
+              } catch (e) {
+                debug.push(`opts-err:${e.message}`);
               }
             }
             debug.push('found:none');
