@@ -7216,11 +7216,14 @@ export default function AdminPage() {
                     setScanResult(null);
                     setScanLoading(true);
 
-                    // Last-resort safety: force reset UI after 8s no matter what
+                    // Last-resort safety: force reset UI after 15s if still analyzing
+                    let analysisCompleted = false;
                     const safetyTimer = setTimeout(() => {
-                      setScanLoading(false);
-                      setScanResult({ type: 'invalid', message: 'Image analysis timed out. Please use Camera or Manual mode instead.' });
-                    }, 8000);
+                      if (!analysisCompleted) {
+                        setScanLoading(false);
+                        setScanResult({ type: 'invalid', message: 'Image analysis timed out. Please use Camera or Manual mode instead.' });
+                      }
+                    }, 15000);
 
                     try {
                       // ── Simple, proven QR detection (matching reference project pattern)
@@ -7303,6 +7306,7 @@ export default function AdminPage() {
                     } catch (err) {
                       setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                     } finally {
+                      analysisCompleted = true;
                       clearTimeout(safetyTimer);
                       setScanLoading(false);
                       e.target.value = '';
