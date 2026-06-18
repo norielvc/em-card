@@ -18,7 +18,7 @@ export async function GET() {
     if (error) throw error;
     return Response.json({ events: data || [] });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -43,7 +43,7 @@ export async function POST(req) {
     if (error) throw error;
     return Response.json({ event: data });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -79,7 +79,7 @@ export async function PUT(req) {
     if (error) throw error;
     return Response.json({ event: data });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -103,6 +103,6 @@ export async function DELETE(req) {
     if (error) throw error;
     return Response.json({ success: true });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }

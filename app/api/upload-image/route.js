@@ -8,8 +8,8 @@ const supabaseAdmin = createClient(
 
 // Allowed image MIME types
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-// Max file size: 10MB
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// Max file size: 3MB
+const MAX_FILE_SIZE = 3 * 1024 * 1024;
 
 export async function POST(req) {
   try {
@@ -31,7 +31,7 @@ export async function POST(req) {
 
     // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-      return Response.json({ error: 'File too large. Maximum size is 10MB.' }, { status: 413 });
+      return Response.json({ error: 'File too large. Maximum size is 3MB.' }, { status: 413 });
     }
 
     // Use crypto-random filename
@@ -47,6 +47,6 @@ export async function POST(req) {
     const { data: publicUrl } = supabaseAdmin.storage.from('event-images').getPublicUrl(fileName);
     return Response.json({ url: publicUrl.publicUrl });
   } catch (err) {
-    return Response.json({ error: err.message || 'Upload failed' }, { status: 500 });
+    return Response.json({ error: 'Upload failed' }, { status: 500 });
   }
 }

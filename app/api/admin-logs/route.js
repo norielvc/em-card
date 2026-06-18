@@ -80,7 +80,7 @@ export async function GET(request) {
 
     return Response.json({ logs, total: count || 0 });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -146,6 +146,6 @@ export async function POST(request) {
 
     return Response.json({ success: true, log: data?.[0] });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }

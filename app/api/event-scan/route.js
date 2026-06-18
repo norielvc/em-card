@@ -249,6 +249,6 @@ export async function POST(request) {
       scanCount: (reg.scan_count || 0) + 1,
     });
   } catch (err) {
-    return Response.json({ type: 'error', message: err.message || 'Server error' }, { status: 500 });
+    return Response.json({ type: 'error', message: 'Server error' }, { status: 500 });
   }
 }

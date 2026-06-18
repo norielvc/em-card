@@ -87,6 +87,6 @@ export async function GET(request) {
       aidByBarangay,
     });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }

@@ -130,7 +130,7 @@ export async function POST(req) {
 
     return Response.json({ success: true, message: data, email: emailResult });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -157,6 +157,6 @@ export async function GET(req) {
     if (error) throw error;
     return Response.json({ messages: data || [] });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }

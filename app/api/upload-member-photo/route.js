@@ -84,7 +84,7 @@ export async function POST(req) {
     return Response.json({ url: publicUrl.publicUrl });
   } catch (err) {
     return Response.json(
-      { error: err.message || 'Upload failed' },
+      { error: 'Upload failed' },
       { status: 500 }
     );
   }

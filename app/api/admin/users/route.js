@@ -23,7 +23,7 @@ export async function GET(request) {
     }));
     return Response.json({ users });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -56,7 +56,7 @@ export async function POST(req) {
       user: { id: createdUser.user.id, email: createdUser.user.email, role },
     });
   } catch (err) {
-    return Response.json({ error: err.message || 'Failed to create user' }, { status: 500 });
+    return Response.json({ error: 'Failed to create user' }, { status: 500 });
   }
 }
 
@@ -80,6 +80,6 @@ export async function PUT(req) {
       user: { id: data.user.id, email: data.user.email, role: data.user.user_metadata?.role },
     });
   } catch (err) {
-    return Response.json({ error: err.message || 'Failed to update user' }, { status: 500 });
+    return Response.json({ error: 'Failed to update user' }, { status: 500 });
   }
 }

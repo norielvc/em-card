@@ -132,7 +132,7 @@ export async function GET(request) {
     });
   } catch (err) {
     return NextResponse.json(
-      { error: err.message || 'Unknown error' },
+      { error: 'Server error' },
       { status: 500 }
     );
   }

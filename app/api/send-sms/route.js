@@ -102,7 +102,7 @@ async function _semaphoreCall(apiKey, phone, body, senderName) {
 async function sendSemaphoreBulk(apiKey, phones, body, senderName) {
   // Check for test mode - simulate bulk send without consuming credits
   if (process.env.SMS_TEST_MODE === 'true') {
-    console.log(`[SMS TEST MODE] Would send bulk to ${phones.length} phones: ${body.slice(0, 50)}...`);
+    console.log(`[SMS TEST MODE] Would send bulk to ${phones.length} phones`);
     // Simulate bulk response
     const results = phones.map((phone, i) => ({
       message_id: `test_bulk_${Date.now()}_${i}`,
@@ -233,7 +233,7 @@ function getProvider() {
 async function sendSMS(phone, body) {
   // Check for test mode - simulate send without consuming credits
   if (process.env.SMS_TEST_MODE === 'true') {
-    console.log(`[SMS TEST MODE] Would send to ${phone}: ${body.slice(0, 50)}...`);
+    console.log(`[SMS TEST MODE] Would send to 1 phone`);
     return {
       sid: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       status: 'sent',
@@ -298,7 +298,7 @@ export async function GET(request) {
     if (error) throw error;
     return Response.json({ messages: data || [] });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -445,7 +445,7 @@ export async function POST(request) {
       sendResults,
     });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -463,7 +463,7 @@ async function sendMessagesAsync(messageId, recipients, body, validRecipients = 
   const BULK_BATCH_SIZE = 1000; // Process 1000 SMS per API call
   const DELAY_BETWEEN_BATCHES = 1000; // 1 second delay between batches (120 calls/min limit)
 
-  console.log(`[SMS] Starting bulk send for ${totalRecipients} recipients in batches of ${BULK_BATCH_SIZE}`);
+  console.log(`[SMS] Starting bulk send for ${totalRecipients} recipients`);
 
   // Check if we can use Semaphore bulk API
   const provider = getProvider();
@@ -486,7 +486,7 @@ async function sendMessagesAsync(messageId, recipients, body, validRecipients = 
     const batchNumber = Math.floor(batchStart / BULK_BATCH_SIZE) + 1;
     const totalBatches = Math.ceil(totalRecipients / BULK_BATCH_SIZE);
 
-    console.log(`[SMS] Processing batch ${batchNumber}/${totalBatches} (${batchStart + 1}-${batchEnd} of ${totalRecipients})`);
+    console.log(`[SMS] Processing batch ${batchNumber}/${totalBatches}`);
 
     try {
       if (canUseBulk) {
@@ -553,7 +553,7 @@ async function sendMessagesAsync(messageId, recipients, body, validRecipients = 
         }
       }
     } catch (batchError) {
-      console.error(`[SMS] Batch ${batchNumber} failed:`, batchError.message);
+      console.error(`[SMS] Batch ${batchNumber} failed`);
       // Mark all in batch as failed
       for (const recipient of batch) {
         await supabase
@@ -578,7 +578,7 @@ async function sendMessagesAsync(messageId, recipients, body, validRecipients = 
       })
       .eq('id', messageId);
 
-    console.log(`[SMS] Batch ${batchNumber} complete. Progress: ${sentCount}/${totalRecipients} sent, ${failedCount} failed`);
+    console.log(`[SMS] Batch ${batchNumber} complete: ${sentCount} sent, ${failedCount} failed`);
 
     // Delay between batches (except for the last batch)
     if (batchEnd < totalRecipients) {
@@ -598,7 +598,7 @@ async function sendMessagesAsync(messageId, recipients, body, validRecipients = 
     })
     .eq('id', messageId);
 
-  console.log(`[SMS] Send complete. Final: ${sentCount} sent, ${failedCount} failed`);
+  console.log(`[SMS] Send complete: ${sentCount} sent, ${failedCount} failed`);
 
   return { sentCount, failedCount, results, status: finalStatus };
 }

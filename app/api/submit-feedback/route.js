@@ -50,6 +50,6 @@ export async function POST(req) {
 
     return Response.json({ success: true, grievance: data });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }

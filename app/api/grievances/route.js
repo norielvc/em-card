@@ -29,7 +29,7 @@ export async function GET(req) {
     if (error) throw error;
     return Response.json({ grievances: data || [] });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
 
@@ -57,6 +57,6 @@ export async function PATCH(req) {
     if (error) throw error;
     return Response.json({ success: true, grievance: data });
   } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }

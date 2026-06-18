@@ -29,7 +29,13 @@ export async function GET(request) {
   const dbTokens = tokens.filter((t) => t.length >= 2 && !particles.has(t));
   const searchTokens = dbTokens.length > 0 ? dbTokens : tokens;
 
-  const tsQueryStr = searchTokens.map((t) => `${t}:*`).join(' & ');
+  // Sanitize tokens for to_tsquery: remove chars that break tsquery syntax
+  const sanitizeTsQuery = (t) => t.replace(/[&|!():\\'"*\s]/g, '');
+  const tsQueryStr = searchTokens
+    .map((t) => sanitizeTsQuery(t))
+    .filter((t) => t.length > 0)
+    .map((t) => `${t}:*`)
+    .join(' & ');
   const ilikePattern = `%${q.replace(/\s+/g, '%')}%`;
 
   const { data: residents, error } = await supabase.rpc('search_residents', {
