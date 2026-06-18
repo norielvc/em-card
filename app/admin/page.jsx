@@ -6,7 +6,6 @@ import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 import RegisterForm from '../components/RegisterForm';
 import { QRCodeSVG } from 'qrcode.react';
-import jsQR from 'jsqr';
 import { 
   Users, UserCheck, UserPlus, Trash2, Search, Download, QrCode, X, CheckCircle, Link2, 
   AlertTriangle, ChevronLeft, ChevronRight, Edit3, BarChart3, PieChart, TrendingUp, 
@@ -6651,24 +6650,16 @@ export default function AdminPage() {
 
           const imageData = ctx.getImageData(0, 0, width, height);
           debug.push(`img:${width}x${height}`);
-          debug.push(`data:${imageData.data.length}/${width * height * 4}`);
 
-          // ── Get jsQR by any means: static import → dynamic import → CDN ──
-          let jsQRInstance = jsQR;
-          debug.push(`static:${typeof jsQRInstance}`);
-
-          // Fallback 1: dynamic import (matches working project exactly)
-          if (typeof jsQRInstance !== 'function') {
+          // ── EXACT pattern from working mobile-qr-scanner.js project ──
+          try {
+            let jsQR;
             try {
-              const mod = await import('jsqr');
-              jsQRInstance = mod.default;
+              const jsQRModule = await import('jsqr');
+              jsQR = jsQRModule.default;
               debug.push('dyn:ok');
-            } catch (e) { debug.push(`dyn:${e.message}`); }
-          }
-
-          // Fallback 2: CDN
-          if (typeof jsQRInstance !== 'function') {
-            try {
+            } catch (importError) {
+              debug.push('dyn:fail');
               const script = document.createElement('script');
               script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
               document.head.appendChild(script);
@@ -6676,51 +6667,37 @@ export default function AdminPage() {
                 script.onload = () => res();
                 script.onerror = () => rej(new Error('CDN load failed'));
               });
-              jsQRInstance = window.jsQR;
+              jsQR = window.jsQR;
               debug.push('cdn:ok');
-            } catch (e) { debug.push(`cdn:${e.message}`); }
-          }
+            }
 
-          if (typeof jsQRInstance === 'function') {
-            debug.push('jsQR:func');
+            if (typeof jsQR === 'function') {
+              debug.push('jsQR:func');
+              const detectionOptions = [
+                { inversionAttempts: 'dontInvert' },
+                { inversionAttempts: 'onlyInvert' },
+                { inversionAttempts: 'attemptBoth' },
+              ];
 
-            // PASS A: try without options first (avoids potential bundler interop issues)
-            try {
-              const code = jsQRInstance(imageData.data, imageData.width, imageData.height);
-              if (code && code.data) {
-                debug.push(`found-noopts:${code.data.substring(0, 20)}...`);
-                resolve({ data: code.data, debug: debug.join(' | ') });
-                return;
-              }
-            } catch (e) { debug.push(`noopts-err:${e.message}`); }
-
-            // PASS B: try with inversion options
-            const detectionOptions = [
-              { inversionAttempts: 'dontInvert' },
-              { inversionAttempts: 'onlyInvert' },
-              { inversionAttempts: 'attemptBoth' },
-            ];
-
-            for (const opts of detectionOptions) {
-              try {
-                const code = jsQRInstance(
+              for (const options of detectionOptions) {
+                const code = jsQR(
                   imageData.data,
                   imageData.width,
                   imageData.height,
-                  opts,
+                  options,
                 );
                 if (code && code.data) {
-                  debug.push(`found-opts:${code.data.substring(0, 20)}...`);
+                  debug.push(`found:${code.data.substring(0, 20)}...`);
                   resolve({ data: code.data, debug: debug.join(' | ') });
                   return;
                 }
-              } catch (e) {
-                debug.push(`opts-err:${e.message}`);
               }
+              debug.push('found:none');
+            } else {
+              debug.push(`jsQR:${typeof jsQR}`);
             }
-            debug.push('found:none');
-          } else {
-            debug.push(`jsQR:${typeof jsQRInstance}`);
+          } catch (jsqrError) {
+            debug.push(`jsQR-err:${jsqrError.message}`);
           }
 
           resolve({ data: null, debug: debug.join(' | ') });
