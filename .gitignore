@@ -9,6 +9,7 @@ out
 .vercel
 
 # Environment files
+.env
 .env*.local
 
 # Logs
