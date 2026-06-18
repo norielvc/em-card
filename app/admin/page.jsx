@@ -6,7 +6,6 @@ import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 import RegisterForm from '../components/RegisterForm';
 import { QRCodeSVG } from 'qrcode.react';
-import jsQR from 'jsqr';
 import { 
   Users, UserCheck, UserPlus, Trash2, Search, Download, QrCode, X, CheckCircle, Link2, 
   AlertTriangle, ChevronLeft, ChevronRight, Edit3, BarChart3, PieChart, TrendingUp, 
@@ -7217,74 +7216,38 @@ export default function AdminPage() {
                     setScanResult(null);
                     setScanLoading(true);
 
-                    // Safety timer: if the whole pipeline hangs, show error
-                    let analysisCompleted = false;
+                    // Safety timer in case scanFile hangs
+                    let done = false;
                     const safetyTimer = setTimeout(() => {
-                      if (!analysisCompleted) {
+                      if (!done) {
                         setScanLoading(false);
                         setScanResult({ type: 'invalid', message: 'Image analysis timed out. Please use Camera or Manual mode instead.' });
                       }
                     }, 15000);
 
-                    // ── Helper: try to decode QR from an image file ──
-                    const detectQR = (imageFile) => new Promise((resolve) => {
-                      const img = new Image();
-                      const url = URL.createObjectURL(imageFile);
-
-                      img.onload = () => {
-                        URL.revokeObjectURL(url);
-
-                        // Try multiple sizes: small (fast) → original (accurate)
-                        const sizes = [600, 1200];
-                        for (const maxSize of sizes) {
-                          const canvas = document.createElement('canvas');
-                          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-                          let { width, height } = img;
-                          if (width > maxSize || height > maxSize) {
-                            const ratio = Math.min(maxSize / width, maxSize / height);
-                            width = Math.floor(width * ratio);
-                            height = Math.floor(height * ratio);
-                          }
-
-                          canvas.width = width;
-                          canvas.height = height;
-                          ctx.drawImage(img, 0, 0, width, height);
-
-                          // 1) Try original color first
-                          const imageData = ctx.getImageData(0, 0, width, height);
-                          const opts = [
-                            { inversionAttempts: 'dontInvert' },
-                            { inversionAttempts: 'onlyInvert' },
-                            { inversionAttempts: 'attemptBoth' },
-                          ];
-                          for (const o of opts) {
-                            const result = jsQR(imageData.data, imageData.width, imageData.height, o);
-                            if (result && result.data) { resolve(result.data); return; }
-                          }
-
-                          // 2) Try grayscale + contrast boost (helps with glare/shadows)
-                          const gsData = ctx.getImageData(0, 0, width, height);
-                          for (let i = 0; i < gsData.data.length; i += 4) {
-                            const gray = 0.299 * gsData.data[i] + 0.587 * gsData.data[i + 1] + 0.114 * gsData.data[i + 2];
-                            // Simple contrast boost: push toward 0 or 255
-                            const boosted = gray < 128 ? Math.max(0, gray - 30) : Math.min(255, gray + 30);
-                            gsData.data[i] = gsData.data[i + 1] = gsData.data[i + 2] = boosted;
-                          }
-                          for (const o of opts) {
-                            const result = jsQR(gsData.data, gsData.width, gsData.height, o);
-                            if (result && result.data) { resolve(result.data); return; }
-                          }
-                        }
-                        resolve(null);
-                      };
-
-                      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
-                      img.src = url;
-                    });
-
                     try {
-                      const decodedText = await detectQR(file);
+                      // Use Html5Qrcode (same proven library as camera mode) for file scanning
+                      const { Html5Qrcode } = await import('html5-qrcode');
+
+                      // Create a temporary hidden element for the scanner
+                      const divId = 'capture-qr-' + Date.now();
+                      const div = document.createElement('div');
+                      div.id = divId;
+                      div.style.display = 'none';
+                      document.body.appendChild(div);
+
+                      let decodedText = null;
+                      try {
+                        const scanner = new Html5Qrcode(divId);
+                        decodedText = await scanner.scanFile(file, /* showImage= */ false);
+                        await scanner.clear();
+                      } catch {
+                        // scanFile throws if no QR found — treat as not found
+                        decodedText = null;
+                      } finally {
+                        const el = document.getElementById(divId);
+                        if (el) document.body.removeChild(el);
+                      }
 
                       if (decodedText) {
                         if (scanInProgressRef.current) {
@@ -7295,10 +7258,10 @@ export default function AdminPage() {
                       } else {
                         setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                       }
-                    } catch (err) {
+                    } catch {
                       setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                     } finally {
-                      analysisCompleted = true;
+                      done = true;
                       clearTimeout(safetyTimer);
                       setScanLoading(false);
                       e.target.value = '';
