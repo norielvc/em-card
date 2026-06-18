@@ -8728,14 +8728,6 @@ export default function AdminPage() {
                   {/* FRONT */}
                   <div className={`id-card id-card-front${idCardSide === 'front' ? ' active' : ''}`} id="id-card-print">
                     <img src="/id-bg.png" alt="ID Background" className="id-card-bg" />
-                    {(selectedMember.photo_url || selectedMember.photo_base64) && (
-                      <img
-                        src={selectedMember.photo_url || selectedMember.photo_base64}
-                        alt=""
-                        className="id-card-member-photo"
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
-                    )}
                     <div className="id-card-content">
                       <div className="id-card-name-container">
                         <div className="id-card-name" ref={idCardNameRef}>{name}</div>

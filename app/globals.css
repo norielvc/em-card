@@ -15187,18 +15187,6 @@ p {
   display: block;
 }
 
-.id-card-member-photo {
-  position: absolute;
-  top: 78px;
-  right: 44px;
-  width: 128px;
-  height: 160px;
-  object-fit: cover;
-  border-radius: 8px;
-  z-index: 2;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
 .id-card-content {
   position: absolute;
   inset: 0;
