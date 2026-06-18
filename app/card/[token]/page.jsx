@@ -15,6 +15,7 @@ export default function CardDashboardPage() {
   const [grievanceMsg, setGrievanceMsg] = useState('');
   const [grievanceSent, setGrievanceSent] = useState(false);
   const [grievanceLoading, setGrievanceLoading] = useState(false);
+  const [modal, setModal] = useState({ open: false, title: '', message: '' });
 
   useEffect(() => {
     if (!token) return;
@@ -81,7 +82,11 @@ export default function CardDashboardPage() {
       setTimeout(() => setGrievanceSent(false), 4000);
     } catch (err) {
       console.error('Grievance submit error:', err);
-      alert('Failed to submit: ' + (err?.message || 'Please try again.'));
+      setModal({
+        open: true,
+        title: 'Failed to Submit',
+        message: err?.message || 'Please try again.',
+      });
     } finally {
       setGrievanceLoading(false);
     }
@@ -180,6 +185,22 @@ export default function CardDashboardPage() {
       </div>
 
       <p className="card-dash-footer">© 2026 EM Card · Epektibong Mamamayan</p>
+
+      {/* Error Modal */}
+      {modal.open && (
+        <div className="card-modal-overlay" onClick={() => setModal({ ...modal, open: false })}>
+          <div className="card-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="card-modal-header">
+              <ShieldCheck size={28} />
+              <h3>{modal.title}</h3>
+            </div>
+            <p className="card-modal-body">{modal.message}</p>
+            <button className="btn btn-card-submit" onClick={() => setModal({ ...modal, open: false })}>
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
