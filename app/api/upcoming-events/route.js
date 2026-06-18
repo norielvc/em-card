@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '../../../lib/auth';
+import { requireAdmin } from '../../../lib/security';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -24,9 +25,8 @@ export async function GET() {
 export async function POST(req) {
   try {
     const user = await requireAuth(req);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
     const body = await req.json();
     const { title, description, image_url, event_date, event_time, location } = body;
 
@@ -50,9 +50,8 @@ export async function POST(req) {
 export async function PUT(req) {
   try {
     const user = await requireAuth(req);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
     const body = await req.json();
     const { id, title, description, image_url, event_date, event_time, location, status } = body;
 
@@ -87,9 +86,8 @@ export async function PUT(req) {
 export async function DELETE(req) {
   try {
     const user = await requireAuth(req);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
 

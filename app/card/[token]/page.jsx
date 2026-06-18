@@ -35,7 +35,7 @@ export default function CardDashboardPage() {
       const { data: reg, error: regErr } = await supabase
         .from('registrations')
         .select('*, ValidResidents(first_name, last_name, middle_name, suffix, barangay)')
-        .ilike('qr_token', cleanToken)
+        .eq('qr_token', cleanToken)
         .eq('status', 'Approved')
         .maybeSingle();
 

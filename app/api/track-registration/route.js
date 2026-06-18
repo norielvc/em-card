@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { rateLimit } from '../../../lib/security';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -8,6 +9,12 @@ const supabase = createClient(
 
 export async function POST(request) {
   try {
+    // Rate limit: 10 lookups per minute per IP
+    const limit = rateLimit(request, { windowMs: 60 * 1000, max: 10 });
+    if (!limit.allowed) {
+      return NextResponse.json({ found: false, message: 'Too many requests. Please slow down.' }, { status: 429 });
+    }
+
     const { reference } = await request.json();
 
     if (!reference || typeof reference !== 'string') {

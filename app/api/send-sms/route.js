@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '../../../lib/auth';
+import { requireAdmin } from '../../../lib/security';
 
 // Initialize Supabase with service role key for server-side operations
 const supabase = createClient(
@@ -259,9 +260,8 @@ async function sendSMS(phone, body) {
 export async function GET(request) {
   try {
     const user = await requireAuth(request);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
 
     const { searchParams } = new URL(request.url);
 
@@ -308,9 +308,8 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const user = await requireAuth(request);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
     const body = await request.json();
     const { title, messageBody, type, targetType, targetValue } = body;
     if (!messageBody || !type) {

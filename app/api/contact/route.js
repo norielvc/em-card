@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import { requireAuth } from '../../../lib/auth';
+import { rateLimit } from '../../../lib/security';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -96,10 +97,16 @@ async function sendEmailNotification({ name, email, inquiry_type, message }) {
 
 export async function POST(req) {
   try {
+    // Rate limit: 3 contact submissions per IP per hour
+    const limit = rateLimit(req, { windowMs: 60 * 60 * 1000, max: 3 });
+    if (!limit.allowed) {
+      return Response.json({ error: 'Too many submissions. Please try again later.' }, { status: 429 });
+    }
+
     const body = await req.json();
     const { name, email, inquiry_type, message } = body;
 
-    if (!name || !email || !message) {
+    if (!name || !email || !message || typeof name !== 'string' || typeof email !== 'string' || typeof message !== 'string') {
       return Response.json({ error: 'Name, email, and message are required' }, { status: 400 });
     }
 

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '../../../lib/auth';
+import { getClientIP } from '../../../lib/security';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -23,7 +24,7 @@ function isValidToken(token) {
   return /^(EM[A-Za-z0-9]{24}|EM-\d{10})$/.test(token);
 }
 
-async function logAdminAction(action_type, target_table, target_id, target_name, details, admin_email) {
+async function logAdminAction(action_type, target_table, target_id, target_name, details, admin_email, request) {
   try {
     await supabaseAdmin.from('admin_logs').insert({
       admin_email,
@@ -32,7 +33,7 @@ async function logAdminAction(action_type, target_table, target_id, target_name,
       target_id: target_id || null,
       target_name: target_name || null,
       details: details || {},
-      ip_address: null,
+      ip_address: request ? getClientIP(request) : null,
     });
   } catch {
     // fire-and-forget: never block scan on logging failure
@@ -233,7 +234,7 @@ export async function POST(request) {
     }).eq('id', reg.id).then(() => {}).catch(() => {});
 
     // 9. Fire admin log in background (never block)
-    logAdminAction('scan_event', 'event_scans', reg.id, fullName, { event: event.event_name, em_card_no: reg.em_card_no }, scanned_by);
+    logAdminAction('scan_event', 'event_scans', reg.id, fullName, { event: event.event_name, em_card_no: reg.em_card_no }, scanned_by, request);
 
     return Response.json({
       type: 'success',

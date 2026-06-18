@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
@@ -403,6 +403,7 @@ export default function AdminPage() {
   const localScanCountRef = useRef(0); // optimistic counter for mass scanning (40k+ events)
   const recentScanCacheRef = useRef(new Set()); // client-side dedup cache for speed (last ~500 scans)
   const idCardNameRef = useRef(null);
+  const handleLogoutRef = useRef(null); // avoids TDZ: useEffect reads this ref instead of the function directly
 
   // Auto-resize ID card name to fit container
   useEffect(() => {
@@ -500,7 +501,7 @@ export default function AdminPage() {
 
     const checkInactive = () => {
       if (Date.now() - lastActivity > INACTIVITY_LIMIT) {
-        handleLogout();
+        handleLogoutRef.current?.();
       }
     };
 
@@ -534,7 +535,8 @@ export default function AdminPage() {
       events.forEach(e => window.removeEventListener(e, reset));
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [isLoggedIn, handleLogout]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (isLoggedIn) fetchDashboardData();
@@ -2092,6 +2094,9 @@ export default function AdminPage() {
     setLoginError('');
     setSidebarOpen(false);
   }, [username]);
+
+  // Sync ref so auto-logout useEffect can call it without TDZ issues
+  handleLogoutRef.current = handleLogout;
 
   const handleCreateAccount = async (e) => {
     e.preventDefault();

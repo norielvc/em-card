@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '../../../../lib/auth';
+import { requireAdmin } from '../../../../lib/security';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -9,9 +10,8 @@ const supabaseAdmin = createClient(
 export async function GET(request) {
   try {
     const user = await requireAuth(request);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
     const { data, error } = await supabaseAdmin.auth.admin.listUsers();
     if (error) throw error;
     const users = (data.users || []).map(u => ({
@@ -30,9 +30,8 @@ export async function GET(request) {
 export async function POST(req) {
   try {
     const user = await requireAuth(req);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
     const { email, password, role = 'admin' } = await req.json();
 
     if (!email || !password) {
@@ -64,9 +63,8 @@ export async function POST(req) {
 export async function PUT(req) {
   try {
     const user = await requireAuth(req);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
     const { id, role, password } = await req.json();
     if (!id) return Response.json({ error: 'User ID required' }, { status: 400 });
 

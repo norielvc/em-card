@@ -1,9 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
+import { rateLimit } from '../../../lib/security';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
+
+// Max upload size: 5MB (base64 ~6.7MB string)
+const MAX_BASE64_LENGTH = 7 * 1024 * 1024;
 
 function base64ToBlob(base64, contentType = 'image/jpeg') {
   const byteString = atob(base64.split(',')[1] || base64);
@@ -17,11 +21,33 @@ function base64ToBlob(base64, contentType = 'image/jpeg') {
 
 export async function POST(req) {
   try {
+    // Rate limit: 10 uploads per minute per IP
+    const limit = rateLimit(req, { windowMs: 60 * 1000, max: 10 });
+    if (!limit.allowed) {
+      return Response.json({ error: 'Too many uploads. Please slow down.' }, { status: 429 });
+    }
+
     const { base64, residentId } = await req.json();
 
     if (!base64 || !residentId) {
       return Response.json(
         { error: 'Missing base64 image or residentId' },
+        { status: 400 }
+      );
+    }
+
+    // Validate size
+    if (base64.length > MAX_BASE64_LENGTH) {
+      return Response.json(
+        { error: 'Image too large. Maximum size is 5MB.' },
+        { status: 413 }
+      );
+    }
+
+    // Validate base64 data URL format (must be image)
+    if (!base64.match(/^data:image\/(jpeg|jpg|png|gif|webp);base64,/i) && !base64.match(/^[A-Za-z0-9+/=]+$/)) {
+      return Response.json(
+        { error: 'Invalid image format. Only JPEG, PNG, GIF, WebP are allowed.' },
         { status: 400 }
       );
     }
