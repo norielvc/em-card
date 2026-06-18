@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { supabase } from '../../../lib/supabaseClient';
 import { Send, MessageSquare, CheckCircle, Home, ShieldCheck } from 'lucide-react';
 
 export default function CardDashboardPage() {
@@ -30,34 +29,27 @@ export default function CardDashboardPage() {
         setLoading(false);
         return;
       }
-      
-      const cleanToken = token.trim().replace(/[\r\n\t]/g, '');
-      const { data: reg, error: regErr } = await supabase
-        .from('registrations')
-        .select('*, ValidResidents(first_name, last_name, middle_name, suffix, barangay)')
-        .eq('qr_token', cleanToken)
-        .eq('status', 'Approved')
-        .maybeSingle();
 
-      if (regErr || !reg) {
-        setError('Invalid or unregistered EM Card.');
+      const cleanToken = token.trim().replace(/[\r\n\t]/g, '');
+      const res = await fetch(`/api/card-lookup?token=${encodeURIComponent(cleanToken)}`);
+      const json = await res.json();
+
+      if (!res.ok || json.error) {
+        setError(json.error || 'Invalid or unregistered EM Card.');
         setLoading(false);
         return;
       }
 
-      const person = reg.ValidResidents || {};
-      const fullName = `${person.first_name || ''} ${person.middle_name ? person.middle_name + ' ' : ''}${person.last_name || ''}${person.suffix ? ' ' + person.suffix : ''}`.trim();
-
       setData({
-        name: fullName,
-        barangay: person.barangay || '-',
-        purok: reg.purok || '-',
-        contact: reg.contact || '-',
-        photo: reg.photo_url || reg.photo_base64,
-        birthDate: reg.birthday,
-        scanCount: reg.scan_count || 0,
-        lastScanned: reg.last_scanned_at,
-        id: reg.id,
+        name: json.name,
+        barangay: json.barangay,
+        purok: json.purok,
+        contact: json.contact,
+        photo: json.photo,
+        birthDate: json.birthDate,
+        scanCount: json.scanCount,
+        lastScanned: json.lastScanned,
+        id: json.id,
       });
     } catch {
       setError('Network error. Please try again.');
