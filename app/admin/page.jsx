@@ -6625,6 +6625,7 @@ export default function AdminPage() {
   };
 
   const detectQRSimple = async (file) => {
+    const debug = [];
     return new Promise((resolve) => {
       const img = new Image();
       const url = URL.createObjectURL(file);
@@ -6649,16 +6650,19 @@ export default function AdminPage() {
           ctx.drawImage(img, 0, 0, width, height);
 
           const imageData = ctx.getImageData(0, 0, width, height);
+          debug.push(`img:${width}x${height}`);
 
           // ── Get jsQR by any means: static import → dynamic import → CDN ──
           let jsQRInstance = jsQR;
+          debug.push(`static:${typeof jsQRInstance}`);
 
           // Fallback 1: dynamic import (matches working project exactly)
           if (typeof jsQRInstance !== 'function') {
             try {
               const mod = await import('jsqr');
               jsQRInstance = mod.default;
-            } catch (e) { console.error('jsQR dynamic import failed:', e); }
+              debug.push('dyn:ok');
+            } catch (e) { debug.push(`dyn:${e.message}`); }
           }
 
           // Fallback 2: CDN
@@ -6672,10 +6676,12 @@ export default function AdminPage() {
                 script.onerror = () => rej(new Error('CDN load failed'));
               });
               jsQRInstance = window.jsQR;
-            } catch (e) { console.error('jsQR CDN fallback failed:', e); }
+              debug.push('cdn:ok');
+            } catch (e) { debug.push(`cdn:${e.message}`); }
           }
 
           if (typeof jsQRInstance === 'function') {
+            debug.push('jsQR:func');
             const detectionOptions = [
               { inversionAttempts: 'dontInvert' },
               { inversionAttempts: 'onlyInvert' },
@@ -6690,24 +6696,26 @@ export default function AdminPage() {
                 options,
               );
               if (code && code.data) {
-                resolve(code.data);
+                debug.push(`found:${code.data.substring(0, 20)}...`);
+                resolve({ data: code.data, debug: debug.join(' | ') });
                 return;
               }
             }
+            debug.push('found:none');
           } else {
-            console.error('jsQR not available. Type:', typeof jsQRInstance, 'Value:', jsQRInstance);
+            debug.push(`jsQR:${typeof jsQRInstance}`);
           }
 
-          resolve(null);
+          resolve({ data: null, debug: debug.join(' | ') });
         } catch (err) {
-          console.error('Detection error:', err);
-          resolve(null);
+          debug.push(`err:${err.message}`);
+          resolve({ data: null, debug: debug.join(' | ') });
         }
       };
 
       img.onerror = () => {
         URL.revokeObjectURL(url);
-        resolve(null);
+        resolve({ data: null, debug: 'img:error' });
       };
 
       img.src = url;
@@ -7309,7 +7317,7 @@ export default function AdminPage() {
                     setScanLoading(true);
 
                     try {
-                      const decodedText = await detectQRSimple(file);
+                      const { data: decodedText, debug } = await detectQRSimple(file);
 
                       if (decodedText) {
                         if (scanInProgressRef.current) {
@@ -7318,7 +7326,11 @@ export default function AdminPage() {
                           await handleEventScan(decodedText);
                         }
                       } else {
-                        setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
+                        setScanResult({
+                          type: 'invalid',
+                          message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.',
+                          rawText: debug,
+                        });
                       }
                     } catch (err) {
                       setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
