@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 import RegisterForm from '../components/RegisterForm';
 import { QRCodeSVG } from 'qrcode.react';
+import jsQR from 'jsqr';
 import { 
   Users, UserCheck, UserPlus, Trash2, Search, Download, QrCode, X, CheckCircle, Link2, 
   AlertTriangle, ChevronLeft, ChevronRight, Edit3, BarChart3, PieChart, TrendingUp, 
@@ -7216,7 +7217,7 @@ export default function AdminPage() {
                     setScanResult(null);
                     setScanLoading(true);
 
-                    // Last-resort safety: force reset UI after 15s if still analyzing
+                    // Safety timer: if the whole pipeline hangs, show error
                     let analysisCompleted = false;
                     const safetyTimer = setTimeout(() => {
                       if (!analysisCompleted) {
@@ -7225,19 +7226,20 @@ export default function AdminPage() {
                       }
                     }, 15000);
 
-                    try {
-                      // ── Simple, proven QR detection (matching reference project pattern)
-                      const decodedText = await new Promise((resolve) => {
-                        const img = new Image();
-                        const url = URL.createObjectURL(file);
+                    // ── Helper: try to decode QR from an image file ──
+                    const detectQR = (imageFile) => new Promise((resolve) => {
+                      const img = new Image();
+                      const url = URL.createObjectURL(imageFile);
 
-                        img.onload = async () => {
-                          URL.revokeObjectURL(url);
+                      img.onload = () => {
+                        URL.revokeObjectURL(url);
+
+                        // Try multiple sizes: small (fast) → original (accurate)
+                        const sizes = [600, 1200];
+                        for (const maxSize of sizes) {
                           const canvas = document.createElement('canvas');
-                          const ctx = canvas.getContext('2d');
+                          const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-                          // Reference project uses 600 — much safer on mobile than 1200
-                          const maxSize = 600;
                           let { width, height } = img;
                           if (width > maxSize || height > maxSize) {
                             const ratio = Math.min(maxSize / width, maxSize / height);
@@ -7249,50 +7251,40 @@ export default function AdminPage() {
                           canvas.height = height;
                           ctx.drawImage(img, 0, 0, width, height);
 
+                          // 1) Try original color first
                           const imageData = ctx.getImageData(0, 0, width, height);
-
-                          // Load jsQR — local first, then CDN fallback (same as reference)
-                          let jsQR;
-                          try {
-                            const mod = await import('jsqr');
-                            jsQR = mod.default;
-                          } catch (importErr) {
-                            try {
-                              const script = document.createElement('script');
-                              script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-                              document.head.appendChild(script);
-                              await new Promise((res, rej) => { script.onload = res; script.onerror = rej; });
-                              jsQR = window.jsQR;
-                            } catch (cdnErr) {
-                              resolve(null);
-                              return;
-                            }
-                          }
-
-                          if (typeof jsQR !== 'function') {
-                            resolve(null);
-                            return;
-                          }
-
-                          const detectionOptions = [
+                          const opts = [
                             { inversionAttempts: 'dontInvert' },
                             { inversionAttempts: 'onlyInvert' },
                             { inversionAttempts: 'attemptBoth' },
                           ];
-
-                          for (const opts of detectionOptions) {
-                            const result = jsQR(imageData.data, imageData.width, imageData.height, opts);
-                            if (result && result.data) {
-                              resolve(result.data);
-                              return;
-                            }
+                          for (const o of opts) {
+                            const result = jsQR(imageData.data, imageData.width, imageData.height, o);
+                            if (result && result.data) { resolve(result.data); return; }
                           }
-                          resolve(null);
-                        };
 
-                        img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
-                        img.src = url;
-                      });
+                          // 2) Try grayscale + contrast boost (helps with glare/shadows)
+                          const gsData = ctx.getImageData(0, 0, width, height);
+                          for (let i = 0; i < gsData.data.length; i += 4) {
+                            const gray = 0.299 * gsData.data[i] + 0.587 * gsData.data[i + 1] + 0.114 * gsData.data[i + 2];
+                            // Simple contrast boost: push toward 0 or 255
+                            const boosted = gray < 128 ? Math.max(0, gray - 30) : Math.min(255, gray + 30);
+                            gsData.data[i] = gsData.data[i + 1] = gsData.data[i + 2] = boosted;
+                          }
+                          for (const o of opts) {
+                            const result = jsQR(gsData.data, gsData.width, gsData.height, o);
+                            if (result && result.data) { resolve(result.data); return; }
+                          }
+                        }
+                        resolve(null);
+                      };
+
+                      img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+                      img.src = url;
+                    });
+
+                    try {
+                      const decodedText = await detectQR(file);
 
                       if (decodedText) {
                         if (scanInProgressRef.current) {
