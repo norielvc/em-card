@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '../../../lib/auth';
+import { requireAdmin } from '../../../lib/security';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -9,9 +10,8 @@ const supabaseAdmin = createClient(
 export async function GET(req) {
   try {
     const user = await requireAuth(req);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
@@ -36,9 +36,8 @@ export async function GET(req) {
 export async function PATCH(req) {
   try {
     const user = await requireAuth(req);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
 
     const body = await req.json();
     const { id, status } = body;

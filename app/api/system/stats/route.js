@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '../../../../lib/auth';
+import { requireAdmin } from '../../../../lib/security';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -57,9 +58,8 @@ async function listAllFiles(bucketName, prefix = '') {
 
 export async function GET(request) {
   const user = await requireAuth(request);
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const forbidden = requireAdmin(user);
+  if (forbidden) return forbidden;
 
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
     return NextResponse.json(

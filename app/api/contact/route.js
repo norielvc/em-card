@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import { requireAuth } from '../../../lib/auth';
-import { rateLimit } from '../../../lib/security';
+import { rateLimit, requireAdmin } from '../../../lib/security';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -137,9 +137,8 @@ export async function POST(req) {
 export async function GET(req) {
   try {
     const user = await requireAuth(req);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
