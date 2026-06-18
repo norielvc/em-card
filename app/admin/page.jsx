@@ -539,8 +539,8 @@ export default function AdminPage() {
   }, [isLoggedIn]);
 
   useEffect(() => {
-    if (isLoggedIn) fetchDashboardData();
-  }, [isLoggedIn]);
+    if (isLoggedIn && userRole === 'admin') fetchDashboardData();
+  }, [isLoggedIn, userRole]);
 
   // Fetch data for restored activeTab after login/refresh
   useEffect(() => {
@@ -2602,7 +2602,12 @@ export default function AdminPage() {
     { id: 'accounts', label: 'Accounts', icon: <Shield size={20} strokeWidth={1.8} /> },
     { id: 'adminLogs', label: 'Admin Logs', icon: <History size={20} strokeWidth={1.8} /> },
     { id: 'system', label: 'System', icon: <Monitor size={20} strokeWidth={1.8} /> },
-  ].filter(item => userRole !== 'staff' || item.id === 'eventScanner');
+  ].filter(item => {
+    if (userRole !== 'staff') return true;
+    // Staff sees: Event Scanner + Member Registration + Members + Registrations
+    const staffTabs = new Set(['eventScanner', 'registerMember', 'members', 'registrations']);
+    return staffTabs.has(item.id);
+  });
 
   // LOGIN SCREEN
   if (!isLoggedIn && authLoading) {
