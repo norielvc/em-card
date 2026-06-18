@@ -1733,15 +1733,19 @@ export default function AdminPage() {
 
   const generateQRToken = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const arr = new Uint8Array(24);
+    crypto.getRandomValues(arr);
     let token = '';
-    for (let i = 0; i < 24; i++) token += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 24; i++) token += chars[arr[i] % chars.length];
     return 'EM' + token;
   };
 
   const generateEMCardNo = () => {
     // Format: EM- followed by 10 random digits (0000000000)
+    const arr = new Uint8Array(10);
+    crypto.getRandomValues(arr);
     let digits = '';
-    for (let i = 0; i < 10; i++) digits += Math.floor(Math.random() * 10);
+    for (let i = 0; i < 10; i++) digits += arr[i] % 10;
     return `EM-${digits}`;
   };
 

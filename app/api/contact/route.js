@@ -128,7 +128,11 @@ export async function POST(req) {
     // 2. Send email notification (non-blocking)
     const emailResult = await sendEmailNotification({ name, email, inquiry_type, message });
 
-    return Response.json({ success: true, message: data, email: emailResult });
+    const sanitizedEmail = emailResult.error
+      ? { sent: false, error: 'Email notification failed' }
+      : { sent: true, id: emailResult.id };
+
+    return Response.json({ success: true, message: data, email: sanitizedEmail });
   } catch (err) {
     return Response.json({ error: 'Server error' }, { status: 500 });
   }

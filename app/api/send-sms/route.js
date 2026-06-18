@@ -335,7 +335,7 @@ export async function POST(request) {
         .single();
 
       if (regError) {
-        return Response.json({ error: `Database error: ${regError.message}` }, { status: 500 });
+        return Response.json({ error: 'Database error' }, { status: 500 });
       }
       if (!reg) {
         return Response.json({ error: 'User not found in database' }, { status: 400 });

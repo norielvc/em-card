@@ -697,7 +697,10 @@ export default function RegisterForm({ embedded = false }) {
 
       // Generate short reference number for display + UUID for DB id
       const refId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-      const shortRef = 'EM-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      const refArr = new Uint8Array(6);
+      crypto.getRandomValues(refArr);
+      const shortRef = 'EM-' + Array.from(refArr).map(b => chars[b % chars.length]).join('');
 
       const { error } = await supabase.from('registrations').insert({
         id: refId,

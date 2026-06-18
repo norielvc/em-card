@@ -116,8 +116,8 @@ export async function GET(request) {
       const { data, error } = await supabaseAdmin.rpc('get_table_sizes');
       if (error) throw error;
       dbSizes = data || [];
-    } catch (err) {
-      dbSizeError = err.message || 'Failed to fetch DB table sizes';
+    } catch {
+      dbSizeError = 'Failed to fetch DB table sizes';
     }
 
     const totalDbSize = dbSizes.reduce((sum, t) => sum + (t.size_bytes || 0), 0);
