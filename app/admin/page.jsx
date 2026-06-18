@@ -6623,6 +6623,78 @@ export default function AdminPage() {
     }
   };
 
+  const detectQRSimple = async (file) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+
+      img.onload = async () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          const maxSize = 600;
+          let { width, height } = img;
+
+          if (width > maxSize || height > maxSize) {
+            const ratio = Math.min(maxSize / width, maxSize / height);
+            width = Math.floor(width * ratio);
+            height = Math.floor(height * ratio);
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const imageData = ctx.getImageData(0, 0, width, height);
+
+          let jsQR;
+          try {
+            const jsQRModule = await import('jsqr');
+            jsQR = jsQRModule.default;
+          } catch (importError) {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+            document.head.appendChild(script);
+
+            await new Promise((res, rej) => {
+              script.onload = () => res();
+              script.onerror = () => rej(new Error('CDN load failed'));
+            });
+
+            jsQR = window.jsQR;
+          }
+
+          if (typeof jsQR === 'function') {
+            const detectionOptions = [
+              { inversionAttempts: 'dontInvert' },
+              { inversionAttempts: 'onlyInvert' },
+              { inversionAttempts: 'attemptBoth' },
+            ];
+
+            for (const options of detectionOptions) {
+              const code = jsQR(
+                imageData.data,
+                imageData.width,
+                imageData.height,
+                options,
+              );
+              if (code && code.data) {
+                resolve(code.data);
+                return;
+              }
+            }
+          }
+          resolve(null);
+        } catch {
+          resolve(null);
+        }
+      };
+
+      img.onerror = () => { resolve(null); };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleEventScan = async (rawToken) => {
     if (!rawToken.trim() || !selectedEvent) return;
     scanInProgressRef.current = true;
@@ -7213,41 +7285,12 @@ export default function AdminPage() {
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
+
                     setScanResult(null);
                     setScanLoading(true);
 
-                    // Safety timer in case scanFile hangs
-                    let done = false;
-                    const safetyTimer = setTimeout(() => {
-                      if (!done) {
-                        setScanLoading(false);
-                        setScanResult({ type: 'invalid', message: 'Image analysis timed out. Please use Camera or Manual mode instead.' });
-                      }
-                    }, 15000);
-
                     try {
-                      // Use Html5Qrcode (same proven library as camera mode) for file scanning
-                      const { Html5Qrcode } = await import('html5-qrcode');
-
-                      // Create a temporary hidden element for the scanner
-                      const divId = 'capture-qr-' + Date.now();
-                      const div = document.createElement('div');
-                      div.id = divId;
-                      div.style.display = 'none';
-                      document.body.appendChild(div);
-
-                      let decodedText = null;
-                      try {
-                        const scanner = new Html5Qrcode(divId);
-                        decodedText = await scanner.scanFile(file, /* showImage= */ false);
-                        await scanner.clear();
-                      } catch {
-                        // scanFile throws if no QR found — treat as not found
-                        decodedText = null;
-                      } finally {
-                        const el = document.getElementById(divId);
-                        if (el) document.body.removeChild(el);
-                      }
+                      const decodedText = await detectQRSimple(file);
 
                       if (decodedText) {
                         if (scanInProgressRef.current) {
@@ -7258,11 +7301,9 @@ export default function AdminPage() {
                       } else {
                         setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                       }
-                    } catch {
+                    } catch (err) {
                       setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                     } finally {
-                      done = true;
-                      clearTimeout(safetyTimer);
                       setScanLoading(false);
                       e.target.value = '';
                     }
