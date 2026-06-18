@@ -6,8 +6,8 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-// Max upload size: 5MB (base64 ~6.7MB string)
-const MAX_BASE64_LENGTH = 7 * 1024 * 1024;
+// Max upload size: 500KB binary (~667KB base64 string)
+const MAX_BASE64_LENGTH = 667 * 1024;
 
 function base64ToBlob(base64, contentType = 'image/jpeg') {
   const byteString = atob(base64.split(',')[1] || base64);
@@ -39,7 +39,7 @@ export async function POST(req) {
     // Validate size
     if (base64.length > MAX_BASE64_LENGTH) {
       return Response.json(
-        { error: 'Image too large. Maximum size is 5MB.' },
+        { error: 'Image too large. Maximum size is 500KB.' },
         { status: 413 }
       );
     }

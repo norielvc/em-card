@@ -6,6 +6,11 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+// Allowed image MIME types
+const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+// Max file size: 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
 export async function POST(req) {
   try {
     const user = await requireAuth(req);
@@ -19,7 +24,20 @@ export async function POST(req) {
       return Response.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    const fileName = `event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+    // Validate file type
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return Response.json({ error: 'Invalid file type. Only JPEG, PNG, GIF, WebP are allowed.' }, { status: 400 });
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      return Response.json({ error: 'File too large. Maximum size is 10MB.' }, { status: 413 });
+    }
+
+    // Use crypto-random filename
+    const crypto = await import('crypto');
+    const randomId = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
+    const fileName = `event-${Date.now()}-${randomId}.jpg`;
     const { data, error } = await supabaseAdmin.storage
       .from('event-images')
       .upload(fileName, file, { contentType: 'image/jpeg', upsert: true });

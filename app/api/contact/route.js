@@ -110,6 +110,12 @@ export async function POST(req) {
       return Response.json({ error: 'Name, email, and message are required' }, { status: 400 });
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return Response.json({ error: 'Invalid email format' }, { status: 400 });
+    }
+
     // 1. Save to database
     const { data, error } = await supabaseAdmin
       .from('contact_messages')

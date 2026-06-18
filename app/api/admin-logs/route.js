@@ -93,31 +93,52 @@ export async function POST(request) {
     }
     const body = await request.json();
     const {
-      admin_email,
       action_type,
       target_table,
       target_id,
       target_name,
       details,
-      ip_address,
     } = body;
 
-    if (!admin_email || !action_type) {
+    // Whitelist allowed action types to prevent log injection
+    const ALLOWED_ACTIONS = new Set([
+      'login', 'logout', 'scan_event', 'create_registration', 'update_registration',
+      'delete_registration', 'create_account', 'update_account', 'create_event',
+      'update_event', 'delete_event', 'send_message', 'view_report', 'export_data',
+    ]);
+
+    if (!action_type || !ALLOWED_ACTIONS.has(action_type)) {
       return Response.json(
-        { error: 'Missing required fields: admin_email and action_type' },
+        { error: 'Invalid or missing action_type' },
         { status: 400 }
       );
     }
+
+    // Validate target_table if provided
+    const ALLOWED_TABLES = new Set([
+      'registrations', 'ValidResidents', 'upcoming_events', 'event_scans',
+      'admin_users', 'contact_messages', 'grievances', 'messages', null,
+    ]);
+    const safeTargetTable = target_table || null;
+    if (safeTargetTable && !ALLOWED_TABLES.has(safeTargetTable)) {
+      return Response.json(
+        { error: 'Invalid target_table' },
+        { status: 400 }
+      );
+    }
+
+    // Derive admin_email from authenticated user (prevent spoofing)
+    const admin_email = user.email;
 
     const { data, error } = await supabase.from('admin_logs').insert([
       {
         admin_email,
         action_type,
-        target_table: target_table || null,
+        target_table: safeTargetTable,
         target_id: target_id || null,
         target_name: target_name || null,
-        details: details || {},
-        ip_address: ip_address || null,
+        details: typeof details === 'object' && details !== null ? details : {},
+        ip_address: null,
       },
     ]).select();
 

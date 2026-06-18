@@ -397,8 +397,8 @@ export default function RegisterForm({ embedded = false }) {
     return significantTokens.every(token => nameLower.includes(token));
   };
 
-  // Compress image to max 300KB (base64 length)
-  const compressImage = (dataUrl, maxKb = 300) => {
+  // Compress image to max 500KB (base64 length)
+  const compressImage = (dataUrl, maxKb = 500) => {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
@@ -584,7 +584,7 @@ export default function RegisterForm({ embedded = false }) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const rawDataUrl = canvas.toDataURL('image/jpeg');
-      const compressed = await compressImage(rawDataUrl, 300);
+      const compressed = await compressImage(rawDataUrl);
       setPhoto(compressed);
       setPhotoSource('camera');
       setPhotoProcessing(false);
@@ -609,7 +609,7 @@ export default function RegisterForm({ embedded = false }) {
     reader.onload = async (ev) => {
       setPhotoProcessing(true);
       try {
-        const compressed = await compressImage(ev.target.result, 300);
+        const compressed = await compressImage(ev.target.result);
         setPhotoProcessing(false);
         setPhoto(compressed);
         setPhotoSource('upload');

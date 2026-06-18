@@ -1804,7 +1804,7 @@ export default function AdminPage() {
     setMemberEditMode(true);
   };
 
-  const compressEditPhoto = (dataUrl, maxKb = 300) => {
+  const compressEditPhoto = (dataUrl, maxKb = 500) => {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
@@ -1864,7 +1864,7 @@ export default function AdminPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      const compressed = await compressEditPhoto(ev.target.result, 300);
+      const compressed = await compressEditPhoto(ev.target.result);
       setEditMemberForm(f => ({ ...f, photo_url: compressed }));
     };
     reader.readAsDataURL(file);
@@ -1905,7 +1905,7 @@ export default function AdminPage() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     stopEditCamera();
-    const compressed = await compressEditPhoto(dataUrl, 300);
+    const compressed = await compressEditPhoto(dataUrl);
     setEditMemberForm(f => ({ ...f, photo_url: compressed }));
   };
 
