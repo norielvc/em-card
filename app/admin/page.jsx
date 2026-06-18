@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 import RegisterForm from '../components/RegisterForm';
 import { QRCodeSVG } from 'qrcode.react';
+import jsQR from 'jsqr';
 import { 
   Users, UserCheck, UserPlus, Trash2, Search, Download, QrCode, X, CheckCircle, Link2, 
   AlertTriangle, ChevronLeft, ChevronRight, Edit3, BarChart3, PieChart, TrendingUp, 
@@ -6624,23 +6625,19 @@ export default function AdminPage() {
   };
 
   const detectQRSimple = async (file) => {
-    // Helper: check if decoded text contains something that looks like an EM token
-    const looksLikeEMToken = (text) => {
-      if (!text) return false;
-      const cleaned = text.replace(/[^\x20-\x7E]/g, '').replace(/\s/g, '').replace(/^\uFEFF/, '');
-      return /(EM[A-Za-z0-9]{24}|EM-\d{10})/.test(cleaned);
-    };
-
-    // ── PASS 1: jsQR (fast, works great on iOS and clear photos)
-    const tryJsQR = () => new Promise((resolve) => {
+    return new Promise((resolve) => {
       const img = new Image();
+      const url = URL.createObjectURL(file);
+
       img.onload = async () => {
+        URL.revokeObjectURL(url);
         try {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
 
           const maxSize = 600;
           let { width, height } = img;
+
           if (width > maxSize || height > maxSize) {
             const ratio = Math.min(maxSize / width, maxSize / height);
             width = Math.floor(width * ratio);
@@ -6650,75 +6647,71 @@ export default function AdminPage() {
           canvas.width = width;
           canvas.height = height;
           ctx.drawImage(img, 0, 0, width, height);
+
           const imageData = ctx.getImageData(0, 0, width, height);
 
-          let jsQR;
-          try {
-            const jsQRModule = await import('jsqr');
-            jsQR = jsQRModule.default;
-          } catch {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-            document.head.appendChild(script);
-            await new Promise((res, rej) => {
-              script.onload = () => res();
-              script.onerror = () => rej(new Error('CDN load failed'));
-            });
-            jsQR = window.jsQR;
+          // ── Get jsQR by any means: static import → dynamic import → CDN ──
+          let jsQRInstance = jsQR;
+
+          // Fallback 1: dynamic import (matches working project exactly)
+          if (typeof jsQRInstance !== 'function') {
+            try {
+              const mod = await import('jsqr');
+              jsQRInstance = mod.default;
+            } catch (e) { console.error('jsQR dynamic import failed:', e); }
           }
 
-          if (typeof jsQR === 'function') {
-            const opts = [
+          // Fallback 2: CDN
+          if (typeof jsQRInstance !== 'function') {
+            try {
+              const script = document.createElement('script');
+              script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+              document.head.appendChild(script);
+              await new Promise((res, rej) => {
+                script.onload = () => res();
+                script.onerror = () => rej(new Error('CDN load failed'));
+              });
+              jsQRInstance = window.jsQR;
+            } catch (e) { console.error('jsQR CDN fallback failed:', e); }
+          }
+
+          if (typeof jsQRInstance === 'function') {
+            const detectionOptions = [
               { inversionAttempts: 'dontInvert' },
               { inversionAttempts: 'onlyInvert' },
               { inversionAttempts: 'attemptBoth' },
             ];
-            for (const o of opts) {
-              const code = jsQR(imageData.data, imageData.width, imageData.height, o);
-              if (code && code.data) { resolve(code.data); return; }
+
+            for (const options of detectionOptions) {
+              const code = jsQRInstance(
+                imageData.data,
+                imageData.width,
+                imageData.height,
+                options,
+              );
+              if (code && code.data) {
+                resolve(code.data);
+                return;
+              }
             }
+          } else {
+            console.error('jsQR not available. Type:', typeof jsQRInstance, 'Value:', jsQRInstance);
           }
+
           resolve(null);
-        } catch { resolve(null); }
-      };
-      img.onerror = () => { resolve(null); };
-      img.src = URL.createObjectURL(file);
-    });
-
-    // ── PASS 2: Html5Qrcode.scanFile (better image preprocessing, works on tricky Android photos)
-    const tryHtml5Qrcode = async () => {
-      try {
-        const { Html5Qrcode } = await import('html5-qrcode');
-        const divId = 'capture-fallback-' + Date.now();
-        const div = document.createElement('div');
-        div.id = divId;
-        div.style.display = 'none';
-        document.body.appendChild(div);
-
-        let decodedText = null;
-        try {
-          const scanner = new Html5Qrcode(divId);
-          decodedText = await scanner.scanFile(file, false);
-          await scanner.clear();
-        } catch {
-          decodedText = null;
-        } finally {
-          const el = document.getElementById(divId);
-          if (el) document.body.removeChild(el);
+        } catch (err) {
+          console.error('Detection error:', err);
+          resolve(null);
         }
-        return decodedText;
-      } catch { return null; }
-    };
+      };
 
-    const jsQRResult = await tryJsQR();
-    if (looksLikeEMToken(jsQRResult)) return jsQRResult;
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
 
-    const html5Result = await tryHtml5Qrcode();
-    if (looksLikeEMToken(html5Result)) return html5Result;
-
-    // Return whichever found something, even if it doesn't look valid
-    // (handleEventScan will show the proper error with raw text for debugging)
-    return html5Result || jsQRResult || null;
+      img.src = url;
+    });
   };
 
   const handleEventScan = async (rawToken) => {
