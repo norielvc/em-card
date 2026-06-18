@@ -9,8 +9,10 @@ const supabaseAdmin = createClient(
 export async function GET(request) {
   try {
     // Rate limit: 20 lookups/min per IP
-    const rate = rateLimit(request, { max: 20, windowSeconds: 60 });
-    if (rate) return rate;
+    const rate = rateLimit(request, { max: 20, windowMs: 60 * 1000 });
+    if (!rate.allowed) {
+      return Response.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
+    }
 
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
