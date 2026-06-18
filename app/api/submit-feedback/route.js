@@ -21,6 +21,22 @@ export async function POST(req) {
       return Response.json({ error: 'Registration ID and message are required' }, { status: 400 });
     }
 
+    // Per-user daily limit: max 2 feedback submissions per registration per day
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: todayCount, error: countErr } = await supabaseAdmin
+      .from('grievances')
+      .select('*', { count: 'exact', head: true })
+      .eq('registration_id', registration_id)
+      .gte('created_at', oneDayAgo);
+
+    if (countErr) {
+      return Response.json({ error: 'Server error' }, { status: 500 });
+    }
+
+    if (todayCount >= 2) {
+      return Response.json({ error: 'You can only send 2 messages per day. Please try again tomorrow.' }, { status: 429 });
+    }
+
     // Security: verify the token actually belongs to the registration_id
     if (token) {
       const { data: regCheck, error: regErr } = await supabaseAdmin
