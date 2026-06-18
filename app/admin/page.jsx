@@ -491,25 +491,50 @@ export default function AdminPage() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // ── Auto-logout after 30 minutes of inactivity ──
+  // ── Auto-logout after 30 minutes of inactivity (mobile-safe) ──
   useEffect(() => {
     if (!isLoggedIn) return;
     const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 minutes
     let timer;
-    const resetTimer = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
+    let lastActivity = Date.now();
+
+    const checkInactive = () => {
+      if (Date.now() - lastActivity > INACTIVITY_LIMIT) {
         handleLogout();
-      }, INACTIVITY_LIMIT);
+      }
     };
-    resetTimer();
-    const events = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'];
-    events.forEach(e => window.addEventListener(e, resetTimer));
+
+    const reset = () => {
+      lastActivity = Date.now();
+      clearTimeout(timer);
+      timer = setTimeout(checkInactive, INACTIVITY_LIMIT);
+    };
+
+    reset();
+
+    // Standard interaction events (passive for mobile perf)
+    const events = ['mousemove', 'keydown', 'click', 'touchstart', 'touchmove', 'scroll'];
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+
+    // CRITICAL for mobile: check inactivity when tab becomes visible again
+    // because setTimeout is heavily throttled in background tabs
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkInactive();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Fallback interval check (10s) for browsers that throttle timers
+    const interval = setInterval(checkInactive, 10000);
+
     return () => {
       clearTimeout(timer);
-      events.forEach(e => window.removeEventListener(e, resetTimer));
+      clearInterval(interval);
+      events.forEach(e => window.removeEventListener(e, reset));
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [isLoggedIn]);
+  }, [isLoggedIn, handleLogout]);
 
   useEffect(() => {
     if (isLoggedIn) fetchDashboardData();
@@ -2060,13 +2085,13 @@ export default function AdminPage() {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     logAdminAction('logout', null, null, null, { email: username });
     await supabase.auth.signOut();
     setPassword('');
     setLoginError('');
     setSidebarOpen(false);
-  };
+  }, [username]);
 
   const handleCreateAccount = async (e) => {
     e.preventDefault();
