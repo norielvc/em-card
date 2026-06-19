@@ -10187,6 +10187,23 @@ p {
   border: none;
 }
 
+.reg-edit-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1.5px solid var(--emerald);
+  border-radius: 7px;
+  font-size: 0.88rem;
+  background: #f0fdf4;
+  color: var(--green-deep);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.reg-edit-input:focus {
+  border-color: var(--emerald-dark);
+  background: #fff;
+}
+
 @media (max-width: 480px) {
   .reg-detail-grid {
     grid-template-columns: 1fr;
@@ -12144,6 +12161,16 @@ p {
   border-color: #ef4444;
   background: #fef2f2;
   color: #ef4444;
+}
+
+.action-btn.action-promote {
+  color: #10b981;
+}
+
+.action-btn.action-promote:hover {
+  border-color: #10b981;
+  background: #ecfdf5;
+  color: #059669;
 }
 
 /* ===== RESIDENTS TABLE MOBILE CARDS ===== */

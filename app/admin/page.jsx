@@ -57,6 +57,8 @@ export default function AdminPage() {
     }
     return null;
   });
+  const [unreadInquiries, setUnreadInquiries] = useState([]);
+  const [unreadFeedback, setUnreadFeedback] = useState([]);
 
   // Persist / Restore admin active tab on refresh
   const ADMIN_TAB_KEY = 'emcard_admin_tab';
@@ -153,6 +155,9 @@ export default function AdminPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [selectedRegDetail, setSelectedRegDetail] = useState(null);
+  const [regEditMode, setRegEditMode] = useState(false);
+  const [regEditForm, setRegEditForm] = useState({});
+  const [regEditLoading, setRegEditLoading] = useState(false);
   const [adminReferral, setAdminReferral] = useState('');
   const [adminReferralQuery, setAdminReferralQuery] = useState('');
   const [adminReferralResults, setAdminReferralResults] = useState([]);
@@ -177,6 +182,10 @@ export default function AdminPage() {
   const [deleteMemberId, setDeleteMemberId] = useState(null);
   const [deleteMemberName, setDeleteMemberName] = useState('');
   const [deleteMemberLoading, setDeleteMemberLoading] = useState(false);
+  // Promote to registered voter
+  const [showPromoteModal, setShowPromoteModal] = useState(false);
+  const [promoteReg, setPromoteReg] = useState(null);
+  const [promoteLoading, setPromoteLoading] = useState(false);
   const [idCardSide, setIdCardSide] = useState('front');
   const [memberScanHistory, setMemberScanHistory] = useState([]);
   const [scanQrMember, setScanQrMember] = useState(null);
@@ -541,6 +550,13 @@ export default function AdminPage() {
   useEffect(() => {
     if (isLoggedIn && userRole === 'admin') fetchDashboardData();
   }, [isLoggedIn, userRole]);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchContactInquiries();
+      fetchGrievances();
+    }
+  }, [isLoggedIn]);
 
   // Fetch data for restored activeTab after login/refresh
   useEffect(() => {
@@ -1784,11 +1800,11 @@ export default function AdminPage() {
   const openEditMember = (reg) => {
     const r = reg.ValidResidents || {};
     setEditMemberForm({
-      first_name: r.first_name || '',
-      middle_name: r.middle_name || '',
-      last_name: r.last_name || '',
-      suffix: r.suffix || '',
-      barangay: r.barangay || '',
+      first_name: r.first_name || reg.first_name || '',
+      middle_name: r.middle_name || reg.middle_name || '',
+      last_name: r.last_name || reg.last_name || '',
+      suffix: r.suffix || reg.suffix || '',
+      barangay: r.barangay || reg.barangay || '',
       house_no: reg.house_no || '',
       purok: reg.purok || '',
       contact: reg.contact || '',
@@ -1799,13 +1815,72 @@ export default function AdminPage() {
       block: reg.block || '',
       phase: reg.phase || '',
       referral_name: reg.referral_name || '',
-      birthday: reg.birthday || '',
+      birthday: (() => {
+        if (!reg.birthday) return '';
+        const raw = reg.birthday.trim();
+        // Already YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+        // Text format like "June 27, 1971" or "1997-06-19"
+        const parsed = new Date(raw);
+        if (!isNaN(parsed.getTime())) {
+          const y = parsed.getFullYear();
+          const m = String(parsed.getMonth() + 1).padStart(2, '0');
+          const d = String(parsed.getDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        }
+        return '';
+      })(),
       photo_url: reg.photo_url || reg.photo_base64 || '',
     });
     setEditReferralQuery(reg.referral_name || '');
     setEditReferralValid(!!reg.referral_name);
     setEditReferralResults([]);
     setMemberEditMode(true);
+  };
+
+  const moveToRegisteredVoters = async () => {
+    if (!promoteReg) return;
+    const name = getResidentName(promoteReg);
+    setPromoteLoading(true);
+    try {
+      // 1. Create ValidResidents record
+      const { data: newResident, error: insertErr } = await supabase
+        .from('ValidResidents')
+        .insert([{
+          last_name: promoteReg.last_name || '',
+          first_name: promoteReg.first_name || '',
+          middle_name: promoteReg.middle_name || '',
+          suffix: promoteReg.suffix || '',
+          barangay: promoteReg.barangay || '',
+          precinct: '',
+          status: 'Registered'
+        }])
+        .select()
+        .single();
+
+      if (insertErr) throw insertErr;
+
+      // 2. Update registration to link to new ValidResidents record
+      const { error: updateErr } = await supabase
+        .from('registrations')
+        .update({
+          resident_id: newResident.id,
+          is_valid_resident: true
+        })
+        .eq('id', promoteReg.id);
+
+      if (updateErr) throw updateErr;
+
+      showToast(`"${name}" moved to Registered Voters`, 'success');
+      logAdminAction('approve_member', 'ValidResidents', newResident.id, name, { from_member_id: promoteReg.id });
+      setShowPromoteModal(false);
+      setPromoteReg(null);
+      await fetchAllRegistrations();
+    } catch (err) {
+      showToast(err.message || 'Failed to move member', 'error');
+    } finally {
+      setPromoteLoading(false);
+    }
   };
 
   const compressEditPhoto = (dataUrl, maxKb = 500) => {
@@ -1984,6 +2059,43 @@ export default function AdminPage() {
       showToast(err.message || 'Failed to update member', 'error');
     } finally {
       setEditMemberLoading(false);
+    }
+  };
+
+  const handleSaveRegEdit = async () => {
+    if (!selectedRegDetail) return;
+    setRegEditLoading(true);
+    try {
+      const { error } = await supabase
+        .from('registrations')
+        .update({
+          house_no: regEditForm.house_no,
+          purok: regEditForm.purok,
+          barangay: regEditForm.barangay,
+          contact: regEditForm.contact,
+          sector_category: regEditForm.sector_category,
+          gender: regEditForm.gender,
+          civil_status: regEditForm.civil_status,
+          birthday: regEditForm.birthday,
+          lot: regEditForm.lot,
+          block: regEditForm.block,
+          phase: regEditForm.phase,
+        })
+        .eq('id', selectedRegDetail.id);
+
+      if (error) throw error;
+
+      showToast('Registration updated', 'success');
+      logAdminAction('edit_resident', 'registrations', selectedRegDetail.id, getResidentName(selectedRegDetail), {});
+      setRegEditMode(false);
+      // Refresh local state
+      const updated = { ...selectedRegDetail, ...regEditForm };
+      setSelectedRegDetail(updated);
+      await fetchAllRegistrations();
+    } catch (err) {
+      showToast(err.message || 'Failed to update registration', 'error');
+    } finally {
+      setRegEditLoading(false);
     }
   };
 
@@ -2760,7 +2872,9 @@ export default function AdminPage() {
     try {
       const res = await authFetch('/api/grievances');
       const data = await res.json();
-      setGrievances(data.grievances || []);
+      const list = data.grievances || [];
+      setGrievances(list);
+      setUnreadFeedback(list.filter(g => !['resolved', 'closed', 'done'].includes((g.status || '').toLowerCase())));
     } catch (err) {
       // silent
     } finally {
@@ -2773,7 +2887,9 @@ export default function AdminPage() {
     try {
       const res = await authFetch('/api/contact');
       const data = await res.json();
-      setContactInquiries(data.messages || []);
+      const list = data.messages || [];
+      setContactInquiries(list);
+      setUnreadInquiries(list.filter(m => m.status === 'unread'));
     } catch (err) {
       // silent
     } finally {
@@ -3029,10 +3145,6 @@ export default function AdminPage() {
         <button className="quick-action-btn" onClick={() => { setShowAddModal(true); setAddError(''); }}>
           <Plus size={18} />
           <span>Add Resident</span>
-        </button>
-        <button className="quick-action-btn" onClick={() => window.open('/register', '_blank')} style={{ border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-          <UserPlus size={18} style={{ color: '#10b981' }} />
-          <span style={{ color: '#047857', fontWeight: 'bold' }}>Register Member</span>
         </button>
       </div>
 
@@ -4282,9 +4394,6 @@ export default function AdminPage() {
             <button className="btn btn-action-outline" onClick={() => downloadRegistrationsCSV(filteredRegs)}>
               <Download size={14} /> Export CSV
             </button>
-            <button className="btn btn-action-primary" onClick={() => window.open('/register', '_blank')} style={{ background: '#10b981' }}>
-              <UserPlus size={14} /> Register Member
-            </button>
           </div>
         </div>
 
@@ -4670,6 +4779,11 @@ export default function AdminPage() {
                         <td onClick={() => setSelectedMember(reg)}>{new Date(reg.created_at).toLocaleDateString()}</td>
                         <td>
                           <div className="resident-actions">
+                            {!reg.is_valid_resident && (
+                              <button className="action-btn action-promote" onClick={(e) => { e.stopPropagation(); setPromoteReg(reg); setShowPromoteModal(true); }} title="Move to Registered Voters">
+                                <ArrowRight size={14} />
+                              </button>
+                            )}
                             <button className="action-btn action-edit" onClick={(e) => { e.stopPropagation(); setSelectedMember(reg); openEditMember(reg); }} title="Edit member">
                               <Pencil size={14} />
                             </button>
@@ -7661,8 +7775,9 @@ export default function AdminPage() {
                   const newCount = lastNotifSeen 
                     ? pendingRegs.filter(r => new Date(r.created_at) > new Date(lastNotifSeen)).length
                     : pendingRegs.length;
-                  return newCount > 0 ? (
-                    <span className="topbar-notify-count">{newCount}</span>
+                  const total = newCount + unreadInquiries.length + unreadFeedback.length;
+                  return total > 0 ? (
+                    <span className="topbar-notify-count">{total}</span>
                   ) : null;
                 })()}
               </div>
@@ -7670,40 +7785,86 @@ export default function AdminPage() {
                 <div className="notif-dropdown">
                   <div className="notif-dropdown-header">
                     <h4>Notifications</h4>
-                    {allRegs.filter(r => r.status === 'Pending').length > 0 && (
-                      <span className="notif-badge">{allRegs.filter(r => r.status === 'Pending').length} pending</span>
+                    {(allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length) > 0 && (
+                      <span className="notif-badge">{allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length} new</span>
                     )}
                   </div>
                   <div className="notif-dropdown-body">
-                    {allRegs.filter(r => r.status === 'Pending').length > 0 ? (
-                      allRegs.filter(r => r.status === 'Pending').slice(0, 5).map(reg => {
-                        const fullName = getResidentName(reg);
-                        const shortName = fullName.length > 25 ? fullName.slice(0, 22) + '...' : fullName;
-                        const barangay = reg.barangay || 'No barangay';
-                        const shortBarangay = barangay.length > 15 ? barangay.slice(0, 12) + '...' : barangay;
-                        return (
-                          <div key={reg.id} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('registrations'); }}>
-                            <div className="notif-icon"><UserCheck size={16} /></div>
-                            <div className="notif-content">
-                              <p className="notif-title">New registration</p>
-                              <p className="notif-desc" title={`${fullName} — ${barangay}`}>{shortName} — {shortBarangay}</p>
-                              <span className="notif-time">{new Date(reg.created_at).toLocaleDateString()}</span>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
+                    {(allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length) === 0 ? (
                       <div className="notif-empty">
                         <Info size={24} />
                         <span>No new notifications</span>
                       </div>
+                    ) : (
+                      <>
+                        {[
+                          ...allRegs.filter(r => r.status === 'Pending').map(reg => ({ _type: 'reg', _date: reg.created_at, reg })),
+                          ...unreadInquiries.map(msg => ({ _type: 'inquiry', _date: msg.created_at, msg })),
+                          ...unreadFeedback.map(g => ({ _type: 'feedback', _date: g.created_at, g })),
+                        ]
+                          .sort((a, b) => new Date(b._date) - new Date(a._date))
+                          .slice(0, 8)
+                          .map((item, idx) => {
+                            if (item._type === 'reg') {
+                              const { reg } = item;
+                              const fullName = getResidentName(reg);
+                              const shortName = fullName.length > 25 ? fullName.slice(0, 22) + '...' : fullName;
+                              const barangay = reg.barangay || 'No barangay';
+                              const shortBarangay = barangay.length > 15 ? barangay.slice(0, 12) + '...' : barangay;
+                              return (
+                                <div key={`reg-${reg.id}`} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('registrations'); }}>
+                                  <div className="notif-icon"><UserCheck size={16} /></div>
+                                  <div className="notif-content">
+                                    <p className="notif-title">New registration</p>
+                                    <p className="notif-desc" title={`${fullName} — ${barangay}`}>{shortName} — {shortBarangay}</p>
+                                    <span className="notif-time">{new Date(reg.created_at).toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            if (item._type === 'inquiry') {
+                              const { msg } = item;
+                              return (
+                                <div key={`inq-${msg.id}`} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('inquiries'); fetchContactInquiries(); }}>
+                                  <div className="notif-icon" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}><Inbox size={16} /></div>
+                                  <div className="notif-content">
+                                    <p className="notif-title">New inquiry</p>
+                                    <p className="notif-desc">{msg.name || 'Anonymous'} — {msg.inquiry_type || 'General'}</p>
+                                    <span className="notif-time">{new Date(msg.created_at).toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            if (item._type === 'feedback') {
+                              const { g } = item;
+                              return (
+                                <div key={`fb-${g.id}`} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('feedback'); fetchGrievances(); }}>
+                                  <div className="notif-icon" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}><MessageSquare size={16} /></div>
+                                  <div className="notif-content">
+                                    <p className="notif-title">New feedback</p>
+                                    <p className="notif-desc">{g.type || 'Feedback'} — {g.status || 'open'}</p>
+                                    <span className="notif-time">{new Date(g.created_at).toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })
+                        }
+                      </>
                     )}
                   </div>
-                  {allRegs.filter(r => r.status === 'Pending').length > 0 && (
-                    <div className="notif-dropdown-footer">
-                      <button onClick={() => { setNotifOpen(false); setActiveTab('registrations'); }}>
-                        View all registrations
-                      </button>
+                  {(allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length) > 0 && (
+                    <div className="notif-dropdown-footer" style={{ display: 'flex', gap: 8 }}>
+                      {allRegs.filter(r => r.status === 'Pending').length > 0 && (
+                        <button onClick={() => { setNotifOpen(false); setActiveTab('registrations'); }}>Registrations</button>
+                      )}
+                      {unreadInquiries.length > 0 && (
+                        <button onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('inquiries'); fetchContactInquiries(); }}>Inquiries</button>
+                      )}
+                      {unreadFeedback.length > 0 && (
+                        <button onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('feedback'); fetchGrievances(); }}>Feedback</button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -7846,6 +8007,35 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* PROMOTE TO REGISTERED VOTER MODAL */}
+      {showPromoteModal && typeof document !== 'undefined' && createPortal(
+        <div className="modal-overlay" onClick={() => { setShowPromoteModal(false); setPromoteReg(null); }}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: '8px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981' }}>
+                <UserCheck size={22} /> Move to Registered Voters
+              </h3>
+              <button className="modal-close-x" onClick={() => { setShowPromoteModal(false); setPromoteReg(null); }}>✕</button>
+            </div>
+            <div className="modal-body" style={{ paddingTop: '0' }}>
+              <p style={{ color: '#4b5563', lineHeight: 1.6 }}>
+                Move <strong>{promoteReg ? getResidentName(promoteReg) : ''}</strong> to Registered Voters?
+              </p>
+              <p style={{ color: '#6b7280', fontSize: '0.85rem', lineHeight: 1.6, marginTop: '8px' }}>
+                This will create a ValidResidents record and link this member to it. Their voter status will change to <strong>Registered Voter</strong>.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-modal-secondary" onClick={() => { setShowPromoteModal(false); setPromoteReg(null); }}>Cancel</button>
+              <button type="button" className="btn btn-modal-primary" onClick={moveToRegisteredVoters} disabled={promoteLoading}>
+                {promoteLoading ? 'Moving...' : 'Move to Registered Voters'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* DELETE MEMBER CONFIRMATION MODAL */}
       {showDeleteMemberModal && (
         <div className="modal-overlay" onClick={() => setShowDeleteMemberModal(false)}>
@@ -7976,29 +8166,54 @@ export default function AdminPage() {
                 </div>
                 <div className="reg-detail-item">
                   <span className="reg-detail-label">Barangay</span>
-                  <span className="reg-detail-value">{selectedRegDetail.barangay || '-'}</span>
+                  {regEditMode ? <input className="reg-edit-input" value={regEditForm.barangay} onChange={e => setRegEditForm(f => ({...f, barangay: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.barangay || '-'}</span>}
                 </div>
                 <div className="reg-detail-item">
                   <span className="reg-detail-label">Sector</span>
-                  <span className="reg-detail-value">{selectedRegDetail.sector_category}</span>
+                  {regEditMode ? (
+                    <select className="reg-edit-input" value={regEditForm.sector_category} onChange={e => setRegEditForm(f => ({...f, sector_category: e.target.value}))}>
+                      {['Senior Citizens','PWD','Solo Parents','Farmers / Fisherfolk','Workers / Labor','Youth','Indigenous People','Women','Others'].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  ) : <span className="reg-detail-value">{selectedRegDetail.sector_category}</span>}
                 </div>
                 <div className="reg-detail-item">
                   <span className="reg-detail-label">Gender</span>
-                  <span className="reg-detail-value">{selectedRegDetail.gender || '-'}</span>
+                  {regEditMode ? (
+                    <select className="reg-edit-input" value={regEditForm.gender} onChange={e => setRegEditForm(f => ({...f, gender: e.target.value}))}>
+                      <option value="">Select...</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  ) : <span className="reg-detail-value">{selectedRegDetail.gender || '-'}</span>}
                 </div>
                 <div className="reg-detail-item">
                   <span className="reg-detail-label">Civil Status</span>
-                  <span className="reg-detail-value">{selectedRegDetail.civil_status || '-'}</span>
+                  {regEditMode ? (
+                    <select className="reg-edit-input" value={regEditForm.civil_status} onChange={e => setRegEditForm(f => ({...f, civil_status: e.target.value}))}>
+                      <option value="">Select...</option>
+                      <option value="Single">Single</option>
+                      <option value="Married">Married</option>
+                      <option value="Widowed">Widowed</option>
+                      <option value="Separated">Separated</option>
+                    </select>
+                  ) : <span className="reg-detail-value">{selectedRegDetail.civil_status || '-'}</span>}
                 </div>
-                {!SUBDIVISION_PUROKS.includes(selectedRegDetail.purok) && (
+                {!SUBDIVISION_PUROKS.includes(regEditMode ? regEditForm.purok : selectedRegDetail.purok) && (
                   <div className="reg-detail-item">
                     <span className="reg-detail-label">House Number</span>
-                    <span className="reg-detail-value">{selectedRegDetail.house_no || '-'}</span>
+                    {regEditMode ? <input className="reg-edit-input" value={regEditForm.house_no} onChange={e => setRegEditForm(f => ({...f, house_no: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.house_no || '-'}</span>}
                   </div>
                 )}
                 <div className="reg-detail-item">
                   <span className="reg-detail-label">Purok</span>
-                  <span className="reg-detail-value">{selectedRegDetail.purok ? (SUBDIVISION_PUROKS.includes(selectedRegDetail.purok) ? selectedRegDetail.purok : `Purok ${selectedRegDetail.purok}`) : '-'}</span>
+                  {regEditMode ? (
+                    <select className="reg-edit-input" value={regEditForm.purok} onChange={e => setRegEditForm(f => ({...f, purok: e.target.value}))}>
+                      <option value="">Select purok...</option>
+                      {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Purok {n}</option>)}
+                      {regEditForm.purok && ![1,2,3,4,5,6,7].map(String).includes(String(regEditForm.purok)) && regEditForm.purok !== '' && <option value={regEditForm.purok}>{regEditForm.purok}</option>}
+                    </select>
+                  ) : <span className="reg-detail-value">{selectedRegDetail.purok ? (SUBDIVISION_PUROKS.includes(selectedRegDetail.purok) ? selectedRegDetail.purok : `Purok ${selectedRegDetail.purok}`) : '-'}</span>}
                 </div>
                 {SUBDIVISION_PUROKS.includes(selectedRegDetail.purok) && (
                   <>
@@ -8132,11 +8347,11 @@ export default function AdminPage() {
                 </div>
                 <div className="reg-detail-item">
                   <span className="reg-detail-label">Contact</span>
-                  <span className="reg-detail-value">{selectedRegDetail.contact || '-'}</span>
+                  {regEditMode ? <input className="reg-edit-input" value={regEditForm.contact} onChange={e => setRegEditForm(f => ({...f, contact: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.contact || '-'}</span>}
                 </div>
                 <div className="reg-detail-item">
                   <span className="reg-detail-label">Birthday</span>
-                  <span className="reg-detail-value">{selectedRegDetail.birthday}</span>
+                  {regEditMode ? <input type="date" className="reg-edit-input" value={regEditForm.birthday} onChange={e => setRegEditForm(f => ({...f, birthday: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.birthday || '-'}</span>}
                 </div>
                 <div className="reg-detail-item">
                   <span className="reg-detail-label">Photo Size</span>
@@ -8149,8 +8364,31 @@ export default function AdminPage() {
               </div>
             </div>
             <div className="modal-footer">
-              <button type="button" className="btn btn-modal-secondary" onClick={() => setSelectedRegDetail(null)}>Close</button>
-              {selectedRegDetail.status === 'Pending' && (
+              <button type="button" className="btn btn-modal-secondary" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>Close</button>
+              {!regEditMode ? (
+                <button type="button" className="btn btn-modal-primary" style={{ background: '#1d4ed8' }} onClick={() => {
+                  setRegEditForm({
+                    house_no: selectedRegDetail.house_no || '',
+                    purok: selectedRegDetail.purok || '',
+                    barangay: selectedRegDetail.barangay || '',
+                    contact: selectedRegDetail.contact || '',
+                    sector_category: selectedRegDetail.sector_category || '',
+                    gender: selectedRegDetail.gender || '',
+                    civil_status: selectedRegDetail.civil_status || '',
+                    birthday: selectedRegDetail.birthday ? (() => { const d = new Date(selectedRegDetail.birthday); return isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '',
+                    lot: selectedRegDetail.lot || '',
+                    block: selectedRegDetail.block || '',
+                    phase: selectedRegDetail.phase || '',
+                  });
+                  setRegEditMode(true);
+                }}>Edit</button>
+              ) : (
+                <>
+                  <button type="button" className="btn btn-modal-secondary" onClick={() => setRegEditMode(false)}>Cancel Edit</button>
+                  <button type="button" className="btn btn-modal-primary" onClick={handleSaveRegEdit} disabled={regEditLoading}>{regEditLoading ? 'Saving...' : 'Save Changes'}</button>
+                </>
+              )}
+              {!regEditMode && selectedRegDetail.status === 'Pending' && (
                 <>
                   <button 
                     type="button" 
@@ -8168,7 +8406,7 @@ export default function AdminPage() {
                   <button type="button" className="btn btn-reject" onClick={() => { rejectRegistration(selectedRegDetail.id); setSelectedRegDetail(null); }}>Reject</button>
                 </>
               )}
-              {selectedRegDetail.status === 'Approved' && (
+              {!regEditMode && selectedRegDetail.status === 'Approved' && (
                 <button type="button" className="btn btn-print" onClick={() => setSelectedRegDetail(null)}>🖨️ Print Card</button>
               )}
             </div>
@@ -8305,6 +8543,9 @@ export default function AdminPage() {
                                 <option value="North Ville 6">North Ville 6</option>
                                 <option value="Balagtas Heights">Balagtas Heights</option>
                               </>
+                            )}
+                            {editMemberForm.purok && ![1,2,3,4,5,6,7].map(String).includes(String(editMemberForm.purok)) && !['North Ville 6','Balagtas Heights',''].includes(editMemberForm.purok) && (
+                              <option value={editMemberForm.purok}>{editMemberForm.purok}</option>
                             )}
                           </select>
                         </div>
@@ -8682,7 +8923,11 @@ export default function AdminPage() {
                       <div className="member-detail-item"><span className="member-detail-label"><Hash size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Precinct</span><span className="member-detail-value">{r.precinct || '-'}</span></div>
                       <div className="member-detail-item"><span className="member-detail-label"><Tag size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Sector</span><span className="member-detail-value">{selectedMember.sector_category || '-'}</span></div>
                       <div className="member-detail-item"><span className="member-detail-label"><Phone size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Contact</span><span className="member-detail-value">{selectedMember.contact || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Shield size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Suffix</span><span className="member-detail-value">{r.suffix || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><Shield size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Suffix</span><span className="member-detail-value">{r.suffix || selectedMember.suffix || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><Cake size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Birthday</span><span className="member-detail-value">{selectedMember.birthday ? (() => { const raw = selectedMember.birthday.trim(); const d = new Date(raw); return isNaN(d.getTime()) ? raw : d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); })() : '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><User size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Gender</span><span className="member-detail-value">{selectedMember.gender || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><HeartHandshake size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Civil Status</span><span className="member-detail-value">{selectedMember.civil_status || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><UserCheck size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Voter Status</span><span className="member-detail-value" style={{ fontWeight: 600, color: selectedMember.is_valid_resident ? '#059669' : '#f59e0b' }}>{selectedMember.is_valid_resident ? 'Registered Voter' : 'Non-registered'}</span></div>
                       <div className="member-detail-item"><span className="member-detail-label"><UserCheck size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Referral</span>
                         {selectedMember.referral_name ? (
                           <span className="member-detail-value member-detail-link" onClick={() => {
