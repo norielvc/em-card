@@ -1157,10 +1157,12 @@ export default function RegisterForm({ embedded = false }) {
                                 <option value="Sto. Niño">Sto. Niño</option>
                                 <option value="St. Joseph">St. Joseph</option>
                                 <option value="St. Matthew">St. Matthew</option>
+                                <option value="Sitio Sapa">Sitio Sapa</option>
                               </optgroup>
                               <optgroup label="Subdivision / Village">
                                 <option value="Jordan Valley Subdivision">Jordan Valley Subdivision</option>
                                 <option value="North Ville 6">North Ville 6</option>
+                                <option value="Balagtas Heights">Balagtas Heights</option>
                               </optgroup>
                             </>
                           )}

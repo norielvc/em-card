@@ -8540,6 +8540,17 @@ export default function AdminPage() {
                             {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Purok {n}</option>)}
                             {editMemberForm.barangay?.toUpperCase() === 'SANTOL' && (
                               <>
+                                <option value="St. James">St. James</option>
+                                <option value="St. Vincent">St. Vincent</option>
+                                <option value="Nia Road 1">Nia Road 1</option>
+                                <option value="Nia Road 2">Nia Road 2</option>
+                                <option value="St. Jude">St. Jude</option>
+                                <option value="St. Michael">St. Michael</option>
+                                <option value="Sto. Niño">Sto. Niño</option>
+                                <option value="St. Joseph">St. Joseph</option>
+                                <option value="St. Matthew">St. Matthew</option>
+                                <option value="Sitio Sapa">Sitio Sapa</option>
+                                <option value="Jordan Valley Subdivision">Jordan Valley Subdivision</option>
                                 <option value="North Ville 6">North Ville 6</option>
                                 <option value="Balagtas Heights">Balagtas Heights</option>
                               </>
