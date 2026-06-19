@@ -196,6 +196,8 @@ export default function AdminPage() {
   const [printCameraActive, setPrintCameraActive] = useState(false);
   const printScannerRef = useRef(null);
   const printScanInProgressRef = useRef(false);
+  const adminReferralDebounceRef = useRef(null);
+  const editReferralDebounceRef = useRef(null);
 
   // System Monitoring
   const [systemStats, setSystemStats] = useState(null);
@@ -8239,28 +8241,30 @@ export default function AdminPage() {
                         type="text"
                         placeholder="Start typing community referral name..."
                         value={adminReferralQuery}
-                        onChange={async (e) => {
+                        onChange={(e) => {
                           const val = e.target.value.toUpperCase();
                           setAdminReferralQuery(val);
                           setAdminReferralValid(false);
                           setAdminReferral('');
+                          clearTimeout(adminReferralDebounceRef.current);
                           const trimmedVal = val.trim();
                           if (trimmedVal.length >= 2) {
-                            try {
-                              const excludeParam = selectedRegDetail.resident_id ? `&excludeId=${selectedRegDetail.resident_id}` : '';
-                              const apiUrl = `/api/search-residents?q=${encodeURIComponent(trimmedVal)}${excludeParam}`;
-                              const res = await fetch(apiUrl);
-                              const json = await res.json();
-                              const data = json.data || [];
-
-                              const mapped = data.map(p => ({
-                                ...p,
-                                name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
-                              }));
-                              setAdminReferralResults(mapped);
-                            } catch (err) {
-                              setAdminReferralResults([]);
-                            }
+                            adminReferralDebounceRef.current = setTimeout(async () => {
+                              try {
+                                const excludeParam = selectedRegDetail.resident_id ? `&excludeId=${selectedRegDetail.resident_id}` : '';
+                                const apiUrl = `/api/search-residents?q=${encodeURIComponent(trimmedVal)}${excludeParam}`;
+                                const res = await fetch(apiUrl);
+                                const json = await res.json();
+                                const data = json.data || [];
+                                const mapped = data.map(p => ({
+                                  ...p,
+                                  name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
+                                }));
+                                setAdminReferralResults(mapped);
+                              } catch (err) {
+                                setAdminReferralResults([]);
+                              }
+                            }, 400);
                           } else {
                             setAdminReferralResults([]);
                           }
@@ -8620,46 +8624,49 @@ export default function AdminPage() {
                             type="text"
                             placeholder="Start typing referral name..."
                             value={editReferralQuery}
-                            onChange={async (e) => {
+                            onChange={(e) => {
                               const val = e.target.value;
                               setEditReferralQuery(val);
                               setEditReferralValid(false);
+                              clearTimeout(editReferralDebounceRef.current);
                               const trimmedVal = val.trim();
                               if (trimmedVal.length >= 2) {
-                                try {
-                                  // Search approved members
-                                  const { data: members } = await supabase
-                                    .from('registrations')
-                                    .select('id, first_name, middle_name, last_name, suffix')
-                                    .eq('status', 'Approved')
-                                    .or(`first_name.ilike.%${trimmedVal}%,last_name.ilike.%${trimmedVal}%`)
-                                    .limit(10);
-                                  // Search registered voters
-                                  const { data: voters } = await supabase
-                                    .from('ValidResidents')
-                                    .select('id, first_name, middle_name, last_name, suffix')
-                                    .or(`first_name.ilike.%${trimmedVal}%,last_name.ilike.%${trimmedVal}%`)
-                                    .limit(10);
-                                  const memberNames = (members || []).map(p => ({
-                                    id: `m-${p.id}`,
-                                    name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
-                                  }));
-                                  const voterNames = (voters || []).map(p => ({
-                                    id: `v-${p.id}`,
-                                    name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
-                                  }));
-                                  // Merge and deduplicate by name
-                                  const all = [...memberNames, ...voterNames];
-                                  const seen = new Set();
-                                  const unique = all.filter(item => {
-                                    if (seen.has(item.name)) return false;
-                                    seen.add(item.name);
-                                    return true;
-                                  });
-                                  setEditReferralResults(unique.slice(0, 10));
-                                } catch (err) {
-                                  setEditReferralResults([]);
-                                }
+                                editReferralDebounceRef.current = setTimeout(async () => {
+                                  try {
+                                    // Search approved members
+                                    const { data: members } = await supabase
+                                      .from('registrations')
+                                      .select('id, first_name, middle_name, last_name, suffix')
+                                      .eq('status', 'Approved')
+                                      .or(`first_name.ilike.%${trimmedVal}%,last_name.ilike.%${trimmedVal}%`)
+                                      .limit(10);
+                                    // Search registered voters
+                                    const { data: voters } = await supabase
+                                      .from('ValidResidents')
+                                      .select('id, first_name, middle_name, last_name, suffix')
+                                      .or(`first_name.ilike.%${trimmedVal}%,last_name.ilike.%${trimmedVal}%`)
+                                      .limit(10);
+                                    const memberNames = (members || []).map(p => ({
+                                      id: `m-${p.id}`,
+                                      name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
+                                    }));
+                                    const voterNames = (voters || []).map(p => ({
+                                      id: `v-${p.id}`,
+                                      name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
+                                    }));
+                                    // Merge and deduplicate by name
+                                    const all = [...memberNames, ...voterNames];
+                                    const seen = new Set();
+                                    const unique = all.filter(item => {
+                                      if (seen.has(item.name)) return false;
+                                      seen.add(item.name);
+                                      return true;
+                                    });
+                                    setEditReferralResults(unique.slice(0, 10));
+                                  } catch (err) {
+                                    setEditReferralResults([]);
+                                  }
+                                }, 400);
                               } else {
                                 setEditReferralResults([]);
                               }
