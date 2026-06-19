@@ -185,6 +185,11 @@ export default function AdminPage() {
   const [deleteMemberId, setDeleteMemberId] = useState(null);
   const [deleteMemberName, setDeleteMemberName] = useState('');
   const [deleteMemberLoading, setDeleteMemberLoading] = useState(false);
+  // Registration delete
+  const [showDeleteRegModal, setShowDeleteRegModal] = useState(false);
+  const [deleteRegId, setDeleteRegId] = useState(null);
+  const [deleteRegName, setDeleteRegName] = useState('');
+  const [deleteRegLoading, setDeleteRegLoading] = useState(false);
   // Promote to registered voter
   const [showPromoteModal, setShowPromoteModal] = useState(false);
   const [promoteReg, setPromoteReg] = useState(null);
@@ -2164,6 +2169,31 @@ export default function AdminPage() {
     } catch (err) {
       showToast('Failed to approve registration.', 'error');
       return false;
+    }
+  };
+
+  const handleDeleteRegistration = async () => {
+    setDeleteRegLoading(true);
+    try {
+      const res = await authFetch('/api/registrations/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteRegId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Registration deleted.`, 'success');
+        logAdminAction('delete_registration', 'registrations', deleteRegId, deleteRegName, {});
+        setShowDeleteRegModal(false);
+        setSelectedRegDetail(null);
+        fetchAllRegistrations();
+      } else {
+        showToast(data.error || 'Failed to delete registration.', 'error');
+      }
+    } catch (err) {
+      showToast('Failed to delete registration.', 'error');
+    } finally {
+      setDeleteRegLoading(false);
     }
   };
 
@@ -4472,6 +4502,9 @@ export default function AdminPage() {
                             {reg.status === 'Rejected' && (
                               <button className="btn-action btn-approve" onClick={(e) => { e.stopPropagation(); approveRegistration(reg.id); }} title="Re-approve">↻</button>
                             )}
+                            <button className="btn-action btn-reject" onClick={(e) => { e.stopPropagation(); setDeleteRegId(reg.id); setDeleteRegName(getResidentName(reg)); setShowDeleteRegModal(true); }} title="Delete registration" style={{ background: '#fee2e2', color: '#dc2626' }}>
+                              <Trash2 size={12} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -8057,6 +8090,31 @@ export default function AdminPage() {
         document.body
       )}
 
+      {/* DELETE REGISTRATION CONFIRMATION MODAL */}
+      {showDeleteRegModal && (
+        <div className="modal-overlay" onClick={() => setShowDeleteRegModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: '8px' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
+                <AlertTriangle size={22} /> Delete Registration
+              </h3>
+              <button className="modal-close-x" onClick={() => setShowDeleteRegModal(false)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ paddingTop: '0' }}>
+              <p style={{ color: '#4b5563', lineHeight: 1.6 }}>
+                Are you sure you want to permanently delete the registration for <strong>{deleteRegName}</strong>? This action cannot be undone.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-modal-secondary" onClick={() => setShowDeleteRegModal(false)}>Cancel</button>
+              <button type="button" className="btn btn-modal-danger" onClick={handleDeleteRegistration} disabled={deleteRegLoading}>
+                {deleteRegLoading ? 'Deleting...' : 'Delete Registration'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* DELETE MEMBER CONFIRMATION MODAL */}
       {showDeleteMemberModal && (
         <div className="modal-overlay" onClick={() => setShowDeleteMemberModal(false)}>
@@ -8432,6 +8490,11 @@ export default function AdminPage() {
               )}
               {!regEditMode && selectedRegDetail.status === 'Approved' && (
                 <button type="button" className="btn btn-print" onClick={() => setSelectedRegDetail(null)}>🖨️ Print Card</button>
+              )}
+              {!regEditMode && (
+                <button type="button" className="btn btn-reject" style={{ marginLeft: 'auto' }} onClick={() => { setDeleteRegId(selectedRegDetail.id); setDeleteRegName(getResidentName(selectedRegDetail)); setShowDeleteRegModal(true); }}>
+                  🗑️ Delete
+                </button>
               )}
             </div>
           </div>
