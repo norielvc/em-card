@@ -27,6 +27,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Subdivision puroks that use Lot/Block/Phase instead of House Number
 const SUBDIVISION_PUROKS = ['North Ville 6', 'Balagtas Heights', 'Milaflor Subdivision', 'Divine Grace Village', 'Sta. Cruz Village', 'Mariano Village', 'Zone 1 St. Francis Subdivision', 'Zone 1 Sta. Elene Subdivision', 'Zone 5 Villa Juliana Subdivision', 'Zone 4 Virgen Milagrosa Homes', 'Jomaville Subdivision', 'Cresta Verde', 'Villa Castro', 'Divine Grace II', 'Villa Victoria St.', 'Villa Lourdes', 'Ma. Magdalena Subdivision', 'Ma. Corazon Subdivision', 'RMB Subdivision', 'Jordan Valley Subdivision'];
 
+let _on429Handler = null;
 async function authFetch(url, options = {}) {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -34,7 +35,9 @@ async function authFetch(url, options = {}) {
     ...(options.headers || {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  return fetch(url, { ...options, headers });
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 429) _on429Handler?.();
+  return res;
 }
 
 export default function AdminPage() {
@@ -573,7 +576,7 @@ export default function AdminPage() {
   }, [isLoggedIn, activeTab]);
 
   useEffect(() => {
-    if (toast) {
+    if (toast && !toast.sticky) {
       const timer = setTimeout(() => setToast(null), 3000);
       return () => clearTimeout(timer);
     }
@@ -925,6 +928,12 @@ export default function AdminPage() {
   }, [scannerInputMode, selectedEvent]);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
+
+  // Wire global 429 handler to show toast
+  useEffect(() => {
+    _on429Handler = () => setToast({ message: '⚠️ Too many requests. Please refresh the page and try again.', type: 'error', sticky: true });
+    return () => { _on429Handler = null; };
+  }, []);
 
   const logAdminAction = async (action_type, target_table, target_id, target_name, details = {}) => {
     try {
@@ -7711,9 +7720,19 @@ export default function AdminPage() {
     <div className="admin-dashboard">
       {/* Toast Notification */}
       {toast && (
-        <div className={`admin-toast ${toast.type}`}>
+        <div className={`admin-toast ${toast.type}`} style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <span>{toast.type === 'success' ? '✓' : '⚠'}</span>
-          {toast.message}
+          <span style={{ flex: 1 }}>{toast.message}</span>
+          {toast.sticky && (
+            <button
+              onClick={() => window.location.reload()}
+              style={{ background: '#fff', color: '#dc2626', border: '1px solid #dc2626', borderRadius: '6px', padding: '4px 10px', fontWeight: 700, cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}
+            >🔄 Refresh</button>
+          )}
+          <button
+            onClick={() => setToast(null)}
+            style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 700, fontSize: '14px', lineHeight: 1 }}
+          >✕</button>
         </div>
       )}
 
@@ -8254,6 +8273,7 @@ export default function AdminPage() {
                                 const excludeParam = selectedRegDetail.resident_id ? `&excludeId=${selectedRegDetail.resident_id}` : '';
                                 const apiUrl = `/api/search-residents?q=${encodeURIComponent(trimmedVal)}${excludeParam}`;
                                 const res = await fetch(apiUrl);
+                                if (res.status === 429) { _on429Handler?.(); return; }
                                 const json = await res.json();
                                 const data = json.data || [];
                                 const mapped = data.map(p => ({
