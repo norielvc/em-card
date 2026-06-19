@@ -6375,7 +6375,7 @@ export default function AdminPage() {
       )}
 
       {/* Event Form Modal */}
-      {showEventForm && (
+      {showEventForm && typeof document !== 'undefined' && createPortal(
         <div className="modal-overlay" onClick={() => { setShowEventForm(false); setEditingEvent(null); }}>
           <div className="modal-card event-form-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
@@ -6438,7 +6438,8 @@ export default function AdminPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
