@@ -8,8 +8,8 @@ const supabase = createClient(
 );
 
 export async function GET(request) {
-  // Rate limit: 60 requests per minute per IP
-  const limit = rateLimit(request, { windowMs: 60 * 1000, max: 60 });
+  // Rate limit: 120 requests per minute per IP
+  const limit = rateLimit(request, { windowMs: 60 * 1000, max: 120 });
   if (!limit.allowed) {
     return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
   }

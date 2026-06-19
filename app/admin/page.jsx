@@ -8249,7 +8249,7 @@ export default function AdminPage() {
                           clearTimeout(adminReferralDebounceRef.current);
                           const trimmedVal = val.trim();
                           if (trimmedVal.length >= 2) {
-                            adminReferralDebounceRef.current = setTimeout(async () => {
+                            adminReferralDebounceRef.current = setTimeout(async () => { // 250ms debounce
                               try {
                                 const excludeParam = selectedRegDetail.resident_id ? `&excludeId=${selectedRegDetail.resident_id}` : '';
                                 const apiUrl = `/api/search-residents?q=${encodeURIComponent(trimmedVal)}${excludeParam}`;
@@ -8264,7 +8264,7 @@ export default function AdminPage() {
                               } catch (err) {
                                 setAdminReferralResults([]);
                               }
-                            }, 400);
+                            }, 250);
                           } else {
                             setAdminReferralResults([]);
                           }
@@ -8631,7 +8631,7 @@ export default function AdminPage() {
                               clearTimeout(editReferralDebounceRef.current);
                               const trimmedVal = val.trim();
                               if (trimmedVal.length >= 2) {
-                                editReferralDebounceRef.current = setTimeout(async () => {
+                                editReferralDebounceRef.current = setTimeout(async () => { // 250ms debounce
                                   try {
                                     // Search approved members
                                     const { data: members } = await supabase
@@ -8666,7 +8666,7 @@ export default function AdminPage() {
                                   } catch (err) {
                                     setEditReferralResults([]);
                                   }
-                                }, 400);
+                                }, 250);
                               } else {
                                 setEditReferralResults([]);
                               }

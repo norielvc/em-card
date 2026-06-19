@@ -267,6 +267,8 @@ export default function RegisterForm({ embedded = false }) {
   const [lang, setLang] = useState('en'); // 'en' or 'ph'
   const t = TRANSLATIONS[lang];
 
+  const searchDebounceRef = useRef(null);
+
   const [step, setStep] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -455,56 +457,48 @@ export default function RegisterForm({ embedded = false }) {
 
   const detectFace = async () => true;
 
-  const handleSearchInputChange = async (e) => {
+  const handleSearchInputChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
 
+    clearTimeout(searchDebounceRef.current);
     const query = value.trim();
     if (query.length >= 1) {
-      setIsLoading(true);
       setHasSearched(true);
-      try {
-        const q = query.toLowerCase();
-        const allTokens = q.split(/\s+/).filter(Boolean);
-        const searchTokens = allTokens.filter(t => t.length >= 2);
-        if (searchTokens.length === 0) searchTokens.push(allTokens[0]);
+      searchDebounceRef.current = setTimeout(async () => {
+        setIsLoading(true);
+        try {
+          const q = query.toLowerCase();
+          const allTokens = q.split(/\s+/).filter(Boolean);
 
-        const res = await fetch(
-          `/api/search-residents?q=${encodeURIComponent(query)}&checkRegistration=true`
-        );
-        const json = await res.json();
-        const data = json.data || [];
+          const res = await fetch(
+            `/api/search-residents?q=${encodeURIComponent(query)}&checkRegistration=true`
+          );
+          const json = await res.json();
+          const data = json.data || [];
 
-        if (!data || data.length === 0) {
+          if (!data || data.length === 0) {
+            setSearchResults([]);
+          } else {
+            const scored = data.map(p => {
+              const name = `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim();
+              const nameLower = name.toLowerCase();
+              const score = allTokens.filter(t => nameLower.includes(t)).length;
+              return { ...p, name, score };
+            });
+            let results = scored.filter(p => smartMatchesName(p.name, query));
+            results.sort((a, b) => {
+              if (b.score !== a.score) return b.score - a.score;
+              return a.name.localeCompare(b.name);
+            });
+            setSearchResults(results.slice(0, 20));
+          }
+        } catch (err) {
           setSearchResults([]);
-        } else {
-          // Build full names, score, filter, and limit to top 20
-          const scored = data.map(p => {
-            const name = `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim();
-            const nameLower = name.toLowerCase();
-            const score = allTokens.filter(t => nameLower.includes(t)).length;
-            return { ...p, name, score };
-          });
-
-          // Strict filter: must match ALL significant tokens
-          let results = scored.filter(p => smartMatchesName(p.name, query));
-
-          // Sort by score desc, then name
-          results.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score;
-            return a.name.localeCompare(b.name);
-          });
-
-          // Show top 20 only
-          results = results.slice(0, 20);
-
-          setSearchResults(results);
+        } finally {
+          setIsLoading(false);
         }
-      } catch (err) {
-        setSearchResults([]);
-      } finally {
-        setIsLoading(false);
-      }
+      }, 300);
     } else {
       setSearchResults([]);
       setHasSearched(false);
