@@ -506,7 +506,7 @@ export default function AdminPage() {
   // ── Auto-logout after 30 minutes of inactivity (mobile-safe) ──
   useEffect(() => {
     if (!isLoggedIn) return;
-    const INACTIVITY_LIMIT = 30 * 60 * 1000; // 30 minutes
+    const INACTIVITY_LIMIT = 2 * 60 * 60 * 1000; // 2 hours
     let timer;
     let lastActivity = Date.now();
 
