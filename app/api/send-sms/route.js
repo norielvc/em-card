@@ -112,6 +112,9 @@ async function sendSemaphoreBulk(apiKey, phones, body, senderName) {
     return { results, status: 'sent', testMode: true };
   }
 
+  // Diagnostic: log API key presence (masked for security)
+  console.log(`[SMS] Semaphore bulk send: key=${apiKey ? 'present(' + apiKey.slice(0, 4) + '...)' : 'MISSING'}, sender=${senderName || '(default)'}, recipients=${phones.length}`);
+
   // Format all phone numbers
   const formattedPhones = phones.map(phone => {
     let formatted = phone.replace(/\D/g, '');
@@ -179,6 +182,8 @@ async function sendSemaphoreBulk(apiKey, phones, body, senderName) {
     }
   }
 
+  const failMsg = lastError ? lastError.message : 'All Semaphore bulk sender options failed';
+  console.error(`[SMS] Semaphore bulk complete failure: ${failMsg}`);
   throw lastError || new Error('All Semaphore bulk sender options failed');
 }
 
@@ -281,10 +286,31 @@ export async function GET(request) {
     // Check provider configuration status (no secrets exposed)
     if (searchParams.get('status') === '1') {
       const provider = getProvider();
+      const semaphoreKey = process.env.SEMAPHORE_API_KEY;
+      let semaphoreTest = null;
+
+      // Test Semaphore API key validity with a lightweight account check
+      if (semaphoreKey) {
+        try {
+          const testRes = await fetch(`https://api.semaphore.co/api/v4/account?apikey=${encodeURIComponent(semaphoreKey)}`);
+          const testData = await testRes.json();
+          semaphoreTest = {
+            ok: testRes.ok,
+            status: testRes.status,
+            creditBalance: testData?.credit_balance ?? null,
+            error: testData?.message || null,
+          };
+        } catch (e) {
+          semaphoreTest = { ok: false, error: e.message };
+        }
+      }
+
       return Response.json({
         provider,
         configured: !!provider,
         senderName: process.env.SEMAPHORE_SENDER_NAME || process.env.TWILIO_PHONE_NUMBER || null,
+        semaphoreTest,
+        envKeyPresent: !!semaphoreKey,
       });
     }
 
