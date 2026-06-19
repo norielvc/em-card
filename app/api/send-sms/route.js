@@ -103,7 +103,6 @@ async function sendSemaphoreBulk(apiKey, phones, body, senderName) {
   // Check for test mode - simulate bulk send without consuming credits
   if (process.env.SMS_TEST_MODE === 'true') {
     console.log(`[SMS TEST MODE] Would send bulk to ${phones.length} phones`);
-    // Simulate bulk response
     const results = phones.map((phone, i) => ({
       message_id: `test_bulk_${Date.now()}_${i}`,
       status: 'Pending',
@@ -124,49 +123,63 @@ async function sendSemaphoreBulk(apiKey, phones, body, senderName) {
     return formatted;
   }).join(',');
 
-  const params = new URLSearchParams({
-    apikey: apiKey,
-    number: formattedPhones,
-    message: body,
-  });
-  if (senderName) {
-    params.append('sendername', senderName);
+  // Fallback chain: custom sender → no sendername (Semaphore default)
+  const sendersToTry = [];
+  if (senderName && senderName !== 'SEMAPHORE') sendersToTry.push(senderName);
+  sendersToTry.push(null);
+
+  let lastError = null;
+
+  for (const trySender of sendersToTry) {
+    try {
+      const params = new URLSearchParams({
+        apikey: apiKey,
+        number: formattedPhones,
+        message: body,
+      });
+      if (trySender) {
+        params.append('sendername', trySender);
+      }
+
+      const response = await fetch('https://api.semaphore.co/api/v4/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
+      });
+
+      const responseText = await response.text();
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`Semaphore returned non-JSON: ${responseText.slice(0, 200)}`);
+      }
+
+      if (!response.ok) {
+        const errMsg = data?.message || data?.error || `Semaphore HTTP error: ${response.status}`;
+        throw new Error(errMsg);
+      }
+
+      const isErrorObj = data && !Array.isArray(data) && (data.error || data.status === 'error');
+      const isErrorArr = Array.isArray(data) && data.length > 0 && (data[0].error || data[0].status === 'error');
+
+      if (isErrorObj || isErrorArr) {
+        const errMsg = data?.message || data?.error || data?.[0]?.message || data?.[0]?.error || 'Semaphore API error';
+        throw new Error(errMsg);
+      }
+
+      return {
+        results: Array.isArray(data) ? data : [data],
+        status: 'sent'
+      };
+    } catch (err) {
+      lastError = err;
+      console.error(`[SMS] Semaphore bulk failed with sender "${trySender || '(default)'}": ${err.message}`);
+    }
   }
 
-  const response = await fetch('https://api.semaphore.co/api/v4/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params,
-  });
-
-  const responseText = await response.text();
-
-  let data;
-  try {
-    data = JSON.parse(responseText);
-  } catch (e) {
-    throw new Error(`Semaphore returned non-JSON: ${responseText.slice(0, 200)}`);
-  }
-
-  if (!response.ok) {
-    const errMsg = data?.message || data?.error || `Semaphore HTTP error: ${response.status}`;
-    throw new Error(errMsg);
-  }
-
-  const isErrorObj = data && !Array.isArray(data) && (data.error || data.status === 'error');
-  const isErrorArr = Array.isArray(data) && data.length > 0 && (data[0].error || data[0].status === 'error');
-
-  if (isErrorObj || isErrorArr) {
-    const errMsg = data?.message || data?.error || data?.[0]?.message || data?.[0]?.error || 'Semaphore API error';
-    throw new Error(errMsg);
-  }
-
-  // Bulk success: returns array of results for each number
-  // [{ message_id, status, number }, ...]
-  return {
-    results: Array.isArray(data) ? data : [data],
-    status: 'sent'
-  };
+  throw lastError || new Error('All Semaphore bulk sender options failed');
 }
 
 async function sendSemaphore(phone, body) {
@@ -553,7 +566,7 @@ async function sendMessagesAsync(messageId, recipients, body, validRecipients = 
         }
       }
     } catch (batchError) {
-      console.error(`[SMS] Batch ${batchNumber} failed`);
+      console.error(`[SMS] Batch ${batchNumber} failed: ${batchError.message}`);
       // Mark all in batch as failed
       for (const recipient of batch) {
         await supabase
