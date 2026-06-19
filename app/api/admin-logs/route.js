@@ -105,6 +105,8 @@ export async function POST(request) {
       'login', 'logout', 'scan_event', 'create_registration', 'update_registration',
       'delete_registration', 'create_account', 'update_account', 'create_event',
       'update_event', 'delete_event', 'send_message', 'view_report', 'export_data',
+      'edit_member', 'approve_member', 'reject_member', 'edit_event', 'add_event',
+      'bulk_upload', 'add_resident', 'edit_resident', 'delete_resident', 'delete_member',
     ]);
 
     if (!action_type || !ALLOWED_ACTIONS.has(action_type)) {
@@ -117,7 +119,8 @@ export async function POST(request) {
     // Validate target_table if provided
     const ALLOWED_TABLES = new Set([
       'registrations', 'ValidResidents', 'upcoming_events', 'event_scans',
-      'admin_users', 'contact_messages', 'grievances', 'messages', null,
+      'admin_users', 'contact_messages', 'grievances', 'messages', 'scan_events',
+      null,
     ]);
     const safeTargetTable = target_table || null;
     if (safeTargetTable && !ALLOWED_TABLES.has(safeTargetTable)) {
