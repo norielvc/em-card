@@ -565,6 +565,7 @@ export default function AdminPage() {
     if (isLoggedIn) {
       fetchContactInquiries();
       fetchGrievances();
+      fetchAllRegistrations();
     }
   }, [isLoggedIn]);
 
