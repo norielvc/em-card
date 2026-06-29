@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import HeroSlideshow from './HeroSlideshow';
-import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark, PlayCircle, Calendar, Menu, X, CheckCircle, Search, AlertTriangle, ChevronLeft, ChevronRight, LogIn, HeartHandshake, Telescope } from 'lucide-react';
+import { Users, Heart, TrendingUp, Shield, GraduationCap, HeartPulse, Sprout, Landmark, PlayCircle, Calendar, Menu, X, CheckCircle, Search, AlertTriangle, ChevronLeft, ChevronRight, LogIn, HeartHandshake, Telescope, MapPin, Phone, Mail, Share2 } from 'lucide-react';
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
@@ -137,7 +138,7 @@ export default function Home() {
       <header className={`site-header ${scrolled ? 'scrolled' : ''}`}>
         <nav className="nav container">
           <a className="brand" href="#home">
-            <span className="brand-mark">EM</span>
+            <Image src="/em-logo.png" alt="EM Logo" width={36} height={36} className="brand-mark-img" />
             <span>
               <strong>EM Card</strong>
               <small>Epektibong Mamamayan</small>
@@ -149,7 +150,9 @@ export default function Home() {
             </button>
             <a href="#home" onClick={() => setMenuOpen(false)}>Home</a>
             <a href="#about" onClick={() => setMenuOpen(false)}>About Us</a>
+            <a href="#leadership" onClick={() => setMenuOpen(false)}>Leadership</a>
             <a href="#programs" onClick={() => setMenuOpen(false)}>Programs</a>
+            <a href="#events" onClick={() => setMenuOpen(false)}>Events</a>
             <a href="#faqs" onClick={() => setMenuOpen(false)}>FAQs</a>
             <a href="#contact" onClick={() => setMenuOpen(false)}>Contact</a>
             <a href="#track" onClick={() => setMenuOpen(false)}>Track Application</a>
@@ -259,56 +262,7 @@ export default function Home() {
               <h3 className="programs-subsection-title">Pangkalahatang Programa</h3>
               <div className="programs-split-grid">
                 <div className="programs-split-art">
-                  {/* SVG vector art representing epektibong mamamayan (unity, community lifting, service) */}
-                  <svg viewBox="0 0 400 400" width="100%" height="100%">
-                    <defs>
-                      <linearGradient id="vectorGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="rgba(16,185,129,0.2)" />
-                        <stop offset="100%" stopColor="rgba(4,120,87,0)" />
-                      </linearGradient>
-                      <linearGradient id="peopleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#10b981" />
-                        <stop offset="100%" stopColor="#047857" />
-                      </linearGradient>
-                      <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#fb923c" />
-                        <stop offset="100%" stopColor="#f59e0b" />
-                      </linearGradient>
-                    </defs>
-                    {/* Decorative background circles */}
-                    <circle cx="200" cy="200" r="150" fill="url(#vectorGlow)" />
-                    <circle cx="200" cy="200" r="110" fill="none" stroke="rgba(16,185,129,0.15)" strokeWidth="2" strokeDasharray="6 6" />
-                    
-                    {/* Sun / Future representer */}
-                    <circle cx="200" cy="110" r="28" fill="#fef08a" opacity="0.8" />
-                    <circle cx="200" cy="110" r="38" fill="none" stroke="#fef08a" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.6" />
-
-                    {/* Base holding hand / platform */}
-                    <path d="M100,320 C150,300 250,300 300,320" fill="none" stroke="#047857" strokeWidth="6" strokeLinecap="round" />
-                    <path d="M120,328 C160,314 240,314 280,328" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-
-                    {/* Unity / People vector art representing holding together */}
-                    {/* Person 1 (Left) */}
-                    <path d="M150,280 C150,240 180,245 180,280" fill="url(#peopleGrad)" />
-                    <circle cx="165" cy="225" r="14" fill="#047857" />
-                    {/* Arm connecting to Center */}
-                    <path d="M175,245 Q190,230 200,245" fill="none" stroke="#10b981" strokeWidth="4" strokeLinecap="round" />
-
-                    {/* Person 2 (Center) */}
-                    <path d="M180,265 C180,225 220,225 220,265" fill="url(#orangeGrad)" />
-                    <circle cx="200" cy="205" r="16" fill="#fb923c" />
-
-                    {/* Person 3 (Right) */}
-                    <path d="M220,280 C220,240 250,245 250,280" fill="url(#peopleGrad)" />
-                    <circle cx="235" cy="225" r="14" fill="#047857" />
-                    {/* Arm connecting to Center */}
-                    <path d="M225,245 Q210,230 200,245" fill="none" stroke="#10b981" strokeWidth="4" strokeLinecap="round" />
-
-                    {/* Sprout of growth in center */}
-                    <path d="M200,195 Q190,175 200,165 Q210,175 200,195" fill="#10b981" />
-                    <path d="M200,195 Q215,180 220,175 Q210,170 200,195" fill="#34d399" />
-                    <path d="M200,210 L200,190" stroke="#047857" strokeWidth="3" />
-                  </svg>
+                  <Image src="/em-main-logo.png" alt="Epektibong Mamamayan Logo" width={320} height={320} style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
                 </div>
 
                 <div className="programs-split-list">
@@ -350,6 +304,23 @@ export default function Home() {
               <h3 className="programs-subsection-title">Programa para sa mga Sektor</h3>
               <p className="programs-subsection-subtitle">Mga natatanging programa na nakatuon sa pagpapalakas at suporta sa iba't ibang sektor ng ating komunidad.</p>
               <div className="sector-programs-grid">
+                {/* Senior Citizen Program */}
+                <div className="sector-card">
+                  <div className="sector-card-image">
+                    <img src="/images/programa/senior.jpg" alt="Senior Citizen Program" />
+                    <div className="sector-card-badge">Senior Citizen</div>
+                  </div>
+                  <div className="sector-card-body">
+                    <h3>Regular na Health Check-up</h3>
+                    <ul className="sector-card-list">
+                      <li>Libreng blood pressure monitoring, blood sugar testing, at konsultasyon</li>
+                      <li>Libreng gamot</li>
+                      <li>Exercise at Wellness session – simpleng ehersisyo o Zumba</li>
+                      <li>Livelihood Training – Pag gawa ng Handicrafts, gardening o iba pang pag kakakitaan</li>
+                    </ul>
+                  </div>
+                </div>
+
                 {/* TODA Development Program */}
                 <div className="sector-card">
                   <div className="sector-card-image">
@@ -419,13 +390,14 @@ export default function Home() {
                     </ul>
                   </div>
                 </div>
+
               </div>
             </div>
           </div>
         </section>
 
         {/* UPCOMING EVENTS */}
-        <section className="section events-section reveal" id="programs">
+        <section className="section events-section reveal" id="events">
           <div className="container">
             <div className="events-header">
               <h2 className="section-title">Mga Paparating na Kaganapan</h2>
@@ -462,7 +434,7 @@ export default function Home() {
                           <div className="events-hero-card">
                             <div className="events-hero-image">
                               <img
-                                src={evt.image_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80'}
+                                src={evt.image_url || '/pexels-denniz-futalan-339724-3453056.jpg'}
                                 alt={evt.title}
                               />
                               <div className="events-hero-overlay" />
@@ -608,6 +580,78 @@ export default function Home() {
             </div>
             <div className="about-image" style={{ boxShadow: 'none', background: 'transparent' }}>
               <img src="/ID 1 sample.png" alt="EM Card Sample ID" style={{ objectFit: 'contain', height: 'auto', boxShadow: 'none', borderRadius: '0', background: 'transparent' }} />
+            </div>
+          </div>
+        </section>
+
+        {/* LEADERSHIP */}
+        <section className="section leadership-section reveal" id="leadership">
+          <div className="container">
+            <div className="leadership-header">
+              <h2 className="section-title">Aming Pamunuan</h2>
+              <div className="leadership-line"></div>
+              <p className="leadership-subtitle">Ang mga taong nangunguna at nagsisilbi sa Epektibong Mamamayan.</p>
+            </div>
+            <div className="leadership-president-row">
+              <div className="leader-card president">
+                <div className="leader-photo-accent">
+                  <span className="leader-accent-dot red"></span>
+                  <div className="leader-photo-wrap">
+                    <img src="/images/leadership/president.png" alt="Ryan Sarucam - President" className="leader-photo" />
+                  </div>
+                </div>
+                <div className="leader-info">
+                  <h3>Ryan Sarucam</h3>
+                  <div className="leader-role-line">
+                    <span className="leader-role">President</span>
+                    <span className="leader-accent-bar"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="leadership-divider">
+              <span className="leadership-divider-line"></span>
+              <span className="leadership-divider-text">Board of Directors</span>
+              <span className="leadership-divider-line"></span>
+            </div>
+
+            <div className="leadership-grid">
+              <div className="leader-card">
+                <div className="leader-avatar">HC</div>
+                <div className="leader-info">
+                  <h3>Haidie Castro</h3>
+                  <span className="leader-role">Corporate Secretary</span>
+                </div>
+              </div>
+              <div className="leader-card">
+                <div className="leader-avatar">BA</div>
+                <div className="leader-info">
+                  <h3>Bernabe B. Ariznabareta III</h3>
+                  <span className="leader-role">Treasurer</span>
+                </div>
+              </div>
+              <div className="leader-card">
+                <div className="leader-avatar">AA</div>
+                <div className="leader-info">
+                  <h3>Adler P. Aydante</h3>
+                  <span className="leader-role">Trustee</span>
+                </div>
+              </div>
+              <div className="leader-card">
+                <div className="leader-avatar">MZ</div>
+                <div className="leader-info">
+                  <h3>Marie Jun Ann Zara</h3>
+                  <span className="leader-role">Trustee</span>
+                </div>
+              </div>
+              <div className="leader-card">
+                <div className="leader-avatar">RA</div>
+                <div className="leader-info">
+                  <h3>Randy B. Abanes</h3>
+                  <span className="leader-role">Trustee</span>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -925,11 +969,11 @@ export default function Home() {
             <p style={{ color: 'rgba(255,255,255,0.7)', lineHeight: '1.6', marginBottom: '32px' }}>Magpadala ng mga katanungan, mungkahi, interes na boluntaryo, katanungan sa pakikipagtulungan, o mga alalahanin sa komunidad sa EM Card.</p>
             <div className="contact-details" style={{ marginBottom: '32px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <p style={{ margin: 0 }}><strong>Email:</strong> info@emcard.org</p>
-              <p style={{ margin: 0 }}><strong>Telepono:</strong> +63 900 000 0000</p>
-              <p style={{ margin: 0 }}><strong>Tanggapan:</strong> Community Service Center</p>
+              <p style={{ margin: 0 }}><strong>Telepono:</strong> 0919 818 1245</p>
+              <p style={{ margin: 0 }}><strong>Tanggapan:</strong> 657, Quirino Hi-Way, Bagbag Novaliches, Quezon City</p>
             </div>
             <div className="social-links" style={{ display: 'flex', gap: '16px' }}>
-              <a href="#" aria-label="Facebook" style={{ color: 'rgba(255,255,255,0.8)', transition: 'color 0.2s' }}>
+              <a href="https://www.facebook.com/profile.php?id=61591019261852" target="_blank" rel="noopener noreferrer" aria-label="Facebook" style={{ color: 'rgba(255,255,255,0.8)', transition: 'color 0.2s' }}>
                 <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
               </a>
               <a href="#" aria-label="Twitter" style={{ color: 'rgba(255,255,255,0.8)', transition: 'color 0.2s' }}>
@@ -1001,32 +1045,78 @@ export default function Home() {
 
       {/* FOOTER */}
       <footer className="site-footer">
-        <div className="container footer-grid" style={{ paddingBottom: '32px' }}>
+        <div className="footer-top-bar" />
+        <div className="container footer-grid">
+          {/* Brand Column */}
           <div className="footer-brand">
-            <span className="brand-mark">EM</span>
-            <strong>EM Card</strong>
-            <p>Epektibong Mamamayan — pagpapalakas ng komunidad sa pamamagitan ng serbisyo at aksyon.</p>
+            <div className="footer-logo-wrap">
+              <Image src="/em-main-logo.png" alt="EM Card Logo" width={56} height={56} className="footer-logo-img" />
+              <div>
+                <strong>EM Card</strong>
+                <span>Epektibong Mamamayan</span>
+              </div>
+            </div>
+            <p>Nakatuon sa pagpapalakas ng komunidad sa pamamagitan ng serbisyo, integridad, at makabuluhang aksyon para sa bawat Pilipino.</p>
+            <div className="social-links">
+              <a href="https://www.facebook.com/profile.php?id=61591019261852" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><span style={{ fontSize: '0.75rem', fontWeight: 800 }}>f</span></a>
+              <a href="#" aria-label="Twitter"><span style={{ fontSize: '0.75rem', fontWeight: 800 }}>𝕏</span></a>
+              <a href="#" aria-label="Instagram"><Share2 size={14} /></a>
+            </div>
           </div>
-          <div className="footer-links">
-            <h4>Mabilis na Links</h4>
-            <a href="#home">Home</a>
-            <a href="#about">Tungkol sa Amin</a>
-            <a href="#programs">Mga Programa</a>
-            <a href="#faqs">FAQs</a>
-            <a href="#contact">Makipag-ugnayan</a>
-            <a href="#track">Track Application</a>
+
+          {/* Navigation */}
+          <div className="footer-col">
+            <h4 className="footer-col-title">Navigation</h4>
+            <div className="footer-links">
+              <a href="#home">Home</a>
+              <a href="#about">About Us</a>
+              <a href="#leadership">Leadership</a>
+              <a href="#programs">Programs</a>
+              <a href="#events">Events</a>
+              <a href="#faqs">FAQs</a>
+            </div>
           </div>
-          <div className="footer-newsletter">
-            <h4>Newsletter</h4>
-            <p>Manatiling updated sa aming pinakabagong aktibidad.</p>
-            <form className="newsletter-form">
-              <input type="email" placeholder="Ilagay ang iyong email" />
-              <button type="submit">→</button>
-            </form>
+
+          {/* Programs */}
+          <div className="footer-col">
+            <h4 className="footer-col-title">Mga Programa</h4>
+            <div className="footer-links">
+              <a href="#programs">Pangkalahatang Programa</a>
+              <a href="#programs">Senior Citizen</a>
+              <a href="#programs">TODA Development</a>
+              <a href="#programs">PWD Rights</a>
+              <a href="#programs">LGBTQIA+ Community</a>
+              <a href="#programs">Youth Leadership</a>
+            </div>
+          </div>
+
+          {/* Contact */}
+          <div className="footer-col">
+            <h4 className="footer-col-title">Makipag-ugnayan</h4>
+            <div className="footer-contact-list">
+              <div className="footer-contact-item">
+                <MapPin size={14} />
+                <span>657, Quirino Hi-Way, Bagbag Novaliches, Quezon City</span>
+              </div>
+              <div className="footer-contact-item">
+                <Phone size={14} />
+                <span>0919 818 1245</span>
+              </div>
+              <div className="footer-contact-item">
+                <Mail size={14} />
+                <span>info@emcard.org</span>
+              </div>
+            </div>
+            <a href="#track" className="footer-track-btn">Track Application →</a>
           </div>
         </div>
+
         <div className="footer-bottom container">
-          <p>© 2026 EM Card. Lahat ng Karapatan ay Nakalaan.</p>
+          <p>© 2026 EM Card — Epektibong Mamamayan. Lahat ng Karapatan ay Nakalaan.</p>
+          <div className="footer-bottom-links">
+            <a href="#about">Privacy Policy</a>
+            <a href="#about">Terms of Use</a>
+          </div>
         </div>
       </footer>
     </>
