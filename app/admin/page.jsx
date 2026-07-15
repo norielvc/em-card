@@ -1625,12 +1625,26 @@ export default function AdminPage() {
 
   const smartMatchesMember = (reg, queryStr) => {
     const r = reg.ValidResidents || {};
-    const fullName = `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}${r.suffix ? ' ' + r.suffix : ''}`.trim().toLowerCase();
+    // Use ValidResidents fields if available, otherwise fall back to registration fields
+    const firstName = r.first_name || reg.first_name || '';
+    const middleName = r.middle_name || reg.middle_name || '';
+    const lastName = r.last_name || reg.last_name || '';
+    const suffix = r.suffix || reg.suffix || '';
+    const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}${suffix ? ' ' + suffix : ''}`.trim().toLowerCase();
     const emCard = (reg.em_card_no || '').toLowerCase();
     const queryLower = queryStr.toLowerCase().replace(/[,.]/g, ' ').trim();
     if (!queryLower) return true;
     if (fullName.includes(queryLower)) return true;
     if (emCard.includes(queryLower.replace(/\s+/g, ''))) return true;
+
+    // Voter status keyword matching
+    const isVoter = reg.is_valid_resident === true;
+    const voterKeywords = ['voter', 'registered', 'registered voter'];
+    const nonVoterKeywords = ['non-registered', 'non voter', 'nonregistered', 'nonvoter'];
+    const matchesVoter = voterKeywords.some(k => queryLower.includes(k));
+    const matchesNonVoter = nonVoterKeywords.some(k => queryLower.includes(k));
+    if (matchesVoter && isVoter) return true;
+    if (matchesNonVoter && !isVoter) return true;
 
     const tokens = queryLower.split(/\s+/).filter(Boolean);
     if (tokens.length === 0) return true;
@@ -4524,10 +4538,11 @@ export default function AdminPage() {
       const tokens = query.split(/\s+/).filter(Boolean);
       const scored = members.map(reg => {
         const r = reg.ValidResidents || {};
-        const firstName = reg.first_name || r.first_name || '';
-        const middleName = reg.middle_name || r.middle_name || '';
-        const lastName = reg.last_name || r.last_name || '';
-        const suffix = reg.suffix || r.suffix || '';
+        // Use ValidResidents fields if available, otherwise fall back to registration fields
+        const firstName = r.first_name || reg.first_name || '';
+        const middleName = r.middle_name || reg.middle_name || '';
+        const lastName = r.last_name || reg.last_name || '';
+        const suffix = r.suffix || reg.suffix || '';
         const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}${suffix ? ' ' + suffix : ''}`.trim().toLowerCase();
         const emCard = (reg.em_card_no || '').toLowerCase();
         const nameScore = tokens.filter(t => fullName.includes(t)).length;
