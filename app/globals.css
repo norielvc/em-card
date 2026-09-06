@@ -20120,3 +20120,295 @@ html, body {
   .admin-content { padding: 14px !important; }
 }
 
+/* Birthday Celebrators & Messaging Workspace */
+.bday-celebrator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.bday-celebrator-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.bday-celebrator-card:hover {
+  border-color: #a7f3d0;
+  background: #f0fdf4;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.08);
+}
+
+.bday-celebrator-card.selected {
+  border-color: #059669;
+  background: #ecfdf5;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15);
+}
+
+.bday-celebrator-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.2);
+}
+
+.bday-celebrator-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.bday-celebrator-cake-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: #ffffff;
+  border-radius: 50%;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+
+.bday-celebrator-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.bday-celebrator-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.bday-celebrator-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.bday-tag {
+  font-size: 0.72rem;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 2px 7px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.bday-celebrator-status {
+  flex-shrink: 0;
+}
+
+.bday-active-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  white-space: nowrap;
+}
+
+.bday-template-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bday-template-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bday-template-btn:hover {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  transform: translateX(2px);
+}
+
+.bday-template-btn strong {
+  font-size: 0.8rem;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.bday-template-btn span {
+  font-size: 0.74rem;
+  color: #64748b;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+.bday-token-btn {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bday-token-btn:hover {
+  background: #059669;
+  color: #ffffff;
+  border-color: #059669;
+}
+
+/* Phone Mockup */
+.bday-phone-mockup {
+  background: #0f172a;
+  border-radius: 20px;
+  padding: 14px 12px 16px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15);
+  border: 3px solid #334155;
+}
+
+.bday-phone-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.bday-phone-speaker {
+  width: 44px;
+  height: 4px;
+  background: #334155;
+  border-radius: 4px;
+}
+
+.bday-phone-contact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bday-phone-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #059669;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+
+.bday-phone-contact-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bday-phone-sender {
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.bday-phone-number {
+  color: #94a3b8;
+  font-size: 0.68rem;
+}
+
+.bday-phone-time {
+  color: #64748b;
+  font-size: 0.68rem;
+}
+
+.bday-phone-screen {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 16px 12px;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.bday-phone-date-pill {
+  align-self: center;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+
+.bday-phone-bubble {
+  align-self: flex-start;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 14px 14px 14px 2px;
+  padding: 10px 12px;
+  max-width: 92%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.bday-bubble-text {
+  color: #065f46;
+  font-size: 0.82rem;
+  line-height: 1.42;
+  word-break: break-word;
+}
+
+.bday-bubble-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  color: #059669;
+  font-size: 0.65rem;
+  margin-top: 4px;
+  font-weight: 500;
+}
+

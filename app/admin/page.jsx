@@ -18,7 +18,7 @@ import {
   Camera, RefreshCw as RotateCw, User, ArrowLeft, LayoutDashboard, ClipboardList, Network, Shield,
   ArrowRight, Ban, Building, Cake, CreditCard, Database, Folder, Globe, HardDrive, Hash,
   History, Inbox, Lock, Mail, Megaphone, Monitor, Phone, Plus, Server, ShieldAlert,
-  ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award, XCircle
+  ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award, XCircle, Sparkles
 } from 'lucide-react';
 
 
@@ -393,6 +393,7 @@ export default function AdminPage() {
   const [birthdayLoading, setBirthdayLoading] = useState(false);
   const [birthdayMessage, setBirthdayMessage] = useState('Maligayang Kaarawan {firstName}! Nawa\'y puno ng pag-ibig, saya, at biyaya ang iyong araw. Mula sa EM-CARD family.');
   const [birthdaySending, setBirthdaySending] = useState(false);
+  const [selectedBirthdayPreviewIndex, setSelectedBirthdayPreviewIndex] = useState(0);
 
   // Event Scanner
   const [events, setEvents] = useState([]);
@@ -6376,107 +6377,319 @@ export default function AdminPage() {
         )}
 
         {msgTab === 'birthday' && (
-          <div className="dash-panel-v2">
-            <div className="dash-panel-v2-header">
-              <div>
-                <p className="dash-panel-v2-title">Today's Birthday Celebrators</p>
-                <p className="dash-panel-v2-sub">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-              </div>
-              <div className="dash-panel-v2-icon">
-                <Cake size={15} strokeWidth={1.8} />
-              </div>
-            </div>
-            <div className="dash-panel-v2-body">
-              {birthdayLoading ? (
-                <div className="table-loading" style={{ padding: '32px 0', textAlign: 'center', color: '#64748b' }}>Loading birthday celebrators...</div>
-              ) : birthdayRecipients.length === 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', textAlign: 'center' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', marginBottom: 12 }}>
-                    <Cake size={20} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Top Celebrators Showcase Panel */}
+            <div className="dash-panel-v2">
+              <div className="dash-panel-v2-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)', border: '1px solid #a7f3d0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669', flexShrink: 0 }}>
+                    <Cake size={18} strokeWidth={2} />
                   </div>
-                  <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: '0.9rem' }}>No birthday celebrators today</p>
-                  <p style={{ margin: '4px 0 16px', color: '#64748b', fontSize: '0.82rem' }}>Registered members with birthdays today will show up here.</p>
-                  <button className="btn btn-sm btn-secondary" onClick={fetchBirthdayCelebrators} style={{ padding: '6px 14px', borderRadius: 6, fontSize: '0.8rem', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a', cursor: 'pointer', fontWeight: 600 }}>Refresh</button>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <p className="dash-panel-v2-title" style={{ margin: 0 }}>Today's Birthday Celebrators</p>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: birthdayRecipients.length > 0 ? '#ecfdf5' : '#f1f5f9', color: birthdayRecipients.length > 0 ? '#065f46' : '#64748b', border: birthdayRecipients.length > 0 ? '1px solid #a7f3d0' : '1px solid #e2e8f0' }}>
+                        {birthdayRecipients.length > 0 ? `🎉 ${birthdayRecipients.length} Celebrator${birthdayRecipients.length > 1 ? 's' : ''}` : 'No celebrators today'}
+                      </span>
+                    </div>
+                    <p className="dash-panel-v2-sub" style={{ marginTop: 2 }}>
+                      {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
-                    {birthdayRecipients.map(reg => {
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={fetchBirthdayCelebrators}
+                    disabled={birthdayLoading}
+                    style={{ padding: '6px 12px', borderRadius: 8, fontSize: '0.8rem', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155', cursor: 'pointer', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <RefreshCw size={13} className={birthdayLoading ? 'spin-icon' : ''} />
+                    <span>{birthdayLoading ? 'Refreshing...' : 'Refresh'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="dash-panel-v2-body">
+                {birthdayLoading ? (
+                  <div className="table-loading" style={{ padding: '36px 0', textAlign: 'center', color: '#64748b' }}>
+                    <RefreshCw size={24} className="spin-icon" style={{ margin: '0 auto 8px', color: '#059669' }} />
+                    <p style={{ margin: 0, fontWeight: 600 }}>Checking birthday records...</p>
+                  </div>
+                ) : birthdayRecipients.length === 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', textAlign: 'center' }}>
+                    <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', marginBottom: 14 }}>
+                      <Cake size={26} />
+                    </div>
+                    <p style={{ margin: 0, fontWeight: 700, color: '#0f172a', fontSize: '0.96rem' }}>No birthday celebrators today</p>
+                    <p style={{ margin: '4px 0 16px', color: '#64748b', fontSize: '0.84rem', maxWidth: 420 }}>
+                      Registered members whose date of birth matches today's date ({new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}) will automatically appear here.
+                    </p>
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={fetchBirthdayCelebrators} style={{ padding: '7px 16px', borderRadius: 8, fontSize: '0.82rem', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a', cursor: 'pointer', fontWeight: 600 }}>
+                      <RefreshCw size={13} style={{ marginRight: 6 }} /> Refresh List
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bday-celebrator-grid">
+                    {birthdayRecipients.map((reg, idx) => {
                       const name = getResidentName(reg);
+                      const firstName = getResidentFirstName(reg);
+                      const isSelected = selectedBirthdayPreviewIndex === idx;
                       return (
-                        <div key={reg.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10 }}>
-                          <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <Cake size={16} />
+                        <div
+                          key={reg.id}
+                          className={`bday-celebrator-card ${isSelected ? 'selected' : ''}`}
+                          onClick={() => setSelectedBirthdayPreviewIndex(idx)}
+                        >
+                          <div className="bday-celebrator-avatar">
+                            {reg.photo_url ? (
+                              <img src={reg.photo_url} alt="" />
+                            ) : (
+                              <span>{firstName.charAt(0).toUpperCase()}</span>
+                            )}
+                            <div className="bday-celebrator-cake-badge">🎂</div>
                           </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>
-                            <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: 2 }}>{reg.barangay || '-'} · {reg.contact || 'No phone'}</div>
+                          <div className="bday-celebrator-details">
+                            <div className="bday-celebrator-name" title={name}>{name}</div>
+                            <div className="bday-celebrator-tags">
+                              <span className="bday-tag"><MapPin size={11} /> {reg.barangay || 'Unknown'}</span>
+                              <span className="bday-tag"><Phone size={11} /> {reg.contact || 'No contact'}</span>
+                            </div>
+                          </div>
+                          <div className="bday-celebrator-status">
+                            <span className="bday-active-pill">🎉 Celebrator</span>
                           </div>
                         </div>
                       );
                     })}
                   </div>
+                )}
+              </div>
+            </div>
 
-                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <label className="msg-label" style={{ margin: 0 }}>Birthday Message</label>
-                      <span className="msg-char-count" style={{ margin: 0 }}>
-                        {birthdayMessage.length}/160 chars · {Math.ceil(birthdayMessage.length / 160) || 1} Credit/SMS
-                      </span>
+            {/* Birthday SMS Workspace (2-Column Grid on Desktop) */}
+            {birthdayRecipients.length > 0 && (
+              <div className="dash-overview-grid-2x2" style={{ alignItems: 'flex-start' }}>
+                {/* Left Column: Compose & Templates */}
+                <div className="dash-panel-v2">
+                  <div className="dash-panel-v2-header">
+                    <div>
+                      <p className="dash-panel-v2-title">Compose Birthday SMS</p>
+                      <p className="dash-panel-v2-sub">Personalized greeting broadcasted to all today's celebrators</p>
                     </div>
-                    <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0 0 8px' }}>
-                      Use <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4, fontWeight: 600, color: '#0f172a' }}>{'{firstName}'}</code> to automatically insert each celebrator's first name.
-                    </p>
-                    <textarea
-                      className="msg-textarea"
-                      placeholder="Type your birthday greeting..."
-                      value={birthdayMessage}
-                      onChange={e => setBirthdayMessage(e.target.value)}
-                      maxLength={480}
-                      rows={4}
-                    />
+                    <div className="dash-panel-v2-icon">
+                      <Pencil size={15} strokeWidth={1.8} />
+                    </div>
+                  </div>
 
-                    <div style={{ marginTop: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px' }}>
-                      <p style={{ margin: '0 0 8px', fontSize: '0.76rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Sample Personalized Preview ({birthdayRecipients.length} Celebrator{birthdayRecipients.length > 1 ? 's' : ''}):
-                      </p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
-                        {birthdayRecipients.slice(0, 5).map(reg => {
-                          const firstName = getResidentFirstName(reg);
-                          const previewText = birthdayMessage
-                            .replace(/\{firstName\}/gi, firstName)
-                            .replace(/\{first_name\}/gi, firstName)
-                            .replace(/\{name\}/gi, firstName);
-                          return (
-                            <div key={reg.id} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: '0.82rem' }}>
-                              <strong style={{ color: '#059669', marginRight: 6 }}>{firstName}:</strong>
-                              <span style={{ color: '#334155' }}>{previewText || '(empty greeting)'}</span>
-                            </div>
-                          );
-                        })}
-                        {birthdayRecipients.length > 5 && (
-                          <div style={{ fontSize: '0.74rem', color: '#64748b', textAlign: 'center', padding: '4px 0' }}>
-                            + {birthdayRecipients.length - 5} more celebrators with personalized names
-                          </div>
-                        )}
+                  <div className="dash-panel-v2-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Quick Templates */}
+                    <div>
+                      <label className="msg-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Sparkles size={13} style={{ color: '#f59e0b' }} /> Quick Greeting Templates
+                      </label>
+                      <div className="bday-template-pills">
+                        <button
+                          type="button"
+                          className="bday-template-btn"
+                          onClick={() => setBirthdayMessage("Maligayang Kaarawan {firstName}! Nawa'y puno ng pag-ibig, saya, at biyaya ang iyong araw. Mula sa EM-CARD family.")}
+                        >
+                          <strong>🇵🇭 Tagalog (Warm Wishes)</strong>
+                          <span>Maligayang Kaarawan {'{firstName}'}! Nawa'y puno ng pag-ibig, saya, at biyaya...</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="bday-template-btn"
+                          onClick={() => setBirthdayMessage("Happy Birthday {firstName}! Wishing you a wonderful day filled with joy, peace, and good health. Best wishes from EM-CARD.")}
+                        >
+                          <strong>🌟 Formal English</strong>
+                          <span>Happy Birthday {'{firstName}'}! Wishing you a wonderful day filled with joy...</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="bday-template-btn"
+                          onClick={() => setBirthdayMessage("Maligayang Kaarawan po, {firstName}! Pagpalain po kayo ng Panginoon sa inyong espesyal na araw. Ingat po lagi!")}
+                        >
+                          <strong>🎈 Short & Sweet</strong>
+                          <span>Maligayang Kaarawan po, {'{firstName}'}! Pagpalain po kayo ng Panginoon...</span>
+                        </button>
                       </div>
                     </div>
 
-                    <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                    {/* Insert Tags & Textarea */}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <label className="msg-label" style={{ margin: 0 }}>Message Content</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Insert Tag:</span>
+                          <button
+                            type="button"
+                            className="bday-token-btn"
+                            onClick={() => setBirthdayMessage(m => m + ' {firstName}')}
+                            title="Inserts celebrator's first name"
+                          >
+                            + {'{firstName}'}
+                          </button>
+                          <button
+                            type="button"
+                            className="bday-token-btn"
+                            onClick={() => setBirthdayMessage(m => m + ' {barangay}')}
+                            title="Inserts resident's barangay"
+                          >
+                            + {'{barangay}'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ position: 'relative' }}>
+                        <textarea
+                          className="msg-textarea"
+                          placeholder="Type your personalized birthday greeting..."
+                          value={birthdayMessage}
+                          onChange={e => setBirthdayMessage(e.target.value)}
+                          maxLength={480}
+                          rows={4}
+                          style={{ width: '100%', resize: 'vertical' }}
+                        />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, fontSize: '0.76rem', color: '#64748b' }}>
+                          <span>Tag <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4, fontWeight: 600, color: '#0f172a' }}>{'{firstName}'}</code> replaced per recipient</span>
+                          <span className="msg-char-count" style={{ margin: 0 }}>
+                            {birthdayMessage.length}/160 chars · {Math.ceil(birthdayMessage.length / 160) || 1} Credit/SMS
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Send Button */}
+                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14 }}>
                       <button
+                        type="button"
                         className="btn btn-msg-send"
                         onClick={handleSendBirthday}
                         disabled={birthdaySending || !birthdayMessage.trim()}
-                        style={{ padding: '10px 20px', borderRadius: 8, fontWeight: 700, fontSize: '0.88rem', background: '#059669', color: '#ffffff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                        style={{ width: '100%', padding: '12px 20px', borderRadius: 8, fontWeight: 700, fontSize: '0.92rem', background: '#059669', color: '#ffffff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)' }}
                       >
-                        <Send size={14} />
-                        <span>{birthdaySending ? 'Sending Greetings...' : `Send to ${birthdayRecipients.length} Celebrator${birthdayRecipients.length > 1 ? 's' : ''}`}</span>
+                        {birthdaySending ? (
+                          <span className="btn-sending-content">
+                            <span className="sending-spinner"></span>
+                            Sending Greetings...
+                          </span>
+                        ) : (
+                          <>
+                            <Send size={15} />
+                            <span>Send Birthday SMS to {birthdayRecipients.length} Celebrator{birthdayRecipients.length > 1 ? 's' : ''}</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
+
+                {/* Right Column: Mobile Simulation & Campaign Summary */}
+                <div className="dash-panel-v2">
+                  <div className="dash-panel-v2-header">
+                    <div>
+                      <p className="dash-panel-v2-title">Live Handset Preview</p>
+                      <p className="dash-panel-v2-sub">Realistic mobile device simulation with dynamic name substitution</p>
+                    </div>
+                    <div className="dash-panel-v2-icon">
+                      <Smartphone size={15} strokeWidth={1.8} />
+                    </div>
+                  </div>
+
+                  <div className="dash-panel-v2-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Recipient Picker if multiple */}
+                    {birthdayRecipients.length > 1 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f8fafc', padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Preview For:</span>
+                        <select
+                          className="msg-select"
+                          value={selectedBirthdayPreviewIndex}
+                          onChange={e => setSelectedBirthdayPreviewIndex(parseInt(e.target.value, 10))}
+                          style={{ padding: '4px 10px', fontSize: '0.8rem', height: 32 }}
+                        >
+                          {birthdayRecipients.map((r, i) => (
+                            <option key={r.id} value={i}>{getResidentName(r)} ({r.contact || 'No phone'})</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Smartphone Mockup */}
+                    {(() => {
+                      const activeRec = birthdayRecipients[selectedBirthdayPreviewIndex] || birthdayRecipients[0];
+                      const activeFirstName = activeRec ? getResidentFirstName(activeRec) : 'Ka-Barangay';
+                      const activeBarangay = activeRec?.barangay || 'Balagtas';
+                      const previewText = birthdayMessage
+                        .replace(/\{firstName\}/gi, activeFirstName)
+                        .replace(/\{first_name\}/gi, activeFirstName)
+                        .replace(/\{name\}/gi, activeFirstName)
+                        .replace(/\{barangay\}/gi, activeBarangay);
+
+                      return (
+                        <div className="bday-phone-mockup">
+                          <div className="bday-phone-header">
+                            <div className="bday-phone-speaker"></div>
+                            <div className="bday-phone-contact">
+                              <div className="bday-phone-avatar">
+                                <Cake size={14} />
+                              </div>
+                              <div className="bday-phone-contact-info">
+                                <span className="bday-phone-sender">EMcard</span>
+                                <span className="bday-phone-number">{activeRec?.contact || '0905-XXX-XXXX'}</span>
+                              </div>
+                            </div>
+                            <div className="bday-phone-time">Today, 8:00 AM</div>
+                          </div>
+
+                          <div className="bday-phone-screen">
+                            <div className="bday-phone-date-pill">TODAY</div>
+                            <div className="bday-phone-bubble">
+                              <div className="bday-bubble-text">
+                                {previewText || '(Type a message to preview)'}
+                              </div>
+                              <div className="bday-bubble-meta">
+                                <span>Just now</span>
+                                <CheckCircle size={10} style={{ marginLeft: 4, color: '#059669' }} />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Summary Metric Stats */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
+                        <div className="dash-stat-label">
+                          <span className="dash-dot green" /> Target Celebrators
+                        </div>
+                        <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.92rem' }}>
+                          {birthdayRecipients.length} Recipient{birthdayRecipients.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
+                        <div className="dash-stat-label">
+                          <span className="dash-dot muted" /> Total SMS Credits Required
+                        </div>
+                        <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.92rem' }}>
+                          {(birthdayRecipients.length * (Math.ceil(birthdayMessage.length / 160) || 1)).toLocaleString()} Credits
+                        </span>
+                      </div>
+                      <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
+                        <div className="dash-stat-label">
+                          <span className="dash-dot purple" /> SMS Sender Gateway
+                        </div>
+                        <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>
+                          {smsProvider?.senderName || 'EMcard'} ({smsProvider?.provider || 'Semaphore'})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
