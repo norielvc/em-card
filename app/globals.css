@@ -20123,7 +20123,7 @@ html, body {
 /* Birthday Celebrators & Messaging Workspace */
 .bday-celebrator-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 12px;
 }
 
@@ -20183,10 +20183,13 @@ html, body {
   right: -4px;
   background: #ffffff;
   border-radius: 50%;
-  font-size: 11px;
-  line-height: 1;
-  padding: 2px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #a7f3d0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
 }
 
 .bday-celebrator-details {
@@ -20198,11 +20201,9 @@ html, body {
   font-weight: 700;
   font-size: 0.88rem;
   color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   text-transform: uppercase;
   letter-spacing: 0.01em;
+  line-height: 1.25;
 }
 
 .bday-celebrator-tags {

@@ -6388,8 +6388,9 @@ export default function AdminPage() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <p className="dash-panel-v2-title" style={{ margin: 0 }}>Today's Birthday Celebrators</p>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: birthdayRecipients.length > 0 ? '#ecfdf5' : '#f1f5f9', color: birthdayRecipients.length > 0 ? '#065f46' : '#64748b', border: birthdayRecipients.length > 0 ? '1px solid #a7f3d0' : '1px solid #e2e8f0' }}>
-                        {birthdayRecipients.length > 0 ? `🎉 ${birthdayRecipients.length} Celebrator${birthdayRecipients.length > 1 ? 's' : ''}` : 'No celebrators today'}
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: birthdayRecipients.length > 0 ? '#ecfdf5' : '#f1f5f9', color: birthdayRecipients.length > 0 ? '#065f46' : '#64748b', border: birthdayRecipients.length > 0 ? '1px solid #a7f3d0' : '1px solid #e2e8f0', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Cake size={12} strokeWidth={2} />
+                        <span>{birthdayRecipients.length > 0 ? `${birthdayRecipients.length} Celebrator${birthdayRecipients.length > 1 ? 's' : ''}` : 'No celebrators today'}</span>
                       </span>
                     </div>
                     <p className="dash-panel-v2-sub" style={{ marginTop: 2 }}>
@@ -6448,7 +6449,9 @@ export default function AdminPage() {
                             ) : (
                               <span>{firstName.charAt(0).toUpperCase()}</span>
                             )}
-                            <div className="bday-celebrator-cake-badge">🎂</div>
+                            <div className="bday-celebrator-cake-badge">
+                              <Cake size={10} strokeWidth={2.5} color="#059669" />
+                            </div>
                           </div>
                           <div className="bday-celebrator-details">
                             <div className="bday-celebrator-name" title={name}>{name}</div>
@@ -6458,7 +6461,10 @@ export default function AdminPage() {
                             </div>
                           </div>
                           <div className="bday-celebrator-status">
-                            <span className="bday-active-pill">🎉 Celebrator</span>
+                            <span className="bday-active-pill">
+                              <Gift size={11} strokeWidth={2} style={{ marginRight: 4, verticalAlign: 'text-bottom' }} />
+                              Celebrator
+                            </span>
                           </div>
                         </div>
                       );
@@ -6495,7 +6501,10 @@ export default function AdminPage() {
                           className="bday-template-btn"
                           onClick={() => setBirthdayMessage("Maligayang Kaarawan {firstName}! Nawa'y puno ng pag-ibig, saya, at biyaya ang iyong araw. Mula sa EM-CARD family.")}
                         >
-                          <strong>🇵🇭 Tagalog (Warm Wishes)</strong>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Globe size={13} style={{ color: '#059669' }} />
+                            <strong>Tagalog (Warm Wishes)</strong>
+                          </div>
                           <span>Maligayang Kaarawan {'{firstName}'}! Nawa'y puno ng pag-ibig, saya, at biyaya...</span>
                         </button>
                         <button
@@ -6503,7 +6512,10 @@ export default function AdminPage() {
                           className="bday-template-btn"
                           onClick={() => setBirthdayMessage("Happy Birthday {firstName}! Wishing you a wonderful day filled with joy, peace, and good health. Best wishes from EM-CARD.")}
                         >
-                          <strong>🌟 Formal English</strong>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Sparkles size={13} style={{ color: '#3b82f6' }} />
+                            <strong>Formal English</strong>
+                          </div>
                           <span>Happy Birthday {'{firstName}'}! Wishing you a wonderful day filled with joy...</span>
                         </button>
                         <button
@@ -6511,7 +6523,10 @@ export default function AdminPage() {
                           className="bday-template-btn"
                           onClick={() => setBirthdayMessage("Maligayang Kaarawan po, {firstName}! Pagpalain po kayo ng Panginoon sa inyong espesyal na araw. Ingat po lagi!")}
                         >
-                          <strong>🎈 Short & Sweet</strong>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <HeartHandshake size={13} style={{ color: '#f59e0b' }} />
+                            <strong>Short & Sweet</strong>
+                          </div>
                           <span>Maligayang Kaarawan po, {'{firstName}'}! Pagpalain po kayo ng Panginoon...</span>
                         </button>
                       </div>
