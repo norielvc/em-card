@@ -3107,6 +3107,61 @@ export default function AdminPage() {
     }
   };
 
+  const isBirthdayToday = (bday) => {
+    if (!bday) return false;
+    const today = new Date();
+    const currentMonth = today.getMonth(); // 0-indexed (8 for September)
+    const currentDate = today.getDate();
+
+    const clean = String(bday).trim();
+
+    // 1. ISO format: "YYYY-MM-DD" or "YYYY/MM/DD"
+    const isoMatch = clean.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+    if (isoMatch) {
+      const month = parseInt(isoMatch[2], 10) - 1;
+      const date = parseInt(isoMatch[3], 10);
+      return month === currentMonth && date === currentDate;
+    }
+
+    // 2. US format: "MM/DD/YYYY" or "MM-DD-YYYY"
+    const usMatch = clean.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+    if (usMatch) {
+      const month = parseInt(usMatch[1], 10) - 1;
+      const date = parseInt(usMatch[2], 10);
+      return month === currentMonth && date === currentDate;
+    }
+
+    // 3. Text format: "September 7, 1929" or "Sep 07 1929" or "7 September 1929"
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+    const shortMonthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+    // "Month Day, Year"
+    const textMatch1 = clean.match(/^([a-zA-Z]+)\s+(\d{1,2})/);
+    if (textMatch1) {
+      const mStr = textMatch1[1].toLowerCase();
+      let mIdx = monthNames.indexOf(mStr);
+      if (mIdx === -1) mIdx = shortMonthNames.indexOf(mStr);
+      if (mIdx !== -1) {
+        const day = parseInt(textMatch1[2], 10);
+        return mIdx === currentMonth && day === currentDate;
+      }
+    }
+
+    // "Day Month Year"
+    const textMatch2 = clean.match(/^(\d{1,2})\s+([a-zA-Z]+)/);
+    if (textMatch2) {
+      const mStr = textMatch2[2].toLowerCase();
+      let mIdx = monthNames.indexOf(mStr);
+      if (mIdx === -1) mIdx = shortMonthNames.indexOf(mStr);
+      if (mIdx !== -1) {
+        const day = parseInt(textMatch2[1], 10);
+        return mIdx === currentMonth && day === currentDate;
+      }
+    }
+
+    return false;
+  };
+
   const getResidentFirstName = (reg) => {
     const raw = reg?.first_name || reg?.ValidResidents?.first_name || '';
     if (!raw) return 'Ka-Barangay';
@@ -3116,9 +3171,6 @@ export default function AdminPage() {
   const fetchBirthdayCelebrators = async () => {
     setBirthdayLoading(true);
     try {
-      const today = new Date();
-      const todayMonthDay = `${today.toLocaleString('en-US', { month: 'long' })} ${today.getDate()}`;
-
       const { data: regs, error } = await supabase
         .from('registrations')
         .select('id, resident_id, contact, barangay, sector_category, birthday, first_name, last_name, middle_name, suffix, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
@@ -3128,13 +3180,7 @@ export default function AdminPage() {
 
       if (error) throw error;
 
-      const celebrators = (regs || []).filter(reg => {
-        if (!reg.birthday) return false;
-        const parts = reg.birthday.split(',');
-        if (parts.length < 2) return false;
-        const monthDay = parts[0].trim();
-        return monthDay === todayMonthDay;
-      });
+      const celebrators = (regs || []).filter(reg => isBirthdayToday(reg.birthday));
 
       setBirthdayRecipients(celebrators);
     } catch (err) {
@@ -3224,14 +3270,7 @@ export default function AdminPage() {
 
       {dashTab === 'overview' && (() => {
         // Compute birthday celebrators count
-        const today = new Date();
-        const todayM = today.getMonth() + 1;
-        const todayD = today.getDate();
-        const celebratorsCount = allRegs.filter(r => {
-          if (!r.birthday) return false;
-          const [, mo, da] = r.birthday.split('-');
-          return parseInt(mo) === todayM && parseInt(da) === todayD;
-        }).length;
+        const celebratorsCount = allRegs.filter(r => isBirthdayToday(r.birthday)).length;
         const hasCelebrators = celebratorsCount > 0;
         const pendingCount = allRegs.filter(r => r.status === 'Pending').length;
         const printTotal = cardsPrinted + cardsPending;
