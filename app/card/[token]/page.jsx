@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Send, MessageSquare, CheckCircle, Home, ShieldCheck } from 'lucide-react';
+import { Send, MessageSquare, CheckCircle, Home, ShieldCheck, Hash, MapPin, User } from 'lucide-react';
 
 export default function CardDashboardPage() {
   const params = useParams();
@@ -50,6 +50,7 @@ export default function CardDashboardPage() {
         birthDate: json.birthDate,
         scanCount: json.scanCount,
         lastScanned: json.lastScanned,
+        precinct: json.precinct || null,
         id: json.id,
       });
     } catch {
@@ -138,6 +139,50 @@ export default function CardDashboardPage() {
         <div className="card-dash-greeting">
           <h1>{greeting()}, <span>{data.name.split(' ')[0]}!</span></h1>
         </div>
+
+        {/* Member Profile Card */}
+        <div className="card-dash-profile">
+          <div className="card-dash-photo">
+            {data.photo
+              ? <img src={data.photo} alt={data.name} />
+              : <User size={32} />
+            }
+          </div>
+          <div className="card-dash-info">
+            <h2>{data.name}</h2>
+            <p><MapPin size={13} /> {data.barangay}{data.purok && data.purok !== '-' ? ` · Purok ${data.purok}` : ''}</p>
+            <span className="card-dash-badge"><CheckCircle size={13} /> Approved EM Card Member</span>
+          </div>
+        </div>
+
+        {/* Precinct Voter Card — only shown for registered voters */}
+        {data.precinct && (
+          <div className="card-dash-precinct-card">
+            <div className="cdp-card-inner">
+              <div className="cdp-left">
+                <div className="cdp-label">
+                  <Hash size={12} /> Precinct No.
+                </div>
+                <div className="cdp-number">{data.precinct}</div>
+                <div className="cdp-badge">✓ Registered Voter</div>
+              </div>
+              <div className="cdp-divider" />
+              <div className="cdp-right">
+                <div className="cdp-detail-row">
+                  <span className="cdp-detail-label">Barangay</span>
+                  <span className="cdp-detail-value">{data.barangay}</span>
+                </div>
+                {data.purok && data.purok !== '-' && (
+                  <div className="cdp-detail-row">
+                    <span className="cdp-detail-label">Purok</span>
+                    <span className="cdp-detail-value">Purok {data.purok}</span>
+                  </div>
+                )}
+                <div className="cdp-watermark">BOTANTE</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Feedback / Suggestion Box - Tagalog */}
         <div className="card-dash-section card-dash-grievance">

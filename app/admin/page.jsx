@@ -1632,10 +1632,12 @@ export default function AdminPage() {
     const suffix = r.suffix || reg.suffix || '';
     const fullName = `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}${suffix ? ' ' + suffix : ''}`.trim().toLowerCase();
     const emCard = (reg.em_card_no || '').toLowerCase();
+    const precinct = (r.precinct || reg.precinct || '').toLowerCase();
     const queryLower = queryStr.toLowerCase().replace(/[,.]/g, ' ').trim();
     if (!queryLower) return true;
     if (fullName.includes(queryLower)) return true;
     if (emCard.includes(queryLower.replace(/\s+/g, ''))) return true;
+    if (precinct && (precinct.includes(queryLower) || queryLower.includes(precinct))) return true;
 
     // Voter status keyword matching
     const isVoter = reg.is_valid_resident === true;
@@ -4672,79 +4674,109 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* Search + Filters + Download */}
-        <div className="residents-action-bar">
-          <div className="action-bar-left">
-            <div className="search-input-wrap">
+        {/* Search + Filters + Download Toolbar */}
+        <div className="members-toolbar">
+          <div className="members-toolbar-top">
+            <div className="members-search-wrap">
               <input
                 type="text"
-                placeholder="Search members by name or EM card no..."
+                placeholder="Search by name, EM card no, or precinct..."
                 value={memberSearch}
                 onChange={(e) => { setMemberSearch(e.target.value); setMembersPage(1); }}
-                className="residents-search"
+                className="members-search-input"
               />
+              {memberSearch && (
+                <button 
+                  className="members-search-clear" 
+                  onClick={() => { setMemberSearch(''); setMembersPage(1); }} 
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
-            <div className="filter-selects-wrap">
-              <select
-                className="filter-select"
-                value={filterBarangay}
-                onChange={(e) => { setFilterBarangay(e.target.value); setMembersPage(1); }}
+            <div className="members-toolbar-actions">
+              <button className="btn btn-scan-start" onClick={() => { setScanQrMember({ open: true }); setScanQrToken(''); setScanQrResult(null); }}>
+                <ScanLine size={14} /> Scan ID
+              </button>
+              <button 
+                className="btn btn-action-outline" 
+                onClick={() => {
+                  const membersToExport = selectedMemberIds.length > 0 
+                    ? members.filter(m => selectedMemberIds.includes(m.id))
+                    : members;
+                  downloadMembersExcel(membersToExport);
+                }}
+                title={selectedMemberIds.length > 0 ? `Export ${selectedMemberIds.length} selected members` : 'Export all members'}
               >
-                <option value="">All Barangays</option>
-                {barangayOptions.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <select
-                className="filter-select"
-                value={filterPurok}
-                onChange={(e) => { setFilterPurok(e.target.value); setMembersPage(1); }}
-              >
-                <option value="">All Puroks</option>
-                {purokOptions.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-              <select
-                className="filter-select"
-                value={filterSector}
-                onChange={(e) => { setFilterSector(e.target.value); setMembersPage(1); }}
-              >
-                <option value="">All Sectors</option>
-                {sectorOptions.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <select
-                className="filter-select"
-                value={filterPrinted}
-                onChange={(e) => { setFilterPrinted(e.target.value); setMembersPage(1); }}
-              >
-                <option value="">All Print Status</option>
-                <option value="printed">Printed</option>
-                <option value="not-printed">Not Printed</option>
-              </select>
-              <select
-                className="filter-select"
-                value={filterVoterSource}
-                onChange={(e) => { setFilterVoterSource(e.target.value); setMembersPage(1); }}
-              >
-                <option value="">All Sources</option>
-                <option value="voter">Registered Voter</option>
-                <option value="non-voter">Non-registered Voter</option>
-              </select>
+                <Download size={14} /> {selectedMemberIds.length > 0 ? `Export Selected (${selectedMemberIds.length})` : 'Export Excel'}
+              </button>
             </div>
           </div>
-          <div className="action-bar-right">
-            <button className="btn btn-scan-start" onClick={() => { setScanQrMember({ open: true }); setScanQrToken(''); setScanQrResult(null); }}>
-              <ScanLine size={14} /> Scan ID
-            </button>
-            <button 
-              className="btn btn-action-outline" 
-              onClick={() => {
-                const membersToExport = selectedMemberIds.length > 0 
-                  ? members.filter(m => selectedMemberIds.includes(m.id))
-                  : members;
-                downloadMembersExcel(membersToExport);
-              }}
-              title={selectedMemberIds.length > 0 ? `Export ${selectedMemberIds.length} selected members` : 'Export all members'}
+
+          <div className="members-toolbar-filters">
+            <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'inline-flex', alignItems: 'center', gap: 4, marginRight: 2 }}>
+              <Filter size={12} /> Filters:
+            </span>
+            <select
+              className="members-filter-select"
+              value={filterBarangay}
+              onChange={(e) => { setFilterBarangay(e.target.value); setMembersPage(1); }}
             >
-              <Download size={14} /> {selectedMemberIds.length > 0 ? `Export Selected (${selectedMemberIds.length})` : 'Export Excel'}
-            </button>
+              <option value="">All Barangays</option>
+              {barangayOptions.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <select
+              className="members-filter-select"
+              value={filterPurok}
+              onChange={(e) => { setFilterPurok(e.target.value); setMembersPage(1); }}
+            >
+              <option value="">All Puroks</option>
+              {purokOptions.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <select
+              className="members-filter-select"
+              value={filterSector}
+              onChange={(e) => { setFilterSector(e.target.value); setMembersPage(1); }}
+            >
+              <option value="">All Sectors</option>
+              {sectorOptions.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              className="members-filter-select"
+              value={filterPrinted}
+              onChange={(e) => { setFilterPrinted(e.target.value); setMembersPage(1); }}
+            >
+              <option value="">All Print Status</option>
+              <option value="printed">Printed</option>
+              <option value="not-printed">Not Printed</option>
+            </select>
+            <select
+              className="members-filter-select"
+              value={filterVoterSource}
+              onChange={(e) => { setFilterVoterSource(e.target.value); setMembersPage(1); }}
+            >
+              <option value="">All Sources</option>
+              <option value="voter">Registered Voter</option>
+              <option value="non-voter">Non-registered Voter</option>
+            </select>
+            {(memberSearch || filterBarangay || filterPurok || filterSector || filterPrinted || filterVoterSource) && (
+              <button 
+                className="members-filter-reset" 
+                onClick={() => {
+                  setMemberSearch('');
+                  setFilterBarangay('');
+                  setFilterPurok('');
+                  setFilterSector('');
+                  setFilterPrinted('');
+                  setFilterVoterSource('');
+                  setMembersPage(1);
+                }} 
+                title="Reset all filters"
+              >
+                <RotateCw size={11} /> Reset
+              </button>
+            )}
           </div>
         </div>
 
@@ -4754,107 +4786,122 @@ export default function AdminPage() {
           <div className="table-empty">{memberSearch ? 'No members match your search.' : 'No approved members yet.'}</div>
         ) : membersTab === 'all' ? (
           <>
-            <div className="table-responsive">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 40, textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedMemberIds.length === pageMembers.length && pageMembers.length > 0}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedMemberIds(pageMembers.map(m => m.id));
-                          } else {
-                            setSelectedMemberIds([]);
-                          }
-                        }}
-                        title="Select all on this page"
-                      />
-                    </th>
-                    <th>Name</th>
-                    <th>Barangay</th>
-                    <th>Purok</th>
-                    <th>Sector</th>
-                    <th>Voter Status</th>
-                    <th>EM Card No</th>
-                    <th>Print Status</th>
-                    <th>Contact</th>
-                    <th>Date</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageMembers.map((reg) => {
-                    const r = reg.ValidResidents || {};
-                    const name = memberFullName(reg);
-                    const isSelected = selectedMemberIds.includes(reg.id);
-                    return (
-                      <tr 
-                        key={reg.id} 
-                        className="member-row-clickable" 
-                        style={{ background: isSelected ? 'rgba(16, 185, 129, 0.05)' : undefined }}
-                      >
-                        <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedMemberIds(prev => [...prev, reg.id]);
-                              } else {
-                                setSelectedMemberIds(prev => prev.filter(id => id !== reg.id));
-                              }
-                            }}
-                          />
-                        </td>
-                        <td onClick={() => setSelectedMember(reg)}><strong>{name}</strong></td>
-                        <td onClick={() => setSelectedMember(reg)}>{reg.barangay || r.barangay || '-'}</td>
-                        <td onClick={() => setSelectedMember(reg)}>{reg.purok || r.purok || '-'}</td>
-                        <td onClick={() => setSelectedMember(reg)}><span className="sector-badge">{reg.sector_category || '-'}</span></td>
-                        <td onClick={() => setSelectedMember(reg)}>
-                          {reg.is_valid_resident ? (
-                            <span className="status-badge status-approved" style={{ fontSize: 11 }}>Registered Voter</span>
-                          ) : (
-                            <span className="status-badge status-pending" style={{ fontSize: 11 }}>Non-registered</span>
-                          )}
-                        </td>
-                        <td onClick={() => setSelectedMember(reg)}>
-                          {reg.em_card_no ? (
-                            <code className="em-card-code">{reg.em_card_no}</code>
-                          ) : (
-                            <span className="qr-token-missing">Needs QR</span>
-                          )}
-                        </td>
-                        <td onClick={() => setSelectedMember(reg)}>
-                          {reg.printed_at ? (
-                            <span className="print-status printed" title={`Printed on ${new Date(reg.printed_at).toLocaleDateString()}`}><Printer size={13} /> Printed</span>
-                          ) : (
-                            <span className="print-status not-printed">Not printed</span>
-                          )}
-                        </td>
-                        <td onClick={() => setSelectedMember(reg)}>{reg.contact || '-'}</td>
-                        <td onClick={() => setSelectedMember(reg)}>{new Date(reg.created_at).toLocaleDateString()}</td>
-                        <td>
-                          <div className="resident-actions">
-                            {!reg.is_valid_resident && (
-                              <button className="action-btn action-promote" onClick={(e) => { e.stopPropagation(); setPromoteReg(reg); setShowPromoteModal(true); }} title="Move to Registered Voters">
-                                <ArrowRight size={14} />
-                              </button>
+            <div className="members-table-wrap">
+              <div className="members-table-container">
+                <table className="members-table">
+                  <thead>
+                    <tr>
+                      <th className="col-chk">
+                        <input
+                          type="checkbox"
+                          checked={selectedMemberIds.length === pageMembers.length && pageMembers.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedMemberIds(pageMembers.map(m => m.id));
+                            } else {
+                              setSelectedMemberIds([]);
+                            }
+                          }}
+                          title="Select all on this page"
+                        />
+                      </th>
+                      <th className="col-name">Name</th>
+                      <th className="col-barangay">Barangay</th>
+                      <th className="col-voter">Voter Status</th>
+                      <th className="col-precinct">Precinct</th>
+                      <th className="col-emcard">EM Card No</th>
+                      <th className="col-print">Print</th>
+                      <th className="col-date">Date</th>
+                      <th className="col-actions">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageMembers.map((reg) => {
+                      const r = reg.ValidResidents || {};
+                      const name = memberFullName(reg);
+                      const isSelected = selectedMemberIds.includes(reg.id);
+                      const precinct = r.precinct || reg.precinct;
+                      return (
+                        <tr 
+                          key={reg.id} 
+                          className="member-row-clickable" 
+                          style={{ background: isSelected ? 'rgba(16, 185, 129, 0.08)' : undefined }}
+                        >
+                          <td className="col-chk" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedMemberIds(prev => [...prev, reg.id]);
+                                } else {
+                                  setSelectedMemberIds(prev => prev.filter(id => id !== reg.id));
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="col-name member-cell-name" onClick={() => setSelectedMember(reg)} title={name}>
+                            <strong>{name}</strong>
+                          </td>
+                          <td className="col-barangay member-cell-barangay" onClick={() => setSelectedMember(reg)}>
+                            {reg.barangay || r.barangay || '-'}
+                          </td>
+                          <td className="col-voter member-cell-voter" onClick={() => setSelectedMember(reg)}>
+                            {reg.is_valid_resident ? (
+                              <span className="status-badge status-approved">Registered</span>
+                            ) : (
+                              <span className="status-badge status-pending">Non-registered</span>
                             )}
-                            <button className="action-btn action-edit" onClick={(e) => { e.stopPropagation(); setSelectedMember(reg); openEditMember(reg); }} title="Edit member">
-                              <Pencil size={14} />
-                            </button>
-                            <button className="action-btn action-delete" onClick={(e) => { e.stopPropagation(); setDeleteMemberId(reg.id); setDeleteMemberName(name); setShowDeleteMemberModal(true); }} title="Delete member">
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td className="col-precinct member-cell-precinct" onClick={() => setSelectedMember(reg)}>
+                            {precinct ? (
+                              <span className="member-precinct-tag">
+                                {precinct}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontSize: 11 }}>-</span>
+                            )}
+                          </td>
+                          <td className="col-emcard member-cell-emcard" onClick={() => setSelectedMember(reg)}>
+                            {reg.em_card_no ? (
+                              <code className="member-emcard-code">{reg.em_card_no}</code>
+                            ) : (
+                              <span className="qr-token-missing" style={{ fontSize: 9.5 }}>Needs QR</span>
+                            )}
+                          </td>
+                          <td className="col-print member-cell-print" onClick={() => setSelectedMember(reg)}>
+                            {reg.printed_at ? (
+                              <span className="print-status printed" title={`Printed on ${new Date(reg.printed_at).toLocaleDateString()}`}>
+                                <Printer size={10} /> Printed
+                              </span>
+                            ) : (
+                              <span className="print-status not-printed">Unprinted</span>
+                            )}
+                          </td>
+                          <td className="col-date member-cell-date" onClick={() => setSelectedMember(reg)}>
+                            {new Date(reg.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="col-actions member-cell-actions">
+                            <div className="resident-actions-compact">
+                              {!reg.is_valid_resident && (
+                                <button className="action-btn action-promote" onClick={(e) => { e.stopPropagation(); setPromoteReg(reg); setShowPromoteModal(true); }} title="Move to Registered Voters">
+                                  <ArrowRight size={11} />
+                                </button>
+                              )}
+                              <button className="action-btn action-edit" onClick={(e) => { e.stopPropagation(); setSelectedMember(reg); openEditMember(reg); }} title="Edit member">
+                                <Pencil size={11} />
+                              </button>
+                              <button className="action-btn action-delete" onClick={(e) => { e.stopPropagation(); setDeleteMemberId(reg.id); setDeleteMemberName(name); setShowDeleteMemberModal(true); }} title="Delete member">
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
             {/* Pagination */}
             {totalPages > 1 && (
@@ -4884,10 +4931,19 @@ export default function AdminPage() {
                 </div>
                 <div className="household-members">
                   {group.members.map(reg => {
+                    const r = reg.ValidResidents || {};
                     const name = memberFullName(reg);
+                    const precinct = r.precinct || reg.precinct;
                     return (
                       <div key={reg.id} className="household-member-row" onClick={() => setSelectedMember(reg)}>
-                        <span className="household-member-name">{name}</span>
+                        <span className="household-member-name">
+                          {name}
+                          {reg.is_valid_resident && precinct && (
+                            <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 600, marginLeft: 6 }}>
+                              (Precinct {precinct})
+                            </span>
+                          )}
+                        </span>
                         {reg.em_card_no ? (
                           <code className="em-card-code" style={{ fontSize: '0.68rem' }}>{reg.em_card_no}</code>
                         ) : (
@@ -4986,7 +5042,7 @@ export default function AdminPage() {
   };
 
   const downloadMembersExcel = (members) => {
-    const headers = ['FULL NAME', 'FULL ADDRESS', 'CONTACT NUMBER', 'BIRTHDAY', 'DATE ISSUED', 'QR CODE', 'EM NUMBER'];
+    const headers = ['FULL NAME', 'FULL ADDRESS', 'VOTER STATUS', 'PRECINCT', 'CONTACT NUMBER', 'BIRTHDAY', 'DATE ISSUED', 'QR CODE', 'EM NUMBER'];
     const rows = members.map(reg => {
       const r = reg.ValidResidents || {};
       const firstName = reg.first_name || r.first_name || '';
@@ -5015,6 +5071,8 @@ export default function AdminPage() {
       return [
         fullName,
         fullAddress,
+        reg.is_valid_resident ? 'Registered Voter' : 'Non-registered',
+        (r.precinct || reg.precinct) || '',
         reg.contact || '',
         birthday,
         dateIssued,
@@ -8973,60 +9031,92 @@ export default function AdminPage() {
                 ) : (
                   <>
                     {/* === PROFILE VIEW === */}
-                    {/* Top: Photo + Name + EM Card No + Actions */}
+
+                    {/* Top: Photo + Name + Badges */}
                     <div className="member-detail-top">
                       <div className="member-detail-photo">
                         {(selectedMember.photo_url || selectedMember.photo_base64) ? <img src={selectedMember.photo_url || selectedMember.photo_base64} alt="" /> : <User size={40} color="#94a3b8" />}
                       </div>
                       <div className="member-detail-head">
                         <h2>{name}</h2>
-                        <span className="member-detail-status"><CheckCircle size={14} /> Approved Member</span>
-                        {selectedMember.printed_at ? (
-                          <span className="member-detail-printed printed" title={`Printed on ${new Date(selectedMember.printed_at).toLocaleDateString()}`}><Printer size={13} /> ID Printed · {new Date(selectedMember.printed_at).toLocaleDateString()}</span>
-                        ) : (
-                          <span className="member-detail-printed not-printed">ID Not Printed</span>
-                        )}
-                        {hasCardNo && (
-                          <p className="member-detail-cardno">EM Card: <strong>{selectedMember.em_card_no}</strong></p>
-                        )}
-                        {selectedMember.reference_no && (
-                          <p className="member-detail-cardno" style={{ marginTop: 2 }}>Ref No: <strong>{selectedMember.reference_no}</strong></p>
-                        )}
+                        <div className="member-detail-badges">
+                          <span className="member-detail-status"><CheckCircle size={12} /> Approved Member</span>
+                          {selectedMember.printed_at ? (
+                            <span className="member-detail-printed printed"><Printer size={12} /> ID Printed · {new Date(selectedMember.printed_at).toLocaleDateString()}</span>
+                          ) : (
+                            <span className="member-detail-printed not-printed">ID Not Printed</span>
+                          )}
+                        </div>
+                        <div className="member-detail-ids">
+                          {hasCardNo && (
+                            <span className="member-id-chip"><CreditCard size={11} /> {selectedMember.em_card_no}</span>
+                          )}
+                          {selectedMember.reference_no && (
+                            <span className="member-id-chip ref"><Hash size={11} /> {selectedMember.reference_no}</span>
+                          )}
+                        </div>
                         <div className="member-detail-quick-actions">
-                          <button className="btn btn-sm btn-edit" onClick={() => openEditMember(selectedMember)}><Pencil size={14} strokeWidth={2.5} /> Edit</button>
-                          <button className="btn btn-sm btn-export" onClick={() => exportMemberExcel(selectedMember)}><Download size={14} strokeWidth={2.5} /> Export</button>
-                          <button className="btn btn-sm btn-print" onClick={() => { setShowPrintModal(true); setIdCardSide('front'); }}><Printer size={14} strokeWidth={2.5} /> Print ID</button>
+                          <button className="btn btn-sm btn-edit" onClick={() => openEditMember(selectedMember)}><Pencil size={13} strokeWidth={2.5} /> Edit</button>
+                          <button className="btn btn-sm btn-export" onClick={() => exportMemberExcel(selectedMember)}><Download size={13} strokeWidth={2.5} /> Export</button>
+                          <button className="btn btn-sm btn-print" onClick={() => { setShowPrintModal(true); setIdCardSide('front'); }}><Printer size={13} strokeWidth={2.5} /> Print ID</button>
                         </div>
                       </div>
                     </div>
 
-                    {/* QR Section */}
-                    <div className="member-detail-qr-section">
-                      <span className="member-detail-label"><QrCode size={14} style={{marginRight:4, verticalAlign:'text-bottom'}} /> QR Scan Token</span>
-                      {hasQR ? (
-                        <>
-                          <code className="member-qr-big">{selectedMember.qr_token}</code>
-                          <div className="member-qr-image">
-                            <QRCodeSVG value={`https://www.em-card.com/card/${selectedMember.qr_token}`} size={160} level="H" includeMargin={true} />
+                    {/* Precinct Hero Box */}
+                    {(r.precinct || selectedMember.precinct) && (
+                      <div className="member-precinct-hero">
+                        <div className="member-precinct-hero-inner">
+                          <div className="member-precinct-hero-label">
+                            <Hash size={13} /> Precinct No.
                           </div>
-                          <p className="member-qr-hint"><ScanLine size={14} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Member scans QR → <strong>https://www.em-card.com/card/{selectedMember.qr_token}</strong></p>
-                        </>
-                      ) : (
-                        <div className="member-qr-missing">
-                          <span>No QR token generated yet.</span>
-                          <button className="btn btn-generate-qr" onClick={() => generateQRForMember(selectedMember)}>
-                            <Zap size={18} /> Generate QR & Card
-                          </button>
+                          <div className="member-precinct-hero-number">
+                            {r.precinct || selectedMember.precinct}
+                          </div>
+                          <div className="member-precinct-hero-sub">Registered Voter</div>
                         </div>
-                      )}
+                        <div className="member-precinct-hero-divider" />
+                        <div className="member-precinct-hero-extra">
+                          <div className="member-precinct-hero-stat">
+                            <span className="mph-stat-label"><ScanLine size={11} /> Total Scans</span>
+                            <span className="mph-stat-value">{selectedMember.scan_count || 0}</span>
+                          </div>
+                          <div className="member-precinct-hero-stat">
+                            <span className="mph-stat-label"><Calendar size={11} /> Joined</span>
+                            <span className="mph-stat-value">{new Date(selectedMember.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Key Info Strip */}
+                    <div className="member-info-strip">
+                      <div className="member-info-strip-item">
+                        <span className="mis-label"><Tag size={10} /> Sector</span>
+                        <span className="mis-value">{selectedMember.sector_category || '-'}</span>
+                      </div>
+                      <div className="member-info-strip-sep" />
+                      <div className="member-info-strip-item">
+                        <span className="mis-label"><Phone size={10} /> Contact</span>
+                        <span className="mis-value">{selectedMember.contact || '-'}</span>
+                      </div>
+                      <div className="member-info-strip-sep" />
+                      <div className="member-info-strip-item">
+                        <span className="mis-label"><MapPin size={10} /> Barangay</span>
+                        <span className="mis-value">{selectedMember.barangay || r.barangay || '-'}</span>
+                      </div>
+                      <div className="member-info-strip-sep" />
+                      <div className="member-info-strip-item">
+                        <span className="mis-label"><Building size={10} /> Purok</span>
+                        <span className="mis-value">{selectedMember.purok ? (SUBDIVISION_PUROKS.includes(selectedMember.purok) ? selectedMember.purok : `Purok ${selectedMember.purok}`) : '-'}</span>
+                      </div>
                     </div>
 
                     {/* Details Grid */}
                     <div className="member-detail-grid">
                       {!SUBDIVISION_PUROKS.includes(selectedMember.purok) && (
-                        <div className="member-detail-item"><span className="member-detail-label"><Home size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> House No</span><span className="member-detail-value">{selectedMember.house_no ? selectedMember.house_no : '-'}</span></div>
+                        <div className="member-detail-item"><span className="member-detail-label"><Home size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> House No</span><span className="member-detail-value">{selectedMember.house_no || '-'}</span></div>
                       )}
-                      <div className="member-detail-item"><span className="member-detail-label"><Building size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Purok</span><span className="member-detail-value">{selectedMember.purok ? (SUBDIVISION_PUROKS.includes(selectedMember.purok) ? selectedMember.purok : `Purok ${selectedMember.purok}`) : '-'}</span></div>
                       {SUBDIVISION_PUROKS.includes(selectedMember.purok) && (
                         <>
                           <div className="member-detail-item"><span className="member-detail-label">Lot</span><span className="member-detail-value">{selectedMember.lot || '-'}</span></div>
@@ -9034,16 +9124,12 @@ export default function AdminPage() {
                           <div className="member-detail-item"><span className="member-detail-label">Phase</span><span className="member-detail-value">{selectedMember.phase || '-'}</span></div>
                         </>
                       )}
-                      <div className="member-detail-item"><span className="member-detail-label"><MapPin size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Barangay</span><span className="member-detail-value">{selectedMember.barangay || r.barangay || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Hash size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Precinct</span><span className="member-detail-value">{r.precinct || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Tag size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Sector</span><span className="member-detail-value">{selectedMember.sector_category || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Phone size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Contact</span><span className="member-detail-value">{selectedMember.contact || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Shield size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Suffix</span><span className="member-detail-value">{r.suffix || selectedMember.suffix || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Cake size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Birthday</span><span className="member-detail-value">{selectedMember.birthday ? (() => { const raw = selectedMember.birthday.trim(); const d = new Date(raw); return isNaN(d.getTime()) ? raw : d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); })() : '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><User size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Gender</span><span className="member-detail-value">{selectedMember.gender || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><HeartHandshake size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Civil Status</span><span className="member-detail-value">{selectedMember.civil_status || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><UserCheck size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Voter Status</span><span className="member-detail-value" style={{ fontWeight: 600, color: selectedMember.is_valid_resident ? '#059669' : '#f59e0b' }}>{selectedMember.is_valid_resident ? 'Registered Voter' : 'Non-registered'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><UserCheck size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Referral</span>
+                      <div className="member-detail-item"><span className="member-detail-label"><Shield size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Suffix</span><span className="member-detail-value">{r.suffix || selectedMember.suffix || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><Cake size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Birthday</span><span className="member-detail-value">{selectedMember.birthday ? (() => { const raw = selectedMember.birthday.trim(); const d = new Date(raw); return isNaN(d.getTime()) ? raw : d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); })() : '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><User size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Gender</span><span className="member-detail-value">{selectedMember.gender || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><HeartHandshake size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Civil Status</span><span className="member-detail-value">{selectedMember.civil_status || '-'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><UserCheck size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Voter Status</span><span className="member-detail-value" style={{ fontWeight: 600, color: selectedMember.is_valid_resident ? '#059669' : '#f59e0b' }}>{selectedMember.is_valid_resident ? 'Registered Voter' : 'Non-registered'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><UserCheck size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Referral</span>
                         {selectedMember.referral_name ? (
                           <span className="member-detail-value member-detail-link" onClick={() => {
                             const refMember = allRegs.find(reg => getResidentName(reg) === selectedMember.referral_name.trim());
@@ -9060,23 +9146,42 @@ export default function AdminPage() {
                           <span className="member-detail-value">-</span>
                         )}
                       </div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Calendar size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Approved On</span><span className="member-detail-value">{new Date(selectedMember.created_at).toLocaleDateString()}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Printer size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Print Status</span><span className="member-detail-value" style={{ color: selectedMember.printed_at ? '#059669' : '#dc2626', fontWeight: 600 }}>{selectedMember.printed_at ? `ID Printed · ${new Date(selectedMember.printed_at).toLocaleDateString()}` : 'ID Not Printed'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><ScanLine size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Total Scans</span><span className="member-detail-value">{selectedMember.scan_count || 0}</span></div>
-                      <div className="member-detail-item full-width"><span className="member-detail-label"><Clock size={12} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Last Scanned</span><span className="member-detail-value">{selectedMember.last_scanned_at ? new Date(selectedMember.last_scanned_at).toLocaleString() : 'Never'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><Printer size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Print Status</span><span className="member-detail-value" style={{ color: selectedMember.printed_at ? '#059669' : '#dc2626', fontWeight: 600 }}>{selectedMember.printed_at ? `Printed · ${new Date(selectedMember.printed_at).toLocaleDateString()}` : 'Not Printed'}</span></div>
+                      <div className="member-detail-item"><span className="member-detail-label"><Clock size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Last Scanned</span><span className="member-detail-value">{selectedMember.last_scanned_at ? new Date(selectedMember.last_scanned_at).toLocaleString() : 'Never'}</span></div>
+                    </div>
+
+                    {/* QR Section */}
+                    <div className="member-detail-qr-section">
+                      <span className="member-detail-label"><QrCode size={13} style={{marginRight:4, verticalAlign:'text-bottom'}} /> QR Scan Token</span>
+                      {hasQR ? (
+                        <>
+                          <code className="member-qr-big">{selectedMember.qr_token}</code>
+                          <div className="member-qr-image">
+                            <QRCodeSVG value={`https://www.em-card.com/card/${selectedMember.qr_token}`} size={140} level="H" includeMargin={true} />
+                          </div>
+                          <p className="member-qr-hint"><ScanLine size={13} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Scan → <strong>https://www.em-card.com/card/{selectedMember.qr_token}</strong></p>
+                        </>
+                      ) : (
+                        <div className="member-qr-missing">
+                          <span>No QR token generated yet.</span>
+                          <button className="btn btn-generate-qr" onClick={() => generateQRForMember(selectedMember)}>
+                            <Zap size={16} /> Generate QR & Card
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Action Buttons */}
                     {hasQR && (
                       <div className="member-detail-links">
-                        <a href={`https://www.em-card.com/card/${selectedMember.qr_token}`} target="_blank" rel="noreferrer" className="btn btn-member-link"><Globe size={18} /> Open Citizen Dashboard</a>
-                        <button className="btn btn-member-copy" onClick={() => { navigator.clipboard.writeText(`https://www.em-card.com/card/${selectedMember.qr_token}`); showToast('Card URL copied!', 'success'); }}><Link2 size={18} /> Copy Card URL</button>
+                        <a href={`https://www.em-card.com/card/${selectedMember.qr_token}`} target="_blank" rel="noreferrer" className="btn btn-member-link"><Globe size={16} /> Open Citizen Dashboard</a>
+                        <button className="btn btn-member-copy" onClick={() => { navigator.clipboard.writeText(`https://www.em-card.com/card/${selectedMember.qr_token}`); showToast('Card URL copied!', 'success'); }}><Link2 size={16} /> Copy Card URL</button>
                       </div>
                     )}
 
                     {/* Scan History */}
                     <div className="member-scan-history">
-                      <h4 className="member-scan-history-title"><ScanLine size={14} style={{marginRight:6, verticalAlign:'text-bottom'}} /> Scan History</h4>
+                      <h4 className="member-scan-history-title"><ScanLine size={13} style={{marginRight:6, verticalAlign:'text-bottom'}} /> Scan History</h4>
                       {memberScanHistoryLoading ? (
                         <p className="member-scan-loading">Loading scan history...</p>
                       ) : memberScanHistory.length === 0 ? (

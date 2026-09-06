@@ -25,7 +25,7 @@ export async function GET(request) {
 
     const { data: reg, error: regErr } = await supabaseAdmin
       .from('registrations')
-      .select('id, purok, contact, photo_url, photo_base64, birthday, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay)')
+      .select('id, purok, contact, photo_url, photo_base64, birthday, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
       .eq('qr_token', cleanToken)
       .eq('status', 'Approved')
       .maybeSingle();
@@ -47,6 +47,7 @@ export async function GET(request) {
       birthDate: reg.birthday,
       scanCount: reg.scan_count || 0,
       lastScanned: reg.last_scanned_at,
+      precinct: person.precinct || null,
     });
   } catch {
     return Response.json({ error: 'Server error' }, { status: 500 });
