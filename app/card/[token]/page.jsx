@@ -151,7 +151,7 @@ export default function CardDashboardPage() {
           <div className="card-dash-info">
             <h2>{data.name}</h2>
             <p><MapPin size={13} /> {data.barangay}{data.purok && data.purok !== '-' ? ` · Purok ${data.purok}` : ''}</p>
-            <span className="card-dash-badge"><CheckCircle size={13} /> Approved EM Card Member</span>
+            <span className="card-dash-badge"><CheckCircle size={13} /> EM Card Member</span>
           </div>
         </div>
 
