@@ -8907,115 +8907,146 @@ export default function AdminPage() {
       )}
 
       {/* REGISTRATION DETAIL MODAL */}
+      {/* REGISTRATION DETAIL MODAL */}
       {selectedRegDetail && (
-        <div className="modal-overlay" onClick={() => setSelectedRegDetail(null)}>
+        <div className="modal-overlay" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>
           <div className="modal-card reg-detail-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Registration Details</h3>
-              <button className="modal-close-x" onClick={() => setSelectedRegDetail(null)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div className="reg-detail-photo-wrap">
-                {(selectedRegDetail.photo_url || selectedRegDetail.photo_base64) ? (
-                  <img src={selectedRegDetail.photo_url || selectedRegDetail.photo_base64} alt="Portrait" className="reg-detail-photo" />
-                ) : (
-                  <div className="reg-detail-photo-placeholder">👤</div>
-                )}
+              <div>
+                <h3>Registration Details</h3>
+                <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                  Member application review and verification
+                </p>
               </div>
-              <div className="reg-detail-grid">
-                <div className="reg-detail-item full">
-                  <span className="reg-detail-label">Name</span>
-                  <span className="reg-detail-value">{getResidentName(selectedRegDetail)}</span>
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Resident ID</span>
-                  <span className="reg-detail-value">{selectedRegDetail.resident_id || 'NON-VALID'}</span>
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Reference No</span>
-                  <span className="reg-detail-value">{selectedRegDetail.reference_no || '-'}</span>
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Residency Type</span>
-                  <span className="reg-detail-value" style={{ fontWeight: 'bold', color: selectedRegDetail.is_valid_resident !== false ? '#10b981' : '#f59e0b' }}>
-                    {selectedRegDetail.is_valid_resident !== false ? 'Registered Voter' : 'Non-Valid Resident'}
-                  </span>
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Status</span>
-                  <span className={`status-badge status-${(selectedRegDetail.status || 'pending').toLowerCase()}`}>{selectedRegDetail.status || 'Pending'}</span>
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Barangay</span>
-                  {regEditMode ? <input className="reg-edit-input" value={regEditForm.barangay} onChange={e => setRegEditForm(f => ({...f, barangay: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.barangay || '-'}</span>}
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Sector</span>
-                  {regEditMode ? (
-                    <select className="reg-edit-input" value={regEditForm.sector_category} onChange={e => setRegEditForm(f => ({...f, sector_category: e.target.value}))}>
-                      {['Senior Citizens','PWD','Solo Parents','Farmers / Fisherfolk','Workers / Labor','Youth','Indigenous People','Women','Others'].map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  ) : <span className="reg-detail-value">{selectedRegDetail.sector_category}</span>}
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Gender</span>
-                  {regEditMode ? (
-                    <select className="reg-edit-input" value={regEditForm.gender} onChange={e => setRegEditForm(f => ({...f, gender: e.target.value}))}>
-                      <option value="">Select...</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  ) : <span className="reg-detail-value">{selectedRegDetail.gender || '-'}</span>}
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Civil Status</span>
-                  {regEditMode ? (
-                    <select className="reg-edit-input" value={regEditForm.civil_status} onChange={e => setRegEditForm(f => ({...f, civil_status: e.target.value}))}>
-                      <option value="">Select...</option>
-                      <option value="Single">Single</option>
-                      <option value="Married">Married</option>
-                      <option value="Widowed">Widowed</option>
-                      <option value="Separated">Separated</option>
-                    </select>
-                  ) : <span className="reg-detail-value">{selectedRegDetail.civil_status || '-'}</span>}
-                </div>
-                {!SUBDIVISION_PUROKS.includes(regEditMode ? regEditForm.purok : selectedRegDetail.purok) && (
-                  <div className="reg-detail-item">
-                    <span className="reg-detail-label">House Number</span>
-                    {regEditMode ? <input className="reg-edit-input" value={regEditForm.house_no} onChange={e => setRegEditForm(f => ({...f, house_no: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.house_no || '-'}</span>}
+              <button className="modal-close-x" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>✕</button>
+            </div>
+
+            <div className="modal-body">
+              {/* Profile Hero Header */}
+              <div className="reg-detail-profile-hero">
+                {(selectedRegDetail.photo_url || selectedRegDetail.photo_base64) ? (
+                  <img src={selectedRegDetail.photo_url || selectedRegDetail.photo_base64} alt="Portrait" className="reg-detail-avatar" />
+                ) : (
+                  <div className="reg-detail-avatar-placeholder">👤</div>
+                )}
+                <div className="reg-detail-hero-info">
+                  <h4 className="reg-detail-hero-name">{getResidentName(selectedRegDetail)}</h4>
+                  <div className="reg-detail-badges-row">
+                    <span className={`status-badge status-${(selectedRegDetail.status || 'pending').toLowerCase()}`}>
+                      {selectedRegDetail.status || 'Pending'}
+                    </span>
+                    <span className={`reg-detail-badge ${selectedRegDetail.is_valid_resident !== false ? 'badge-voter' : 'badge-nonvoter'}`}>
+                      {selectedRegDetail.is_valid_resident !== false ? '✓ Registered Voter' : 'Non-Valid Resident'}
+                    </span>
+                    {selectedRegDetail.reference_no && (
+                      <span className="reg-detail-badge badge-ref">
+                        Ref: {selectedRegDetail.reference_no}
+                      </span>
+                    )}
+                    {selectedRegDetail.resident_id && (
+                      <span className="reg-detail-badge badge-ref">
+                        ID: {selectedRegDetail.resident_id.slice(0, 8)}
+                      </span>
+                    )}
                   </div>
-                )}
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Purok</span>
-                  {regEditMode ? (
-                    <select className="reg-edit-input" value={regEditForm.purok} onChange={e => setRegEditForm(f => ({...f, purok: e.target.value}))}>
-                      <option value="">Select purok...</option>
-                      {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Purok {n}</option>)}
-                      {regEditForm.purok && ![1,2,3,4,5,6,7].map(String).includes(String(regEditForm.purok)) && regEditForm.purok !== '' && <option value={regEditForm.purok}>{regEditForm.purok}</option>}
-                    </select>
-                  ) : <span className="reg-detail-value">{selectedRegDetail.purok ? (SUBDIVISION_PUROKS.includes(selectedRegDetail.purok) ? selectedRegDetail.purok : `Purok ${selectedRegDetail.purok}`) : '-'}</span>}
                 </div>
-                {SUBDIVISION_PUROKS.includes(selectedRegDetail.purok) && (
-                  <>
-                    <div className="reg-detail-item">
-                      <span className="reg-detail-label">Lot</span>
-                      <span className="reg-detail-value">{selectedRegDetail.lot || '-'}</span>
+              </div>
+
+              {/* Personal Demographics Section */}
+              <div className="reg-detail-section">
+                <p className="reg-detail-section-title">Personal Information</p>
+                <div className="reg-detail-grid-v2">
+                  <div className="reg-detail-item-v2">
+                    <span className="reg-detail-label">Sector / Category</span>
+                    {regEditMode ? (
+                      <select className="reg-edit-input" value={regEditForm.sector_category} onChange={e => setRegEditForm(f => ({...f, sector_category: e.target.value}))}>
+                        {['Senior Citizens','PWD','Solo Parents','Farmers / Fisherfolk','Workers / Labor','Youth','Indigenous People','Women','Others'].map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    ) : <span className="reg-detail-value">{selectedRegDetail.sector_category || '-'}</span>}
+                  </div>
+                  <div className="reg-detail-item-v2">
+                    <span className="reg-detail-label">Contact Number</span>
+                    {regEditMode ? <input className="reg-edit-input" value={regEditForm.contact} onChange={e => setRegEditForm(f => ({...f, contact: e.target.value}))} /> : <span className="reg-detail-value" style={{ fontFamily: 'monospace' }}>{selectedRegDetail.contact || '-'}</span>}
+                  </div>
+                  <div className="reg-detail-item-v2">
+                    <span className="reg-detail-label">Gender</span>
+                    {regEditMode ? (
+                      <select className="reg-edit-input" value={regEditForm.gender} onChange={e => setRegEditForm(f => ({...f, gender: e.target.value}))}>
+                        <option value="">Select...</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    ) : <span className="reg-detail-value">{selectedRegDetail.gender || '-'}</span>}
+                  </div>
+                  <div className="reg-detail-item-v2">
+                    <span className="reg-detail-label">Civil Status</span>
+                    {regEditMode ? (
+                      <select className="reg-edit-input" value={regEditForm.civil_status} onChange={e => setRegEditForm(f => ({...f, civil_status: e.target.value}))}>
+                        <option value="">Select...</option>
+                        <option value="Single">Single</option>
+                        <option value="Married">Married</option>
+                        <option value="Widowed">Widowed</option>
+                        <option value="Separated">Separated</option>
+                      </select>
+                    ) : <span className="reg-detail-value">{selectedRegDetail.civil_status || '-'}</span>}
+                  </div>
+                  <div className="reg-detail-item-v2 full">
+                    <span className="reg-detail-label">Birthday</span>
+                    {regEditMode ? <input type="date" className="reg-edit-input" value={regEditForm.birthday} onChange={e => setRegEditForm(f => ({...f, birthday: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.birthday || '-'}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Address Section */}
+              <div className="reg-detail-section">
+                <p className="reg-detail-section-title">Residential Address</p>
+                <div className="reg-detail-grid-v2">
+                  <div className="reg-detail-item-v2">
+                    <span className="reg-detail-label">Barangay</span>
+                    {regEditMode ? <input className="reg-edit-input" value={regEditForm.barangay} onChange={e => setRegEditForm(f => ({...f, barangay: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.barangay || '-'}</span>}
+                  </div>
+                  <div className="reg-detail-item-v2">
+                    <span className="reg-detail-label">Purok / Zone</span>
+                    {regEditMode ? (
+                      <select className="reg-edit-input" value={regEditForm.purok} onChange={e => setRegEditForm(f => ({...f, purok: e.target.value}))}>
+                        <option value="">Select purok...</option>
+                        {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Purok {n}</option>)}
+                        {regEditForm.purok && ![1,2,3,4,5,6,7].map(String).includes(String(regEditForm.purok)) && regEditForm.purok !== '' && <option value={regEditForm.purok}>{regEditForm.purok}</option>}
+                      </select>
+                    ) : <span className="reg-detail-value">{selectedRegDetail.purok ? (SUBDIVISION_PUROKS.includes(selectedRegDetail.purok) ? selectedRegDetail.purok : `Purok ${selectedRegDetail.purok}`) : '-'}</span>}
+                  </div>
+                  {!SUBDIVISION_PUROKS.includes(regEditMode ? regEditForm.purok : selectedRegDetail.purok) && (
+                    <div className="reg-detail-item-v2 full">
+                      <span className="reg-detail-label">House Number / Street</span>
+                      {regEditMode ? <input className="reg-edit-input" value={regEditForm.house_no} onChange={e => setRegEditForm(f => ({...f, house_no: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.house_no || '-'}</span>}
                     </div>
-                    <div className="reg-detail-item">
-                      <span className="reg-detail-label">Block</span>
-                      <span className="reg-detail-value">{selectedRegDetail.block || '-'}</span>
-                    </div>
-                    <div className="reg-detail-item">
-                      <span className="reg-detail-label">Phase</span>
-                      <span className="reg-detail-value">{selectedRegDetail.phase || '-'}</span>
-                    </div>
-                  </>
-                )}
-                <div className="reg-detail-item full" style={{ gridColumn: 'span 2' }}>
-                  <span className="reg-detail-label">Authorized Referral Node <span style={{ color: '#ef4444' }}>*</span></span>
-                  {selectedRegDetail.status === 'Pending' ? (
-                    <div style={{ position: 'relative', width: '100%', marginTop: '6px' }}>
+                  )}
+                  {SUBDIVISION_PUROKS.includes(selectedRegDetail.purok) && (
+                    <>
+                      <div className="reg-detail-item-v2">
+                        <span className="reg-detail-label">Lot</span>
+                        <span className="reg-detail-value">{selectedRegDetail.lot || '-'}</span>
+                      </div>
+                      <div className="reg-detail-item-v2">
+                        <span className="reg-detail-label">Block</span>
+                        <span className="reg-detail-value">{selectedRegDetail.block || '-'}</span>
+                      </div>
+                      <div className="reg-detail-item-v2 full">
+                        <span className="reg-detail-label">Phase</span>
+                        <span className="reg-detail-value">{selectedRegDetail.phase || '-'}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Referral Node Section */}
+              <div className="reg-detail-section">
+                <p className="reg-detail-section-title">Authorized Referral Node <span style={{ color: '#ef4444' }}>*</span></p>
+                {selectedRegDetail.status === 'Pending' ? (
+                  <div className="reg-detail-referral-box">
+                    <div style={{ position: 'relative', width: '100%' }}>
                       <input
                         type="text"
                         placeholder="Start typing community referral name..."
@@ -9028,7 +9059,7 @@ export default function AdminPage() {
                           clearTimeout(adminReferralDebounceRef.current);
                           const trimmedVal = val.trim();
                           if (trimmedVal.length >= 2) {
-                            adminReferralDebounceRef.current = setTimeout(async () => { // 250ms debounce
+                            adminReferralDebounceRef.current = setTimeout(async () => {
                               try {
                                 const excludeParam = selectedRegDetail.resident_id ? `&excludeId=${selectedRegDetail.resident_id}` : '';
                                 const apiUrl = `/api/search-residents?q=${encodeURIComponent(trimmedVal)}${excludeParam}`;
@@ -9052,12 +9083,13 @@ export default function AdminPage() {
                         style={{
                           width: '100%',
                           padding: '10px 14px',
-                          borderRadius: '10px',
-                          border: adminReferralValid ? '2px solid #10b981' : '1px solid rgba(6, 78, 59, 0.15)',
+                          borderRadius: '8px',
+                          border: adminReferralValid ? '1.5px solid #059669' : '1.5px solid #cbd5e1',
                           outline: 'none',
-                          fontSize: '0.92rem',
-                          background: adminReferralValid ? '#f0fdf4' : '#fff',
-                          transition: 'all 0.2s'
+                          fontSize: '0.88rem',
+                          background: adminReferralValid ? '#ecfdf5' : '#ffffff',
+                          transition: 'all 0.2s',
+                          color: '#0f172a'
                         }}
                         required
                       />
@@ -9065,10 +9097,10 @@ export default function AdminPage() {
                         <span style={{
                           position: 'absolute',
                           right: '12px',
-                          top: '11px',
-                          color: '#10b981',
-                          fontSize: '0.82rem',
-                          fontWeight: 'bold'
+                          top: '10px',
+                          color: '#059669',
+                          fontSize: '0.78rem',
+                          fontWeight: 700
                         }}>
                           ✓ Node Verified
                         </span>
@@ -9079,11 +9111,11 @@ export default function AdminPage() {
                           top: '100%',
                           left: 0,
                           right: 0,
-                          background: '#fff',
-                          border: '1px solid rgba(6, 78, 59, 0.15)',
-                          borderRadius: '10px',
-                          boxShadow: '0 10px 30px rgba(2, 44, 34, 0.12)',
-                          maxHeight: '200px',
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '8px',
+                          boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                          maxHeight: '180px',
                           overflowY: 'auto',
                           zIndex: 1000,
                           marginTop: '4px'
@@ -9100,104 +9132,109 @@ export default function AdminPage() {
                               }}
                               style={{
                                 width: '100%',
-                                padding: '10px 14px',
+                                padding: '9px 12px',
                                 border: 'none',
                                 background: 'none',
                                 textAlign: 'left',
                                 cursor: 'pointer',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                borderBottom: '1px solid rgba(6, 78, 59, 0.05)',
-                                transition: 'background 0.2s'
+                                borderBottom: '1px solid #f1f5f9',
+                                transition: 'background 0.15s'
                               }}
-                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f8f4'}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
                               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
-                              <strong style={{ fontSize: '0.9rem', color: '#1a3a30' }}>{p.name}</strong>
-                              <span style={{ fontSize: '0.75rem', color: '#5d756d' }}>{p.barangay}</span>
+                              <strong style={{ fontSize: '0.86rem', color: '#0f172a' }}>{p.name}</strong>
+                              <span style={{ fontSize: '0.74rem', color: '#64748b' }}>{p.barangay}</span>
                             </button>
                           ))}
                         </div>
                       )}
                       {!adminReferralValid && adminReferralQuery.length >= 2 && adminReferralResults.length === 0 && (
-                        <p style={{ margin: '4px 0 0', color: '#ef4444', fontSize: '0.8rem' }}>
+                        <p style={{ margin: '6px 0 0', color: '#ef4444', fontSize: '0.78rem' }}>
                           Zero records found matching this node string in our directory.
                         </p>
                       )}
                     </div>
-                  ) : (
-                    <span className="reg-detail-value">{selectedRegDetail.referral_name || '-'}</span>
-                  )}
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Contact</span>
-                  {regEditMode ? <input className="reg-edit-input" value={regEditForm.contact} onChange={e => setRegEditForm(f => ({...f, contact: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.contact || '-'}</span>}
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Birthday</span>
-                  {regEditMode ? <input type="date" className="reg-edit-input" value={regEditForm.birthday} onChange={e => setRegEditForm(f => ({...f, birthday: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.birthday || '-'}</span>}
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Photo Size</span>
-                  <span className="reg-detail-value">{getPhotoSize(selectedRegDetail.photo_url || selectedRegDetail.photo_base64)}</span>
-                </div>
-                <div className="reg-detail-item">
-                  <span className="reg-detail-label">Submitted</span>
-                  <span className="reg-detail-value">{new Date(selectedRegDetail.created_at).toLocaleString()}</span>
-                </div>
+                  </div>
+                ) : (
+                  <div className="reg-detail-item-v2 full">
+                    <span className="reg-detail-value">{selectedRegDetail.referral_name || 'No referral node assigned'}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Submission Meta Section */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: 8, fontSize: '0.74rem', color: '#64748b' }}>
+                <span>Photo: <strong>{getPhotoSize(selectedRegDetail.photo_url || selectedRegDetail.photo_base64)}</strong></span>
+                <span>Submitted: <strong>{new Date(selectedRegDetail.created_at).toLocaleString()}</strong></span>
               </div>
             </div>
+
+            {/* Modal Footer */}
             <div className="modal-footer">
-              <button type="button" className="btn btn-modal-secondary" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>Close</button>
-              {!regEditMode ? (
-                <button type="button" className="btn btn-modal-primary" style={{ background: '#1d4ed8' }} onClick={() => {
-                  setRegEditForm({
-                    house_no: selectedRegDetail.house_no || '',
-                    purok: selectedRegDetail.purok || '',
-                    barangay: selectedRegDetail.barangay || '',
-                    contact: selectedRegDetail.contact || '',
-                    sector_category: selectedRegDetail.sector_category || '',
-                    gender: selectedRegDetail.gender || '',
-                    civil_status: selectedRegDetail.civil_status || '',
-                    birthday: selectedRegDetail.birthday ? (() => { const d = new Date(selectedRegDetail.birthday); return isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '',
-                    lot: selectedRegDetail.lot || '',
-                    block: selectedRegDetail.block || '',
-                    phase: selectedRegDetail.phase || '',
-                  });
-                  setRegEditMode(true);
-                }}>Edit</button>
-              ) : (
-                <>
-                  <button type="button" className="btn btn-modal-secondary" onClick={() => setRegEditMode(false)}>Cancel Edit</button>
-                  <button type="button" className="btn btn-modal-primary" onClick={handleSaveRegEdit} disabled={regEditLoading}>{regEditLoading ? 'Saving...' : 'Save Changes'}</button>
-                </>
-              )}
-              {!regEditMode && selectedRegDetail.status === 'Pending' && (
-                <>
-                  <button 
-                    type="button" 
-                    className="btn btn-approve" 
-                    onClick={async () => {
-                      const success = await approveRegistration(selectedRegDetail.id, adminReferral);
-                      if (success) setSelectedRegDetail(null);
-                    }}
-                    disabled={!adminReferralValid}
-                    style={{ opacity: adminReferralValid ? 1 : 0.6, cursor: adminReferralValid ? 'pointer' : 'not-allowed' }}
-                    title={!adminReferralValid ? "Please verify an Authorized Referral Node before approving" : "Approve registration"}
-                  >
-                    Approve
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button type="button" className="btn btn-modal-secondary" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>Close</button>
+                {!regEditMode ? (
+                  <button type="button" className="btn btn-modal-primary" style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1' }} onClick={() => {
+                    setRegEditForm({
+                      house_no: selectedRegDetail.house_no || '',
+                      purok: selectedRegDetail.purok || '',
+                      barangay: selectedRegDetail.barangay || '',
+                      contact: selectedRegDetail.contact || '',
+                      sector_category: selectedRegDetail.sector_category || '',
+                      gender: selectedRegDetail.gender || '',
+                      civil_status: selectedRegDetail.civil_status || '',
+                      birthday: selectedRegDetail.birthday ? (() => { const d = new Date(selectedRegDetail.birthday); return isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '',
+                      lot: selectedRegDetail.lot || '',
+                      block: selectedRegDetail.block || '',
+                      phase: selectedRegDetail.phase || '',
+                    });
+                    setRegEditMode(true);
+                  }}>Edit Details</button>
+                ) : (
+                  <>
+                    <button type="button" className="btn btn-modal-secondary" onClick={() => setRegEditMode(false)}>Cancel</button>
+                    <button type="button" className="btn btn-modal-primary" onClick={handleSaveRegEdit} disabled={regEditLoading} style={{ background: '#059669', color: '#ffffff' }}>
+                      {regEditLoading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </>
+                )}
+                {!regEditMode && (
+                  <button type="button" className="btn-delete-ghost" onClick={() => { setDeleteRegId(selectedRegDetail.id); setDeleteRegName(getResidentName(selectedRegDetail)); setShowDeleteRegModal(true); }} title="Delete registration">
+                    Delete
                   </button>
-                  <button type="button" className="btn btn-reject" onClick={() => { rejectRegistration(selectedRegDetail.id); setSelectedRegDetail(null); }}>Reject</button>
-                </>
-              )}
-              {!regEditMode && selectedRegDetail.status === 'Approved' && (
-                <button type="button" className="btn btn-print" onClick={() => setSelectedRegDetail(null)}>🖨️ Print Card</button>
-              )}
-              {!regEditMode && (
-                <button type="button" className="btn btn-reject" style={{ marginLeft: 'auto' }} onClick={() => { setDeleteRegId(selectedRegDetail.id); setDeleteRegName(getResidentName(selectedRegDetail)); setShowDeleteRegModal(true); }}>
-                  🗑️ Delete
-                </button>
-              )}
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {!regEditMode && selectedRegDetail.status === 'Pending' && (
+                  <>
+                    <button type="button" className="btn btn-reject" onClick={() => { rejectRegistration(selectedRegDetail.id); setSelectedRegDetail(null); }}>
+                      Reject
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn btn-approve" 
+                      onClick={async () => {
+                        const success = await approveRegistration(selectedRegDetail.id, adminReferral);
+                        if (success) setSelectedRegDetail(null);
+                      }}
+                      disabled={!adminReferralValid}
+                      style={{ opacity: adminReferralValid ? 1 : 0.5, cursor: adminReferralValid ? 'pointer' : 'not-allowed' }}
+                      title={!adminReferralValid ? "Please verify an Authorized Referral Node before approving" : "Approve registration"}
+                    >
+                      ✓ Approve Registration
+                    </button>
+                  </>
+                )}
+                {!regEditMode && selectedRegDetail.status === 'Approved' && (
+                  <button type="button" className="btn btn-print" onClick={() => setSelectedRegDetail(null)} style={{ background: '#059669', color: '#ffffff' }}>
+                    🖨️ Print Card
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
