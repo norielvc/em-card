@@ -9670,14 +9670,29 @@ export default function AdminPage() {
         return (
           <div className="modal-overlay" onClick={() => { setSelectedMember(null); setMemberEditMode(false); }}>
             <div className={`modal-card member-detail-card${showMemberNetwork ? ' network-open' : ''}`} onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>{memberEditMode ? 'Edit Member' : (showMemberNetwork ? 'Member Network' : 'Member Profile')}</h3>
+              <div className="modal-header gov-modal-header">
+                <div className="gov-modal-header-brand">
+                  <div className="gov-modal-header-seal">
+                    <Landmark size={20} />
+                  </div>
+                  <div className="gov-modal-header-titles">
+                    <span className="gov-modal-header-pre">Republic of the Philippines · Municipality of Balagtas</span>
+                    <h3 className="gov-modal-header-main">
+                      {memberEditMode ? 'Edit Citizen Record' : (showMemberNetwork ? 'Citizen Family & Referral Network' : 'Citizen Registry Dossier')}
+                    </h3>
+                    <span className="gov-modal-header-sub">Official Citizen Database & Electoral Profile</span>
+                  </div>
+                </div>
                 <button className="modal-close-x" onClick={() => { setSelectedMember(null); setMemberEditMode(false); setMemberScanHistory([]); setShowMemberNetwork(false); stopEditCamera(); }}>✕</button>
               </div>
               {!memberEditMode && (
-                <div className="member-modal-tabs">
-                  <button className={`member-modal-tab ${!showMemberNetwork ? 'active' : ''}`} onClick={() => setShowMemberNetwork(false)}>Profile</button>
-                  <button className={`member-modal-tab ${showMemberNetwork ? 'active' : ''}`} onClick={() => setShowMemberNetwork(true)}>Network</button>
+                <div className="member-modal-tabs gov-modal-tabs">
+                  <button className={`member-modal-tab ${!showMemberNetwork ? 'active' : ''}`} onClick={() => setShowMemberNetwork(false)}>
+                    <User size={15} /> Citizen Profile
+                  </button>
+                  <button className={`member-modal-tab ${showMemberNetwork ? 'active' : ''}`} onClick={() => setShowMemberNetwork(true)}>
+                    <Network size={15} /> Referral & Network
+                  </button>
                 </div>
               )}
               <div className="modal-body">
@@ -10121,176 +10136,311 @@ export default function AdminPage() {
                 ) : (
                   <>
                     {/* === PROFILE VIEW === */}
+                    {(() => {
+                      const rawBday = (selectedMember.birthday || '').trim();
+                      let formattedBday = '-';
+                      let calculatedAge = '';
+                      if (rawBday) {
+                        const d = new Date(rawBday);
+                        if (!isNaN(d.getTime())) {
+                          formattedBday = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                          const today = new Date();
+                          let age = today.getFullYear() - d.getFullYear();
+                          const m = today.getMonth() - d.getMonth();
+                          if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+                          if (age >= 0) calculatedAge = `(${age} yrs old)`;
+                        } else {
+                          formattedBday = rawBday;
+                        }
+                      }
+                      const precinctNumber = r.precinct || selectedMember.precinct || '';
+                      const brgyName = selectedMember.barangay || r.barangay || '';
+                      const isSubdivision = SUBDIVISION_PUROKS.includes(selectedMember.purok);
 
-                    {/* Top: Photo + Name + Badges */}
-                    <div className="member-detail-top">
-                      <div className="member-detail-photo">
-                        {(selectedMember.photo_url || selectedMember.photo_base64) ? <img src={selectedMember.photo_url || selectedMember.photo_base64} alt="" /> : <User size={40} color="#94a3b8" />}
-                      </div>
-                      <div className="member-detail-head">
-                        <h2>{name}</h2>
-                        <div className="member-detail-badges">
-                          <span className="member-detail-status"><CheckCircle size={12} /> Approved Member</span>
-                          {selectedMember.printed_at ? (
-                            <span className="member-detail-printed printed"><Printer size={12} /> ID Printed · {new Date(selectedMember.printed_at).toLocaleDateString()}</span>
-                          ) : (
-                            <span className="member-detail-printed not-printed">ID Not Printed</span>
-                          )}
-                        </div>
-                        <div className="member-detail-ids">
-                          {hasCardNo && (
-                            <span className="member-id-chip"><CreditCard size={11} /> {selectedMember.em_card_no}</span>
-                          )}
-                          {selectedMember.reference_no && (
-                            <span className="member-id-chip ref"><Hash size={11} /> {selectedMember.reference_no}</span>
-                          )}
-                        </div>
-                        <div className="member-detail-quick-actions">
-                          <button className="btn btn-sm btn-edit" onClick={() => openEditMember(selectedMember)}><Pencil size={13} strokeWidth={2.5} /> Edit</button>
-                          <button className="btn btn-sm btn-export" onClick={() => exportMemberExcel(selectedMember)}><Download size={13} strokeWidth={2.5} /> Export</button>
-                          <button className="btn btn-sm btn-print" onClick={() => { setShowPrintModal(true); setIdCardSide('front'); }}><Printer size={13} strokeWidth={2.5} /> Print ID</button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Precinct Hero Box */}
-                    {(r.precinct || selectedMember.precinct) && (
-                      <div className="member-precinct-hero">
-                        <div className="member-precinct-hero-inner">
-                          <div className="member-precinct-hero-label">
-                            <Hash size={13} /> Precinct No.
-                          </div>
-                          <div className="member-precinct-hero-number">
-                            {r.precinct || selectedMember.precinct}
-                          </div>
-                          <div className="member-precinct-hero-sub">Registered Voter</div>
-                        </div>
-                        <div className="member-precinct-hero-divider" />
-                        <div className="member-precinct-hero-extra">
-                          <div className="member-precinct-hero-stat">
-                            <span className="mph-stat-label"><ScanLine size={11} /> Total Scans</span>
-                            <span className="mph-stat-value">{selectedMember.scan_count || 0}</span>
-                          </div>
-                          <div className="member-precinct-hero-stat">
-                            <span className="mph-stat-label"><Calendar size={11} /> Joined</span>
-                            <span className="mph-stat-value">{new Date(selectedMember.created_at).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Key Info Strip */}
-                    <div className="member-info-strip">
-                      <div className="member-info-strip-item">
-                        <span className="mis-label"><Tag size={10} /> Sector</span>
-                        <span className="mis-value">{selectedMember.sector_category || '-'}</span>
-                      </div>
-                      <div className="member-info-strip-sep" />
-                      <div className="member-info-strip-item">
-                        <span className="mis-label"><Phone size={10} /> Contact</span>
-                        <span className="mis-value">{selectedMember.contact || '-'}</span>
-                      </div>
-                      <div className="member-info-strip-sep" />
-                      <div className="member-info-strip-item">
-                        <span className="mis-label"><MapPin size={10} /> Barangay</span>
-                        <span className="mis-value">{selectedMember.barangay || r.barangay || '-'}</span>
-                      </div>
-                      <div className="member-info-strip-sep" />
-                      <div className="member-info-strip-item">
-                        <span className="mis-label"><Building size={10} /> Purok</span>
-                        <span className="mis-value">{selectedMember.purok ? (SUBDIVISION_PUROKS.includes(selectedMember.purok) ? selectedMember.purok : `Purok ${selectedMember.purok}`) : '-'}</span>
-                      </div>
-                    </div>
-
-                    {/* Details Grid */}
-                    <div className="member-detail-grid">
-                      {!SUBDIVISION_PUROKS.includes(selectedMember.purok) && (
-                        <div className="member-detail-item"><span className="member-detail-label"><Home size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> House No</span><span className="member-detail-value">{selectedMember.house_no || '-'}</span></div>
-                      )}
-                      {SUBDIVISION_PUROKS.includes(selectedMember.purok) && (
+                      return (
                         <>
-                          <div className="member-detail-item"><span className="member-detail-label">Lot</span><span className="member-detail-value">{selectedMember.lot || '-'}</span></div>
-                          <div className="member-detail-item"><span className="member-detail-label">Block</span><span className="member-detail-value">{selectedMember.block || '-'}</span></div>
-                          <div className="member-detail-item"><span className="member-detail-label">Phase</span><span className="member-detail-value">{selectedMember.phase || '-'}</span></div>
-                        </>
-                      )}
-                      <div className="member-detail-item"><span className="member-detail-label"><Shield size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Suffix</span><span className="member-detail-value">{r.suffix || selectedMember.suffix || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Cake size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Birthday</span><span className="member-detail-value">{selectedMember.birthday ? (() => { const raw = selectedMember.birthday.trim(); const d = new Date(raw); return isNaN(d.getTime()) ? raw : d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }); })() : '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><User size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Gender</span><span className="member-detail-value">{selectedMember.gender || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><HeartHandshake size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Civil Status</span><span className="member-detail-value">{selectedMember.civil_status || '-'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><UserCheck size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Voter Status</span><span className="member-detail-value" style={{ fontWeight: 600, color: selectedMember.is_valid_resident ? '#059669' : '#f59e0b' }}>{selectedMember.is_valid_resident ? 'Registered Voter' : 'Non-registered'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><UserCheck size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Referral</span>
-                        {selectedMember.referral_name ? (
-                          <span className="member-detail-value member-detail-link" onClick={() => {
-                            const refMember = allRegs.find(reg => getResidentName(reg) === selectedMember.referral_name.trim());
-                            if (refMember) {
-                              setSelectedMember(refMember);
-                              setShowMemberNetwork(false);
-                              setMemberScanHistory([]);
-                              setExpandedNodes(new Set());
-                            } else {
-                              showToast('Referrer not found in members list', 'error');
-                            }
-                          }}>{selectedMember.referral_name}</span>
-                        ) : (
-                          <span className="member-detail-value">-</span>
-                        )}
-                      </div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Printer size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Print Status</span><span className="member-detail-value" style={{ color: selectedMember.printed_at ? '#059669' : '#dc2626', fontWeight: 600 }}>{selectedMember.printed_at ? `Printed · ${new Date(selectedMember.printed_at).toLocaleDateString()}` : 'Not Printed'}</span></div>
-                      <div className="member-detail-item"><span className="member-detail-label"><Clock size={11} style={{marginRight:3, verticalAlign:'text-bottom'}} /> Last Scanned</span><span className="member-detail-value">{selectedMember.last_scanned_at ? new Date(selectedMember.last_scanned_at).toLocaleString() : 'Never'}</span></div>
-                    </div>
-
-                    {/* QR Section */}
-                    <div className="member-detail-qr-section">
-                      <span className="member-detail-label"><QrCode size={13} style={{marginRight:4, verticalAlign:'text-bottom'}} /> QR Scan Token</span>
-                      {hasQR ? (
-                        <>
-                          <code className="member-qr-big">{selectedMember.qr_token}</code>
-                          <div className="member-qr-image">
-                            <QRCodeSVG value={`https://www.em-card.com/card/${selectedMember.qr_token}`} size={140} level="H" includeMargin={true} />
-                          </div>
-                          <p className="member-qr-hint"><ScanLine size={13} style={{marginRight:4, verticalAlign:'text-bottom'}} /> Scan → <strong>https://www.em-card.com/card/{selectedMember.qr_token}</strong></p>
-                        </>
-                      ) : (
-                        <div className="member-qr-missing">
-                          <span>No QR token generated yet.</span>
-                          <button className="btn btn-generate-qr" onClick={() => generateQRForMember(selectedMember)}>
-                            <Zap size={16} /> Generate QR & Card
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action Buttons */}
-                    {hasQR && (
-                      <div className="member-detail-links">
-                        <a href={`https://www.em-card.com/card/${selectedMember.qr_token}`} target="_blank" rel="noreferrer" className="btn btn-member-link"><Globe size={16} /> Open Citizen Dashboard</a>
-                        <button className="btn btn-member-copy" onClick={() => { navigator.clipboard.writeText(`https://www.em-card.com/card/${selectedMember.qr_token}`); showToast('Card URL copied!', 'success'); }}><Link2 size={16} /> Copy Card URL</button>
-                      </div>
-                    )}
-
-                    {/* Scan History */}
-                    <div className="member-scan-history">
-                      <h4 className="member-scan-history-title"><ScanLine size={13} style={{marginRight:6, verticalAlign:'text-bottom'}} /> Scan History</h4>
-                      {memberScanHistoryLoading ? (
-                        <p className="member-scan-loading">Loading scan history...</p>
-                      ) : memberScanHistory.length === 0 ? (
-                        <p className="member-scan-empty">No event scans recorded yet.</p>
-                      ) : (
-                        <div className="member-scan-list">
-                          {memberScanHistory.map((scan, i) => (
-                            <div key={scan.id || i} className="member-scan-item">
-                              <div className="member-scan-event">{scan.scan_events?.event_name || 'Unknown Event'}</div>
-                              <div className="member-scan-meta">
-                                <span>{scan.scan_events?.location || '-'}</span>
-                                <span>{new Date(scan.scanned_at).toLocaleDateString()} {new Date(scan.scanned_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                                <span>By: {scan.scanned_by || 'System'}</span>
+                          {/* 1. Official Citizen Identity Hero Card */}
+                          <div className="gov-profile-hero">
+                            <div className="gov-hero-left">
+                              <div className="gov-hero-avatar-wrap">
+                                <div className="gov-hero-avatar">
+                                  {(selectedMember.photo_url || selectedMember.photo_base64) ? (
+                                    <img src={selectedMember.photo_url || selectedMember.photo_base64} alt={name} />
+                                  ) : (
+                                    <User size={44} color="#94a3b8" />
+                                  )}
+                                </div>
+                                <span className="gov-hero-badge">VERIFIED</span>
+                              </div>
+                              <div className="gov-hero-info">
+                                <h2 className="gov-hero-name">{name}</h2>
+                                <div className="gov-hero-tags">
+                                  <span className="gov-chip approved"><ShieldCheck size={13} /> Approved Citizen</span>
+                                  {selectedMember.is_valid_resident ? (
+                                    <span className="gov-chip voter"><UserCheck size={13} /> COMELEC Registered</span>
+                                  ) : (
+                                    <span className="gov-chip non-voter"><Info size={13} /> Resident (Non-Voter)</span>
+                                  )}
+                                  {selectedMember.printed_at ? (
+                                    <span className="gov-chip printed"><Printer size={13} /> ID Printed · {new Date(selectedMember.printed_at).toLocaleDateString()}</span>
+                                  ) : (
+                                    <span className="gov-chip not-printed"><AlertTriangle size={13} /> ID Not Printed</span>
+                                  )}
+                                </div>
+                                <div className="gov-hero-ids">
+                                  {hasCardNo && (
+                                    <span className="gov-id-pill card-no" title="EM Card Number">
+                                      <CreditCard size={12} /> {selectedMember.em_card_no}
+                                    </span>
+                                  )}
+                                  {selectedMember.reference_no && (
+                                    <span className="gov-id-pill ref-no" title="System Reference Number">
+                                      <Hash size={12} /> Ref: {selectedMember.reference_no}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+
+                            {precinctNumber ? (
+                              <div className="gov-hero-precinct-box">
+                                <div className="gov-precinct-tag"><Hash size={11} /> PRECINCT CLUSTER</div>
+                                <div className="gov-precinct-number">{precinctNumber}</div>
+                                <div className="gov-precinct-jurisdiction">
+                                  {brgyName ? `Brgy. ${brgyName} · Balagtas` : 'Balagtas, Bulacan'}
+                                </div>
+                                <div className="gov-precinct-stats">
+                                  <span><ScanLine size={10} /> {selectedMember.scan_count || 0} scans</span>
+                                  <span><Calendar size={10} /> {new Date(selectedMember.created_at).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="gov-hero-precinct-box empty">
+                                <div className="gov-precinct-tag"><Building size={11} /> JURISDICTION</div>
+                                <div className="gov-precinct-number" style={{ fontSize: '1.2rem', color: '#94a3b8' }}>NO PRECINCT</div>
+                                <div className="gov-precinct-jurisdiction">{brgyName ? `Brgy. ${brgyName}` : 'Balagtas, Bulacan'}</div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 2. Official Action Ribbon */}
+                          <div className="gov-actions-ribbon">
+                            <button className="gov-btn gov-btn-print" onClick={() => { setShowPrintModal(true); setIdCardSide('front'); }}>
+                              <Printer size={15} /> Print Official ID Card
+                            </button>
+                            <button className="gov-btn gov-btn-edit" onClick={() => openEditMember(selectedMember)}>
+                              <Pencil size={14} /> Edit Citizen Info
+                            </button>
+                            <button className="gov-btn gov-btn-export" onClick={() => exportMemberExcel(selectedMember)}>
+                              <Download size={14} /> Export Dossier (Excel)
+                            </button>
+                            {hasQR && (
+                              <a href={`https://www.em-card.com/card/${selectedMember.qr_token}`} target="_blank" rel="noreferrer" className="gov-btn gov-btn-portal">
+                                <Globe size={14} /> Citizen Dashboard
+                              </a>
+                            )}
+                          </div>
+
+                          {/* 3. Two-Column Structured Dossier Sections */}
+                          <div className="gov-grid-2col">
+                            {/* Column 1: Demographics */}
+                            <div className="gov-card-section">
+                              <div className="gov-section-header">
+                                <div className="gov-section-icon"><User size={15} /></div>
+                                <div>
+                                  <h4 className="gov-section-title">Personal Demographics</h4>
+                                  <span className="gov-section-sub">Vital identification & sectoral classification</span>
+                                </div>
+                              </div>
+
+                              <div className="gov-field-group-grid">
+                                <div className="gov-field-box">
+                                  <span className="gov-field-label">Date of Birth & Age</span>
+                                  <span className="gov-field-value bold">{formattedBday} {calculatedAge && <span className="gov-age-tag">{calculatedAge}</span>}</span>
+                                </div>
+                                <div className="gov-field-box">
+                                  <span className="gov-field-label">Sex / Gender</span>
+                                  <span className="gov-field-value">{selectedMember.gender || '-'}</span>
+                                </div>
+                                <div className="gov-field-box">
+                                  <span className="gov-field-label">Civil Status</span>
+                                  <span className="gov-field-value">{selectedMember.civil_status || '-'}</span>
+                                </div>
+                                <div className="gov-field-box">
+                                  <span className="gov-field-label">Suffix</span>
+                                  <span className="gov-field-value">{r.suffix || selectedMember.suffix || '-'}</span>
+                                </div>
+                                <div className="gov-field-box full">
+                                  <span className="gov-field-label">Sectoral Group</span>
+                                  <span className="gov-field-value sector-badge">
+                                    <Tag size={12} /> {selectedMember.sector_category || 'General Citizen'}
+                                  </span>
+                                </div>
+                                {(selectedMember.sector_name || selectedMember.organization_name) && (
+                                  <div className="gov-field-box full">
+                                    <span className="gov-field-label">Organization / Chapter</span>
+                                    <span className="gov-field-value">{selectedMember.sector_name || selectedMember.organization_name}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Column 2: Residence & Community Node */}
+                            <div className="gov-card-section">
+                              <div className="gov-section-header">
+                                <div className="gov-section-icon"><MapPin size={15} /></div>
+                                <div>
+                                  <h4 className="gov-section-title">Residential & Community Node</h4>
+                                  <span className="gov-section-sub">Barangay jurisdiction, address & referral</span>
+                                </div>
+                              </div>
+
+                              <div className="gov-field-group-grid">
+                                <div className="gov-field-box full gov-address-highlight">
+                                  <span className="gov-field-label">Full Registered Address</span>
+                                  <span className="gov-field-value address">
+                                    {isSubdivision ? (
+                                      <>
+                                        {[selectedMember.lot ? `Lot ${selectedMember.lot}` : '', selectedMember.block ? `Block ${selectedMember.block}` : '', selectedMember.phase ? `Phase ${selectedMember.phase}` : ''].filter(Boolean).join(', ') || 'Subdivision Lot/Block'}
+                                      </>
+                                    ) : (
+                                      <>
+                                        {selectedMember.house_no ? `House No. ${selectedMember.house_no}, ` : ''}
+                                      </>
+                                    )}
+                                    {selectedMember.purok ? (isSubdivision ? `${selectedMember.purok}, ` : `Purok ${selectedMember.purok}, `) : ''}
+                                    {brgyName ? `Brgy. ${brgyName}, ` : ''}
+                                    Balagtas, Bulacan
+                                  </span>
+                                </div>
+                                <div className="gov-field-box">
+                                  <span className="gov-field-label">Contact Number</span>
+                                  <span className="gov-field-value">{selectedMember.contact || '-'}</span>
+                                </div>
+                                <div className="gov-field-box">
+                                  <span className="gov-field-label">Voter Status</span>
+                                  <span className="gov-field-value" style={{ fontWeight: 700, color: selectedMember.is_valid_resident ? '#059669' : '#d97706' }}>
+                                    {selectedMember.is_valid_resident ? 'COMELEC Registered' : 'Non-Registered Resident'}
+                                  </span>
+                                </div>
+                                <div className="gov-field-box full">
+                                  <span className="gov-field-label">Authorized Referral Node</span>
+                                  {selectedMember.referral_name ? (
+                                    <span className="gov-field-value gov-referrer-link" onClick={() => {
+                                      const refMember = allRegs.find(reg => getResidentName(reg) === selectedMember.referral_name.trim());
+                                      if (refMember) {
+                                        setSelectedMember(refMember);
+                                        setShowMemberNetwork(false);
+                                        setMemberScanHistory([]);
+                                        setExpandedNodes(new Set());
+                                      } else {
+                                        showToast('Referrer not found in members list', 'error');
+                                      }
+                                    }}>
+                                      <Network size={13} /> {selectedMember.referral_name} <span className="gov-link-hint">(Click to inspect node)</span>
+                                    </span>
+                                  ) : (
+                                    <span className="gov-field-value text-muted" style={{ color: '#94a3b8' }}>Direct / Self-Registered</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 4. Digital Citizen QR Credential */}
+                          <div className="gov-card-section gov-qr-dossier-section">
+                            <div className="gov-section-header">
+                              <div className="gov-section-icon"><QrCode size={15} /></div>
+                              <div>
+                                <h4 className="gov-section-title">Digital Citizen Credential & Verification Token</h4>
+                                <span className="gov-section-sub">Encrypted citizen pass & real-time mobile portal</span>
+                              </div>
+                            </div>
+
+                            {hasQR ? (
+                              <div className="gov-qr-body">
+                                <div className="gov-qr-visual">
+                                  <div className="gov-qr-frame">
+                                    <QRCodeSVG value={`https://www.em-card.com/card/${selectedMember.qr_token}`} size={120} level="H" includeMargin={true} />
+                                  </div>
+                                </div>
+                                <div className="gov-qr-details">
+                                  <div className="gov-token-box">
+                                    <span className="gov-token-label">AUTHENTICATION QR TOKEN</span>
+                                    <code className="gov-token-code">{selectedMember.qr_token}</code>
+                                  </div>
+                                  <div className="gov-qr-url-box">
+                                    <span className="gov-url-label"><Globe size={12} /> Citizen Verification URL</span>
+                                    <span className="gov-url-text">https://www.em-card.com/card/{selectedMember.qr_token}</span>
+                                  </div>
+                                  <div className="gov-qr-actions">
+                                    <button className="gov-btn-mini copy" onClick={() => { navigator.clipboard.writeText(`https://www.em-card.com/card/${selectedMember.qr_token}`); showToast('Card URL copied!', 'success'); }}>
+                                      <Copy size={13} /> Copy Verification Link
+                                    </button>
+                                    <a href={`https://www.em-card.com/card/${selectedMember.qr_token}`} target="_blank" rel="noreferrer" className="gov-btn-mini open">
+                                      <Globe size={13} /> Open Dashboard
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="gov-qr-missing">
+                                <div className="gov-qr-missing-info">
+                                  <AlertTriangle size={24} color="#d97706" />
+                                  <div>
+                                    <h5>No QR Token Generated</h5>
+                                    <p>This citizen record does not have an active QR card token yet. Generate one to enable instant scanning and ID card printing.</p>
+                                  </div>
+                                </div>
+                                <button className="btn btn-generate-qr" onClick={() => generateQRForMember(selectedMember)}>
+                                  <Zap size={16} /> Generate Citizen QR & Card
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 5. Scan History & Attendance Audit Log */}
+                          <div className="gov-card-section gov-history-section">
+                            <div className="gov-section-header">
+                              <div className="gov-section-icon"><History size={15} /></div>
+                              <div>
+                                <h4 className="gov-section-title">Event Attendance & Scan Audit Log</h4>
+                                <span className="gov-section-sub">Official physical scanner timestamp records</span>
+                              </div>
+                            </div>
+
+                            {memberScanHistoryLoading ? (
+                              <div className="gov-scan-status"><RefreshCw className="spin" size={16} /> Loading attendance audit log...</div>
+                            ) : memberScanHistory.length === 0 ? (
+                              <div className="gov-scan-status empty">No event check-ins or scans recorded for this citizen yet.</div>
+                            ) : (
+                              <div className="gov-scan-table-wrap">
+                                <table className="gov-scan-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Event / Activity</th>
+                                      <th>Location</th>
+                                      <th>Date & Time</th>
+                                      <th>Scanned By</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {memberScanHistory.map((scan, i) => (
+                                      <tr key={scan.id || i}>
+                                        <td className="bold">{scan.scan_events?.event_name || 'General Scan'}</td>
+                                        <td>{scan.scan_events?.location || '-'}</td>
+                                        <td>{new Date(scan.scanned_at).toLocaleDateString()} {new Date(scan.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                        <td><span className="gov-scanner-pill">{scan.scanned_by || 'Staff'}</span></td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </>
                 )}
               </div>
