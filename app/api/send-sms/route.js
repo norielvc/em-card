@@ -221,6 +221,49 @@ async function sendSemaphore(phone, body) {
 }
 
 /**
+ * Helper to get full name from registration / ValidResidents
+ */
+function getRecipientFullName(reg) {
+  if (!reg) return 'Resident';
+  const first = reg.first_name || reg.ValidResidents?.first_name || '';
+  const middle = reg.middle_name || reg.ValidResidents?.middle_name || '';
+  const last = reg.last_name || reg.ValidResidents?.last_name || '';
+  const suffix = reg.suffix || reg.ValidResidents?.suffix || '';
+  const full = `${first} ${middle ? middle + ' ' : ''}${last}${suffix ? ' ' + suffix : ''}`.trim();
+  return full || 'Resident';
+}
+
+/**
+ * Helper to get first name from registration / ValidResidents
+ */
+function getRecipientFirstName(reg) {
+  if (!reg) return 'Ka-Barangay';
+  const first = reg.first_name || reg.ValidResidents?.first_name || '';
+  if (!first) return 'Ka-Barangay';
+  return first.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+/**
+ * Helper to personalize SMS body with {firstName}, {name}, {barangay}, etc.
+ */
+function personalizeMessage(body, reg) {
+  if (!body) return '';
+  const firstName = getRecipientFirstName(reg);
+  const fullName = getRecipientFullName(reg);
+  const barangay = reg?.barangay || reg?.ValidResidents?.barangay || '';
+  
+  return body
+    .replace(/\{firstName\}/gi, firstName)
+    .replace(/\{first_name\}/gi, firstName)
+    .replace(/\{lastName\}/gi, reg?.last_name || reg?.ValidResidents?.last_name || '')
+    .replace(/\{last_name\}/gi, reg?.last_name || reg?.ValidResidents?.last_name || '')
+    .replace(/\{fullName\}/gi, fullName)
+    .replace(/\{full_name\}/gi, fullName)
+    .replace(/\{name\}/gi, firstName)
+    .replace(/\{barangay\}/gi, barangay);
+}
+
+/**
  * Send SMS via Mock (for testing without credits)
  */
 async function sendMock(phone, body) {
