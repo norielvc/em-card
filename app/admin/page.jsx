@@ -18,7 +18,7 @@ import {
   Camera, RefreshCw as RotateCw, User, ArrowLeft, LayoutDashboard, ClipboardList, Network, Shield,
   ArrowRight, Ban, Building, Cake, CreditCard, Database, Folder, Globe, HardDrive, Hash,
   History, Inbox, Lock, Mail, Megaphone, Monitor, Phone, Plus, Server, ShieldAlert,
-  ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award
+  ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award, XCircle
 } from 'lucide-react';
 
 
@@ -148,6 +148,8 @@ export default function AdminPage() {
   const [regsLoading, setRegsLoading] = useState(false);
   const [regStatusFilter, setRegStatusFilter] = useState('Pending');
   const [regSearch, setRegSearch] = useState('');
+  const [regFilterBarangay, setRegFilterBarangay] = useState('');
+  const [regFilterSector, setRegFilterSector] = useState('');
   const [residentSearch, setResidentSearch] = useState('');
   const [residentsPage, setResidentsPage] = useState(1);
   const [residentsCount, setResidentsCount] = useState(0);
@@ -4598,6 +4600,7 @@ export default function AdminPage() {
 
   const renderRegistrations = () => {
     const pendingCount = allRegs.filter(r => r.status === 'Pending').length;
+    const rejectedCount = allRegs.filter(r => r.status === 'Rejected').length;
 
     // Duplicate detection: key = name + barangay + contact
     const dupMap = new Map();
@@ -4610,6 +4613,16 @@ export default function AdminPage() {
 
     let filteredRegs = allRegs.filter(r => r.status === regStatusFilter);
 
+    // Filter by Barangay
+    if (regFilterBarangay) {
+      filteredRegs = filteredRegs.filter(r => (r.barangay || '').toLowerCase() === regFilterBarangay.toLowerCase());
+    }
+
+    // Filter by Sector
+    if (regFilterSector) {
+      filteredRegs = filteredRegs.filter(r => (r.sector_category || '').toLowerCase() === regFilterSector.toLowerCase());
+    }
+
     // Registration search
     const regQuery = regSearch.trim().toLowerCase();
     if (regQuery) {
@@ -4617,132 +4630,268 @@ export default function AdminPage() {
         const name = getResidentName(reg).toLowerCase();
         const barangay = (reg.barangay || '').toLowerCase();
         const contact = (reg.contact || '').toLowerCase();
-        return name.includes(regQuery) || barangay.includes(regQuery) || contact.includes(regQuery);
+        const refNo = (reg.reference_no || '').toLowerCase();
+        const refNode = (reg.referral_name || '').toLowerCase();
+        return name.includes(regQuery) || barangay.includes(regQuery) || contact.includes(regQuery) || refNo.includes(regQuery) || refNode.includes(regQuery);
       });
     }
 
-    const rejectedCount = allRegs.filter(r => r.status === 'Rejected').length;
+    // Unique barangays & sectors for filters
+    const regBarangays = Array.from(new Set(allRegs.map(r => r.barangay).filter(Boolean))).sort();
+    const regSectors = Array.from(new Set(allRegs.map(r => r.sector_category).filter(Boolean))).sort();
 
     return (
-      <div className="admin-panel">
-        <div className="panel-header">
-          <h3>Registration Requests</h3>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {dupCount > 0 && <span className="panel-badge badge-error">{dupCount} Duplicate</span>}
-            <span className="panel-badge">{allRegs.length} Total</span>
-          </div>
-        </div>
-
-        {/* Status Tabs */}
-        <div className="reg-status-tabs">
-          <button
-            className={regStatusFilter === 'Pending' ? 'active' : ''}
-            onClick={() => setRegStatusFilter('Pending')}
-          >
-            Pending <span className="tab-count">{pendingCount}</span>
-          </button>
-          <button
-            className={regStatusFilter === 'Rejected' ? 'active' : ''}
-            onClick={() => setRegStatusFilter('Rejected')}
-          >
-            Rejected <span className="tab-count">{rejectedCount}</span>
-          </button>
-        </div>
-
-        {/* Search + Export */}
-        <div className="residents-action-bar" style={{ marginTop: 14 }}>
-          <div className="action-bar-left">
-            <div className="search-input-wrap">
-              <input
-                type="text"
-                placeholder="Search registrations by name, barangay, or contact..."
-                value={regSearch}
-                onChange={(e) => setRegSearch(e.target.value)}
-                className="residents-search"
-              />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Header & Subtabs */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 4 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Registration Requests</h2>
+              <span style={{ fontSize: '0.74rem', fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' }}>
+                {allRegs.length} Total Applications
+              </span>
+              {dupCount > 0 && (
+                <span style={{ fontSize: '0.74rem', fontWeight: 700, padding: '3px 9px', borderRadius: 6, background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}>
+                  {dupCount} Duplicate Flagged
+                </span>
+              )}
             </div>
+            <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: '#64748b' }}>
+              Review, verify referral nodes, and approve incoming citizen applications.
+            </p>
           </div>
-          <div className="action-bar-right">
-            <button className="btn btn-action-outline" onClick={() => downloadRegistrationsCSV(filteredRegs)}>
-              <Download size={14} /> Export CSV
+
+          {/* Sub-tabs */}
+          <div className="dashboard-tabs" style={{ margin: 0 }}>
+            <button
+              className={`dashboard-tab-btn ${regStatusFilter === 'Pending' ? 'active' : ''}`}
+              onClick={() => setRegStatusFilter('Pending')}
+            >
+              <UserCheck size={14} strokeWidth={1.8} />
+              <span>Pending</span>
+              <span style={{ marginLeft: 4, padding: '1px 6px', borderRadius: 999, fontSize: '0.72rem', background: regStatusFilter === 'Pending' ? '#ecfdf5' : '#f1f5f9', color: regStatusFilter === 'Pending' ? '#065f46' : '#64748b', fontWeight: 700 }}>
+                {pendingCount}
+              </span>
+            </button>
+            <button
+              className={`dashboard-tab-btn ${regStatusFilter === 'Rejected' ? 'active' : ''}`}
+              onClick={() => setRegStatusFilter('Rejected')}
+            >
+              <XCircle size={14} strokeWidth={1.8} />
+              <span>Rejected</span>
+              <span style={{ marginLeft: 4, padding: '1px 6px', borderRadius: 999, fontSize: '0.72rem', background: regStatusFilter === 'Rejected' ? '#fee2e2' : '#f1f5f9', color: regStatusFilter === 'Rejected' ? '#991b1b' : '#64748b', fontWeight: 700 }}>
+                {rejectedCount}
+              </span>
             </button>
           </div>
         </div>
 
-        <div className="table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Portrait</th>
-                <th>Name</th>
-                <th>Residency</th>
-                <th>Barangay</th>
-                <th>Sector</th>
-                <th>Referral</th>
-                <th>Contact</th>
-                <th>Size</th>
-                <th>Status</th>
-                <th>Date</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {regsLoading ? <tr><td colSpan={11} className="table-loading">Loading...</td></tr>
-                : filteredRegs.length === 0 ? <tr><td colSpan={11} className="table-empty">{regSearch ? 'No registrations match your search.' : `No ${regStatusFilter.toLowerCase()} registrations found.`}</td></tr>
-                  : filteredRegs.map(reg => {
+        {/* Action Bar / Filters */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', background: '#ffffff', padding: '12px 16px', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 320px', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', flex: '1 1 240px' }}>
+              <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+              <input
+                type="text"
+                placeholder="Search by name, barangay, referral, or contact..."
+                value={regSearch}
+                onChange={(e) => setRegSearch(e.target.value)}
+                style={{ width: '100%', padding: '8px 12px 8px 34px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.84rem', outline: 'none', background: '#ffffff', color: '#0f172a' }}
+              />
+            </div>
+            <select
+              value={regFilterBarangay}
+              onChange={(e) => setRegFilterBarangay(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.82rem', background: '#ffffff', color: '#334155', cursor: 'pointer', outline: 'none' }}
+            >
+              <option value="">All Barangays</option>
+              {regBarangays.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <select
+              value={regFilterSector}
+              onChange={(e) => setRegFilterSector(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.82rem', background: '#ffffff', color: '#334155', cursor: 'pointer', outline: 'none' }}
+            >
+              <option value="">All Sectors</option>
+              {regSectors.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {(regSearch || regFilterBarangay || regFilterSector) && (
+              <button
+                onClick={() => { setRegSearch(''); setRegFilterBarangay(''); setRegFilterSector(''); }}
+                style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.78rem', cursor: 'pointer', textDecoration: 'underline', padding: '4px 6px' }}
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={() => downloadRegistrationsCSV(filteredRegs)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '0.82rem', fontWeight: 600, color: '#334155', cursor: 'pointer', transition: 'all 0.15s ease' }}
+            >
+              <Download size={14} />
+              <span>Export CSV</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Main Panel & Table */}
+        <div className="dash-panel-v2" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="table-wrap" style={{ margin: 0 }}>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 44, textAlign: 'center' }}>Photo</th>
+                  <th>Applicant Name</th>
+                  <th>Residency</th>
+                  <th>Barangay & Purok</th>
+                  <th>Sector</th>
+                  <th>Referral Node</th>
+                  <th>Contact</th>
+                  <th>Submitted</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regsLoading ? (
+                  <tr><td colSpan={10} className="table-loading" style={{ padding: '40px 0', textAlign: 'center' }}>Loading registrations...</td></tr>
+                ) : filteredRegs.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="table-empty" style={{ padding: '48px 0', textAlign: 'center' }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', color: '#64748b' }}>
+                        <UserCheck size={18} />
+                      </div>
+                      <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: '0.88rem' }}>
+                        {regSearch || regFilterBarangay || regFilterSector ? 'No registrations match the selected filters.' : `No ${regStatusFilter.toLowerCase()} applications found.`}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRegs.map(reg => {
                     const isDup = dupKeys.has(`${getResidentName(reg)}|${reg.barangay || ''}|${reg.contact || ''}`);
                     return (
-                      <tr key={reg.id} className={`reg-row-clickable ${isDup ? 'reg-row-duplicate' : ''}`} onClick={() => setSelectedRegDetail(reg)}>
-                        <td>
+                      <tr
+                        key={reg.id}
+                        className="reg-row-clickable"
+                        onClick={() => setSelectedRegDetail(reg)}
+                        style={{ cursor: 'pointer', background: isDup ? '#fffbeb' : undefined }}
+                      >
+                        <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '10px 8px' }}>
                           {(reg.photo_url || reg.photo_base64) ? (
-                            <img src={reg.photo_url || reg.photo_base64} alt="" className="reg-thumb" />
+                            <img
+                              src={reg.photo_url || reg.photo_base64}
+                              alt=""
+                              style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #e2e8f0', display: 'inline-block', verticalAlign: 'middle' }}
+                            />
                           ) : (
-                            <div className="reg-thumb-placeholder">👤</div>
+                            <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#f1f5f9', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', border: '1.5px solid #e2e8f0' }}>
+                              👤
+                            </div>
                           )}
                         </td>
                         <td>
-                          <strong>{getResidentName(reg)}</strong>
-                          {isDup && <span className="dup-badge-inline">DUPLICATE</span>}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <strong style={{ color: '#0f172a', fontSize: '0.86rem' }}>{getResidentName(reg)}</strong>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {reg.reference_no && <span style={{ fontSize: '0.72rem', color: '#64748b', fontFamily: 'monospace' }}>Ref: {reg.reference_no}</span>}
+                              {isDup && (
+                                <span style={{ fontSize: '0.66rem', fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}>
+                                  DUPLICATE
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td>
                           {reg.is_valid_resident !== false ? (
-                            <span className="badge badge-success" style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: '#e6fdf5', color: '#10b981' }}>✓ Registered Voter</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, fontSize: '0.74rem', fontWeight: 700, background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0' }}>
+                              ✓ Registered Voter
+                            </span>
                           ) : (
-                            <span className="badge badge-warning" style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: '#fffbeb', color: '#f59e0b' }}>⚠ Non-Valid Resident</span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, fontSize: '0.74rem', fontWeight: 700, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                              Non-Valid Resident
+                            </span>
                           )}
                         </td>
-                        <td>{reg.barangay || '-'}</td>
-                        <td><span className="sector-tag">{reg.sector_category}</span></td>
-                        <td>{reg.referral_name}</td>
-                        <td>{reg.contact || '-'}</td>
-                        <td><span className="size-tag">{getPhotoSize(reg.photo_url || reg.photo_base64)}</span></td>
+                        <td>
+                          <div style={{ fontSize: '0.84rem', color: '#0f172a', fontWeight: 600 }}>{reg.barangay || '-'}</div>
+                          <div style={{ fontSize: '0.74rem', color: '#64748b' }}>{reg.purok ? `Purok ${reg.purok}` : (reg.house_no || '-')}</div>
+                        </td>
+                        <td>
+                          <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 6, fontSize: '0.74rem', fontWeight: 600, background: '#f8fafc', color: '#334155', border: '1px solid #e2e8f0' }}>
+                            {reg.sector_category || '-'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '0.82rem', color: reg.referral_name ? '#0f172a' : '#94a3b8', fontWeight: reg.referral_name ? 600 : 400 }}>
+                            {reg.referral_name || 'No referral node'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '0.82rem', color: '#0f172a', fontFamily: 'monospace' }}>
+                            {reg.contact || '-'}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '0.76rem', color: '#64748b' }}>
+                            {new Date(reg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </td>
                         <td>
                           <span className={`status-badge status-${(reg.status || 'pending').toLowerCase()}`}>
                             {reg.status || 'Pending'}
                           </span>
                         </td>
-                        <td>{new Date(reg.created_at).toLocaleDateString()}</td>
-                        <td>
-                          <div className="reg-actions">
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
                             {reg.status === 'Pending' && (
                               <>
-                                <button className="btn-action btn-approve" onClick={(e) => { e.stopPropagation(); approveRegistration(reg.id); }} title="Approve">✓</button>
-                                <button className="btn-action btn-reject" onClick={(e) => { e.stopPropagation(); rejectRegistration(reg.id); }} title="Reject">✕</button>
+                                <button
+                                  className="action-btn"
+                                  onClick={() => approveRegistration(reg.id)}
+                                  title="Approve registration"
+                                  style={{ color: '#059669', background: '#ecfdf5', borderColor: '#a7f3d0' }}
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  className="action-btn action-delete"
+                                  onClick={() => rejectRegistration(reg.id)}
+                                  title="Reject registration"
+                                  style={{ color: '#e11d48', background: '#fff1f2', borderColor: '#fecdd3' }}
+                                >
+                                  ✕
+                                </button>
                               </>
                             )}
                             {reg.status === 'Rejected' && (
-                              <button className="btn-action btn-approve" onClick={(e) => { e.stopPropagation(); approveRegistration(reg.id); }} title="Re-approve">↻</button>
+                              <button
+                                className="action-btn"
+                                onClick={() => approveRegistration(reg.id)}
+                                title="Re-approve registration"
+                                style={{ color: '#059669', background: '#ecfdf5', borderColor: '#a7f3d0' }}
+                              >
+                                ↻
+                              </button>
                             )}
-                            <button className="btn-action btn-reject" onClick={(e) => { e.stopPropagation(); setDeleteRegId(reg.id); setDeleteRegName(getResidentName(reg)); setShowDeleteRegModal(true); }} title="Delete registration" style={{ background: '#fee2e2', color: '#dc2626' }}>
-                              <Trash2 size={12} />
+                            <button
+                              className="action-btn action-delete"
+                              onClick={() => { setDeleteRegId(reg.id); setDeleteRegName(getResidentName(reg)); setShowDeleteRegModal(true); }}
+                              title="Delete application"
+                            >
+                              <Trash2 size={13} />
                             </button>
                           </div>
                         </td>
                       </tr>
                     );
-                  })}
-            </tbody>
-          </table>
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
