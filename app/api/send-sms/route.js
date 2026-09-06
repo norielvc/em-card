@@ -321,20 +321,20 @@ export async function GET(request) {
       const { data, error } = await supabase
         .from('message_recipients')
         .select('*')
-        .eq('message_id', messageId)
-        .order('created_at', { ascending: false });
+        .eq('message_id', id);
 
-      if (error) throw error;
-      return Response.json({ recipients: data || [] });
+      if (recError) throw recError;
+
+      return Response.json({ message, recipients });
     }
 
-    // Fetch all messages
     const { data, error } = await supabase
       .from('messages')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
+
     return Response.json({ messages: data || [] });
   } catch (err) {
     return Response.json({ error: 'Server error' }, { status: 500 });
@@ -358,18 +358,20 @@ export async function POST(request) {
     // 1. Determine recipients based on target
     let validRecipients = [];
 
+    const regSelectCols = 'id, resident_id, contact, barangay, sector_category, birthday, first_name, last_name, middle_name, suffix, ValidResidents(first_name, last_name, middle_name, suffix)';
+
     if (targetType === 'test' && targetValue) {
       // Test mode: send to single phone number
       const phone = targetValue.replace(/\D/g, '');
       if (phone.length < 10) {
         return Response.json({ error: 'Invalid phone number. Use format: 09171234567' }, { status: 400 });
       }
-      validRecipients = [{ contact: phone, id: null, resident_id: null, ValidResidents: null }];
+      validRecipients = [{ contact: phone, id: null, resident_id: null, first_name: 'Test', ValidResidents: null }];
     } else if (targetType === 'specific' && targetValue) {
       // Specific user: lookup by registration ID
       const { data: reg, error: regError } = await supabase
         .from('registrations')
-        .select('id, resident_id, contact, barangay, sector_category, ValidResidents(first_name, last_name, middle_name, suffix)')
+        .select(regSelectCols)
         .eq('id', targetValue)
         .single();
 
@@ -387,7 +389,7 @@ export async function POST(request) {
       // Birthday: targetValue is array of registration IDs
       const { data: regs, error: regError } = await supabase
         .from('registrations')
-        .select('id, resident_id, contact, barangay, sector_category, birthday, ValidResidents(first_name, last_name, middle_name, suffix)')
+        .select(regSelectCols)
         .in('id', targetValue)
         .not('contact', 'is', null)
         .neq('contact', '');
@@ -399,7 +401,7 @@ export async function POST(request) {
         return Response.json({ error: 'No valid birthday recipients found with phone numbers' }, { status: 400 });
       }
     } else {
-      let recipientsQuery = supabase.from('registrations').select('id, resident_id, contact, barangay, sector_category, ValidResidents(first_name, last_name, middle_name, suffix)').eq('status', 'Approved');
+      let recipientsQuery = supabase.from('registrations').select(regSelectCols).eq('status', 'Approved');
 
       if (targetType === 'sector' && targetValue) {
         recipientsQuery = recipientsQuery.eq('sector_category', targetValue);
@@ -443,8 +445,7 @@ export async function POST(request) {
 
     // 3. Create recipient records
     const recipientInserts = validRecipients.map(reg => {
-      const vr = reg.ValidResidents;
-      const name = vr ? `${vr.first_name || ''} ${vr.middle_name ? vr.middle_name + ' ' : ''}${vr.last_name || ''}${vr.suffix ? ' ' + vr.suffix : ''}`.trim() : '';
+      const name = getRecipientFullName(reg);
       return {
         message_id: messageRecord.id,
         registration_id: reg.id,
@@ -484,13 +485,14 @@ export async function POST(request) {
       sendResults,
     });
   } catch (err) {
-    return Response.json({ error: 'Server error' }, { status: 500 });
+    console.error('Send SMS API Error:', err);
+    return Response.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }
 
 /**
  * Background task: send SMS to all recipients
- * Uses Semaphore bulk API (up to 1000 per call) for efficiency
+ * Personalizes {firstName} and other placeholders per recipient
  */
 async function sendMessagesAsync(messageId, recipients, body, validRecipients = null) {
   let sentCount = 0;
@@ -498,15 +500,25 @@ async function sendMessagesAsync(messageId, recipients, body, validRecipients = 
   const results = [];
   const totalRecipients = recipients.length;
 
-  // Configuration for batching - Semaphore supports up to 1000 per API call
-  const BULK_BATCH_SIZE = 1000; // Process 1000 SMS per API call
-  const DELAY_BETWEEN_BATCHES = 1000; // 1 second delay between batches (120 calls/min limit)
+  const BULK_BATCH_SIZE = 1000;
+  const DELAY_BETWEEN_BATCHES = 1000;
 
-  console.log(`[SMS] Starting bulk send for ${totalRecipients} recipients`);
+  console.log(`[SMS] Starting send for ${totalRecipients} recipients`);
 
-  // Check if we can use Semaphore bulk API
   const provider = getProvider();
   const canUseBulk = provider === 'semaphore' && process.env.SEMAPHORE_API_KEY;
+
+  // Check if message requires per-recipient personalization
+  const hasPersonalization = /\{(firstName|first_name|lastName|last_name|fullName|full_name|name)\}/i.test(body);
+
+  // Build map of reg/resident objects if provided
+  const regMap = new Map();
+  if (Array.isArray(validRecipients)) {
+    for (const vr of validRecipients) {
+      if (vr?.id) regMap.set(vr.id, vr);
+      if (vr?.contact) regMap.set(vr.contact, vr);
+    }
+  }
 
   // Update message status to show we're processing
   await supabase
@@ -518,25 +530,71 @@ async function sendMessagesAsync(messageId, recipients, body, validRecipients = 
     })
     .eq('id', messageId);
 
-  // Process in batches using bulk API if available
-  for (let batchStart = 0; batchStart < totalRecipients; batchStart += BULK_BATCH_SIZE) {
-    const batchEnd = Math.min(batchStart + BULK_BATCH_SIZE, totalRecipients);
-    const batch = recipients.slice(batchStart, batchEnd);
-    const batchNumber = Math.floor(batchStart / BULK_BATCH_SIZE) + 1;
-    const totalBatches = Math.ceil(totalRecipients / BULK_BATCH_SIZE);
+  // If personalization is needed OR bulk is not available, send personalized messages individually
+  if (hasPersonalization || !canUseBulk) {
+    for (let i = 0; i < totalRecipients; i++) {
+      const recipient = recipients[i];
+      const regData = (recipient.registration_id && regMap.get(recipient.registration_id)) || regMap.get(recipient.phone_number) || recipient;
+      const personalizedBody = personalizeMessage(body, regData);
 
-    console.log(`[SMS] Processing batch ${batchNumber}/${totalBatches}`);
+      try {
+        const result = await sendSMS(recipient.phone_number, personalizedBody);
+        await supabase
+          .from('message_recipients')
+          .update({
+            status: 'sent',
+            provider_response: JSON.stringify(result),
+            sent_at: new Date().toISOString(),
+          })
+          .eq('id', recipient.id);
+        sentCount++;
+      } catch (err) {
+        console.error(`[SMS] Failed to send to ${recipient.phone_number}:`, err.message);
+        await supabase
+          .from('message_recipients')
+          .update({
+            status: 'failed',
+            error_message: err.message,
+            sent_at: new Date().toISOString(),
+          })
+          .eq('id', recipient.id);
+        failedCount++;
+      }
 
-    try {
-      if (canUseBulk) {
-        // Use Semaphore bulk API - send up to 1000 at once
+      // Update progress every 10 sends
+      if ((i + 1) % 10 === 0 || i === totalRecipients - 1) {
+        await supabase
+          .from('messages')
+          .update({
+            sent_count: sentCount,
+            failed_count: failedCount,
+            status: 'sending',
+          })
+          .eq('id', messageId);
+      }
+
+      // Small throttle between individual sends to respect provider rate limits
+      if (i < totalRecipients - 1 && !process.env.SMS_TEST_MODE) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+    }
+  } else {
+    // Standard bulk send (no personalization tokens in body)
+    for (let batchStart = 0; batchStart < totalRecipients; batchStart += BULK_BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BULK_BATCH_SIZE, totalRecipients);
+      const batch = recipients.slice(batchStart, batchEnd);
+      const batchNumber = Math.floor(batchStart / BULK_BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(totalRecipients / BULK_BATCH_SIZE);
+
+      console.log(`[SMS] Processing batch ${batchNumber}/${totalBatches}`);
+
+      try {
         const apiKey = process.env.SEMAPHORE_API_KEY;
         const customSender = process.env.SEMAPHORE_SENDER_NAME;
         const phones = batch.map(r => r.phone_number);
 
         const bulkResult = await sendSemaphoreBulk(apiKey, phones, body, customSender);
 
-        // Process bulk results and update recipients
         const batchResults = bulkResult.results || [];
         for (let i = 0; i < batch.length; i++) {
           const recipient = batch[i];
@@ -564,64 +622,33 @@ async function sendMessagesAsync(messageId, recipients, body, validRecipients = 
             failedCount++;
           }
         }
-      } else {
-        // Fallback: send one by one (Twilio or other providers)
+      } catch (batchError) {
+        console.error(`[SMS] Batch ${batchNumber} failed: ${batchError.message}`);
         for (const recipient of batch) {
-          try {
-            const result = await sendSMS(recipient.phone_number, body);
-            await supabase
-              .from('message_recipients')
-              .update({
-                status: 'sent',
-                provider_response: JSON.stringify(result),
-                sent_at: new Date().toISOString(),
-              })
-              .eq('id', recipient.id);
-            sentCount++;
-          } catch (err) {
-            await supabase
-              .from('message_recipients')
-              .update({
-                status: 'failed',
-                error_message: err.message,
-                sent_at: new Date().toISOString(),
-              })
-              .eq('id', recipient.id);
-            failedCount++;
-          }
+          await supabase
+            .from('message_recipients')
+            .update({
+              status: 'failed',
+              error_message: batchError.message,
+              sent_at: new Date().toISOString(),
+            })
+            .eq('id', recipient.id);
+          failedCount++;
         }
       }
-    } catch (batchError) {
-      console.error(`[SMS] Batch ${batchNumber} failed: ${batchError.message}`);
-      // Mark all in batch as failed
-      for (const recipient of batch) {
-        await supabase
-          .from('message_recipients')
-          .update({
-            status: 'failed',
-            error_message: batchError.message,
-            sent_at: new Date().toISOString(),
-          })
-          .eq('id', recipient.id);
-        failedCount++;
+
+      await supabase
+        .from('messages')
+        .update({
+          sent_count: sentCount,
+          failed_count: failedCount,
+          status: 'sending',
+        })
+        .eq('id', messageId);
+
+      if (batchEnd < totalRecipients) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
       }
-    }
-
-    // Update progress after each batch
-    await supabase
-      .from('messages')
-      .update({
-        sent_count: sentCount,
-        failed_count: failedCount,
-        status: 'sending',
-      })
-      .eq('id', messageId);
-
-    console.log(`[SMS] Batch ${batchNumber} complete: ${sentCount} sent, ${failedCount} failed`);
-
-    // Delay between batches (except for the last batch)
-    if (batchEnd < totalRecipients) {
-      await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
     }
   }
 

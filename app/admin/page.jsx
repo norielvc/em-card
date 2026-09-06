@@ -9,7 +9,7 @@ import RegisterForm from '../components/RegisterForm';
 import { QRCodeSVG } from 'qrcode.react';
 import { 
   Users, UserCheck, UserPlus, Trash2, Search, Download, QrCode, X, CheckCircle, Link2, 
-  AlertTriangle, ChevronLeft, ChevronRight, Edit3, BarChart3, PieChart, TrendingUp, 
+  AlertTriangle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Edit3, BarChart3, PieChart, TrendingUp, 
   Filter, RefreshCw, Printer, ScanLine, MessageSquare, Send, Calendar, Home, 
   Smartphone, Pencil, Settings, LogOut, Menu, Bell, MapPin, ChevronDown, Eye, 
   EyeOff, FileText, Activity, Clock, ShieldCheck, Info, Check, Copy, Upload,
@@ -18,7 +18,7 @@ import {
   Camera, RefreshCw as RotateCw, User, ArrowLeft, LayoutDashboard, ClipboardList, Network, Shield,
   ArrowRight, Ban, Building, Cake, CreditCard, Database, Folder, Globe, HardDrive, Hash,
   History, Inbox, Lock, Mail, Megaphone, Monitor, Phone, Plus, Server, ShieldAlert,
-  ShieldCheck as ShieldCheckIcon, Tag, Zap
+  ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award
 } from 'lucide-react';
 
 
@@ -36,6 +36,20 @@ async function authFetch(url, options = {}) {
   const res = await fetch(url, { ...options, headers });
   if (res.status === 429) _on429Handler?.();
   return res;
+}
+
+// Helper for smart pagination (always shows first & last pages, plus window around active page)
+function getPaginationItems(current, total) {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, '...', total];
+  }
+  if (current >= total - 3) {
+    return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+  }
+  return [1, '...', current - 1, current, current + 1, '...', total];
 }
 
 export default function AdminPage() {
@@ -149,6 +163,7 @@ export default function AdminPage() {
   const [filterBarangay, setFilterBarangay] = useState('');
   const [filterPurok, setFilterPurok] = useState('');
   const [filterSector, setFilterSector] = useState('');
+  const [filterOrganization, setFilterOrganization] = useState('');
   const [filterPrinted, setFilterPrinted] = useState('');
   const [filterVoterSource, setFilterVoterSource] = useState(''); // 'voter' | 'non-voter'
 
@@ -450,6 +465,18 @@ export default function AdminPage() {
       el.style.fontSize = bestSize + 'px';
     }
   }, [showPrintModal, selectedMember]);
+  // Organizations Management
+  // Organizations Management
+  const [organizations, setOrganizations] = useState([]);
+  const [organizationsLoading, setOrganizationsLoading] = useState(false);
+  const [showOrgDetailsModal, setShowOrgDetailsModal] = useState(null);
+  const [showAddOrgMemberModal, setShowAddOrgMemberModal] = useState(null);
+  const [orgMemberSearch, setOrgMemberSearch] = useState('');
+  const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
+  const [createOrgName, setCreateOrgName] = useState('');
+  const [showEditOrgModal, setShowEditOrgModal] = useState(null);
+  const [editOrgName, setEditOrgName] = useState('');
+  const [showDeleteOrgModal, setShowDeleteOrgModal] = useState(null);
 
   // Upcoming Events Management
   const [upcomingEventsList, setUpcomingEventsList] = useState([]);
@@ -564,6 +591,7 @@ export default function AdminPage() {
       fetchContactInquiries();
       fetchGrievances();
       fetchAllRegistrations();
+      fetchOrganizations();
     }
   }, [isLoggedIn]);
 
@@ -571,6 +599,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isLoggedIn) return;
     if (activeTab === 'registrations') fetchAllRegistrations();
+    if (activeTab === 'organizations' && organizations.length === 0) fetchOrganizations();
     if (activeTab === 'members' && allRegs.length === 0) fetchAllRegistrations();
     if (activeTab === 'network' && allRegs.length === 0) fetchAllRegistrations();
     if (activeTab === 'residents') fetchAllResidents(residentsPage, residentSearch, resFilterBarangay, resFilterPrecinct, resFilterStatus);
@@ -1763,12 +1792,24 @@ export default function AdminPage() {
 
   const fullNameStr = (r) => `${r.last_name || ''}${r.suffix ? ' ' + r.suffix : ''}, ${r.first_name || ''}${r.middle_name ? ' ' + r.middle_name : ''}`;
 
+  const fetchOrganizations = async () => {
+    setOrganizationsLoading(true);
+    try {
+      const { data } = await supabase.from('organizations').select('*').order('name');
+      setOrganizations(data || []);
+    } catch (err) {
+      // silent
+    } finally {
+      setOrganizationsLoading(false);
+    }
+  };
+
   const fetchAllRegistrations = async () => {
     setRegsLoading(true);
     try {
       const { data } = await supabase
         .from('registrations')
-        .select('id, resident_id, reference_no, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, sector_category, referral_name, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, printed_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+        .select('id, resident_id, reference_no, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, sector_category, referral_name, organization, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, printed_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
         .order('created_at', { ascending: false });
       setAllRegs(data || []);
     } catch (err) {
@@ -2069,6 +2110,7 @@ export default function AdminPage() {
           block: SUBDIVISION_PUROKS.includes(editMemberForm.purok) ? editMemberForm.block : null,
           phase: SUBDIVISION_PUROKS.includes(editMemberForm.purok) ? editMemberForm.phase : null,
           referral_name: editMemberForm.referral_name,
+          organization: editMemberForm.organization,
           birthday: editMemberForm.birthday,
           photo_url: photoUrl,
         })
@@ -2082,7 +2124,7 @@ export default function AdminPage() {
       // Refresh selectedMember with new data
       const { data: fresh } = await supabase
         .from('registrations')
-        .select('id, resident_id, reference_no, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, sector_category, referral_name, photo_base64, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+        .select('id, resident_id, reference_no, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, sector_category, referral_name, organization, photo_base64, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
         .eq('id', selectedMember.id)
         .single();
       if (fresh) setSelectedMember(fresh);
@@ -2767,6 +2809,7 @@ export default function AdminPage() {
     { id: 'registrations', label: 'Registrations', icon: <ClipboardList size={20} strokeWidth={1.8} /> },
     { id: 'registerMember', label: 'Register Member', icon: <UserPlus size={20} strokeWidth={1.8} /> },
     { id: 'members', label: 'Members', icon: <UserCheck size={20} strokeWidth={1.8} /> },
+    { id: 'organizations', label: 'Organizations', icon: <Building size={20} strokeWidth={1.8} /> },
     { id: 'eventScanner', label: 'Event Scanner', icon: <ScanLine size={20} strokeWidth={1.8} /> },
     { id: 'events', label: 'Upcoming Events', icon: <Calendar size={20} strokeWidth={1.8} /> },
     { id: 'network', label: 'Network', icon: <Network size={20} strokeWidth={1.8} /> },
@@ -3062,6 +3105,12 @@ export default function AdminPage() {
     }
   };
 
+  const getResidentFirstName = (reg) => {
+    const raw = reg?.first_name || reg?.ValidResidents?.first_name || '';
+    if (!raw) return 'Ka-Barangay';
+    return raw.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  };
+
   const fetchBirthdayCelebrators = async () => {
     setBirthdayLoading(true);
     try {
@@ -3070,7 +3119,7 @@ export default function AdminPage() {
 
       const { data: regs, error } = await supabase
         .from('registrations')
-        .select('id, resident_id, contact, barangay, sector_category, birthday, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+        .select('id, resident_id, contact, barangay, sector_category, birthday, first_name, last_name, middle_name, suffix, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
         .eq('status', 'Approved')
         .not('contact', 'is', null)
         .neq('contact', '');
@@ -3141,227 +3190,303 @@ export default function AdminPage() {
 
     return (
     <>
-      {/* KPI Stat Cards */}
-      <div className="kpi-grid">
-        <div className="kpi-card">
-          <div className="kpi-icon kpi-green"><Users size={20} strokeWidth={1.5} /></div>
-          <div className="kpi-body">
-            <span className="kpi-label">Registered Voters</span>
-            {dashLoading ? <span className="kpi-skeleton" style={{ width: '80px', height: '28px' }} /> : <span className="kpi-value">{totalResidents.toLocaleString()}</span>}
-            <span className={`kpi-change ${regChangeClass}`}>{regChangeStr}</span>
-          </div>
+      {/* Dashboard Welcome Header & Section Tabs Navbar */}
+      <div className="dash-welcome" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+        <div>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Dashboard</h1>
+          <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: '#64748b' }}>
+            Welcome back, <strong style={{ color: '#0f172a' }}>{username || 'Admin'}</strong>! Here&apos;s what&apos;s happening with your EM Card system.
+          </p>
         </div>
-        <div className="kpi-card">
-          <div className="kpi-icon kpi-blue"><ClipboardList size={20} strokeWidth={1.5} /></div>
-          <div className="kpi-body">
-            <span className="kpi-label">EM Card Members</span>
-            {dashLoading ? <span className="kpi-skeleton" style={{ width: '80px', height: '28px' }} /> : <span className="kpi-value">{totalApprovedMembers.toLocaleString()}</span>}
-            <span className={`kpi-change ${regChangeClass}`}>{regChangeStr}</span>
-          </div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-icon kpi-amber"><CheckCircle size={20} strokeWidth={1.5} /></div>
-          <div className="kpi-body">
-            <span className="kpi-label">Registration Rate</span>
-            {dashLoading ? <span className="kpi-skeleton" style={{ width: '60px', height: '28px' }} /> : <span className="kpi-value">{Math.round(currentRate * 100)}%</span>}
-            <span className={`kpi-change ${rateChangeClass}`}>{rateChangeStr}</span>
-          </div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-icon kpi-purple"><Calendar size={20} strokeWidth={1.5} /></div>
-          <div className="kpi-body">
-            <span className="kpi-label">New This Month</span>
-            {dashLoading ? <span className="kpi-skeleton" style={{ width: '70px', height: '28px' }} /> : <span className="kpi-value">{thisMonth.toLocaleString()}</span>}
-            <span className={`kpi-change ${regChangeClass}`}>{regChangeStr}</span>
-          </div>
+
+        {/* Dashboard Section Tabs */}
+        <div className="dashboard-tabs">
+          {[
+            { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={15} strokeWidth={1.8} /> },
+            { id: 'trends', label: 'Trends', icon: <TrendingUp size={15} strokeWidth={1.8} /> },
+            { id: 'geography', label: 'Geography', icon: <MapPin size={15} strokeWidth={1.8} /> },
+            { id: 'demographics', label: 'Demographics', icon: <PieChart size={15} strokeWidth={1.8} /> },
+            { id: 'network', label: 'Network', icon: <Share2 size={15} strokeWidth={1.8} /> },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              className={`dashboard-tab-btn ${dashTab === tab.id ? 'active' : ''}`}
+              onClick={() => setDashTab(tab.id)}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Quick Actions Bar */}
-      <div className="dashboard-quick-actions">
-        <button className="quick-action-btn" onClick={() => handleNavClick('registrations')}>
-          <ClipboardList size={18} />
-          <span>Review Registrations</span>
-          {allRegs.filter(r => r.status === 'Pending').length > 0 && (
-            <span className="quick-action-badge">{allRegs.filter(r => r.status === 'Pending').length}</span>
-          )}
-        </button>
-        <button className="quick-action-btn" onClick={() => handleNavClick('members')}>
-          <Users size={18} />
-          <span>View Members</span>
-        </button>
-        <button className="quick-action-btn" onClick={() => handleNavClick('residents')}>
-          <Search size={18} />
-          <span>Find Resident</span>
-        </button>
-        <button className="quick-action-btn" onClick={() => handleNavClick('eventScanner')}>
-          <ScanLine size={18} />
-          <span>Scan ID</span>
-        </button>
-        <button className="quick-action-btn" onClick={() => { setShowAddModal(true); setAddError(''); }}>
-          <Plus size={18} />
-          <span>Add Resident</span>
-        </button>
-      </div>
+      {dashTab === 'overview' && (() => {
+        // Compute birthday celebrators count
+        const today = new Date();
+        const todayM = today.getMonth() + 1;
+        const todayD = today.getDate();
+        const celebratorsCount = allRegs.filter(r => {
+          if (!r.birthday) return false;
+          const [, mo, da] = r.birthday.split('-');
+          return parseInt(mo) === todayM && parseInt(da) === todayD;
+        }).length;
+        const hasCelebrators = celebratorsCount > 0;
+        const pendingCount = allRegs.filter(r => r.status === 'Pending').length;
+        const printTotal = cardsPrinted + cardsPending;
+        const printPct = printTotal > 0 ? Math.round((cardsPrinted / printTotal) * 100) : 100;
+        const srcTotal = validResidentMembers + nonValidResidentMembers;
+        const srcPct = srcTotal > 0 ? Math.round((validResidentMembers / srcTotal) * 100) : 0;
 
-      {/* Pending Alert Banner */}
-      {!dashLoading && allRegs.filter(r => r.status === 'Pending').length > 0 && (
-        <div className="pending-alert-banner" onClick={() => handleNavClick('registrations')}>
-          <div className="pending-alert-icon"><Bell size={20} /></div>
-          <div className="pending-alert-text">
-            <strong>{allRegs.filter(r => r.status === 'Pending').length} registration{allRegs.filter(r => r.status === 'Pending').length !== 1 ? 's' : ''} pending approval</strong>
-            <span>Click to review and approve</span>
-          </div>
-          <ArrowRight size={18} className="pending-alert-arrow" />
-        </div>
-      )}
-
-      {/* Dashboard Section Tabs */}
-      <div className="dashboard-tabs">
-        {[
-          { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={16} /> },
-          { id: 'trends', label: 'Trends', icon: <TrendingUp size={16} /> },
-          { id: 'geography', label: 'Geography', icon: <MapPin size={16} /> },
-          { id: 'demographics', label: 'Demographics', icon: <PieChart size={16} /> },
-          { id: 'network', label: 'Network', icon: <Share2 size={16} /> },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            className={`dashboard-tab-btn ${dashTab === tab.id ? 'active' : ''}`}
-            onClick={() => setDashTab(tab.id)}
-          >
-            {tab.icon}
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {dashTab === 'overview' && (
-        <>
-          {/* Row 1: Core Metrics & Engagement (3 Columns) */}
-          <div className="dashboard-main-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', marginBottom: '14px' }}>
-            {/* Cards Printed vs Pending */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Card Production Status</h3>
-                  <span className="panel-subtitle">Printed vs Not Printed</span>
+        return (
+          <>
+            {/* KPI Stat Cards */}
+            <div className="kpi-grid">
+              <div className="kpi-card">
+                <div className="kpi-icon"><Users size={20} strokeWidth={1.5} /></div>
+                <div className="kpi-body">
+                  <span className="kpi-label">Registered Voters</span>
+                  {dashLoading ? <span className="kpi-skeleton" style={{ width: '80px', height: '28px' }} /> : <span className="kpi-value">{totalResidents.toLocaleString()}</span>}
+                  <span className={`kpi-change ${regChangeClass}`}>{regChangeStr}</span>
                 </div>
               </div>
-              <div className="card-production-stats">
-                <div className="production-stat-item">
-                  <div className="production-stat-icon printed">
-                    <CheckCircle size={24} strokeWidth={1.5} />
-                  </div>
-                  <div className="production-stat-content">
-                    <span className="production-stat-label">Cards Printed</span>
-                    <span className="production-stat-value">{cardsPrinted.toLocaleString()}</span>
-                  </div>
+              <div className="kpi-card">
+                <div className="kpi-icon"><ClipboardList size={20} strokeWidth={1.5} /></div>
+                <div className="kpi-body">
+                  <span className="kpi-label">EM Card Members</span>
+                  {dashLoading ? <span className="kpi-skeleton" style={{ width: '80px', height: '28px' }} /> : <span className="kpi-value">{totalApprovedMembers.toLocaleString()}</span>}
+                  <span className={`kpi-change ${regChangeClass}`}>{regChangeStr}</span>
                 </div>
-                <div className="production-stat-divider" />
-                <div className="production-stat-item">
-                  <div className="production-stat-icon pending">
-                    <Clock size={24} strokeWidth={1.5} />
-                  </div>
-                  <div className="production-stat-content">
-                    <span className="production-stat-label">Not Printed</span>
-                    <span className="production-stat-value">{cardsPending.toLocaleString()}</span>
-                  </div>
+              </div>
+              <div className="kpi-card">
+                <div className="kpi-icon"><CheckCircle size={20} strokeWidth={1.5} /></div>
+                <div className="kpi-body">
+                  <span className="kpi-label">Registration Rate</span>
+                  {dashLoading ? <span className="kpi-skeleton" style={{ width: '60px', height: '28px' }} /> : <span className="kpi-value">{Math.round(currentRate * 100)}%</span>}
+                  <span className={`kpi-change ${rateChangeClass}`}>{rateChangeStr}</span>
+                </div>
+              </div>
+              <div className="kpi-card">
+                <div className="kpi-icon"><Calendar size={20} strokeWidth={1.5} /></div>
+                <div className="kpi-body">
+                  <span className="kpi-label">New This Month</span>
+                  {dashLoading ? <span className="kpi-skeleton" style={{ width: '70px', height: '28px' }} /> : <span className="kpi-value">{thisMonth.toLocaleString()}</span>}
+                  <span className={`kpi-change ${regChangeClass}`}>{regChangeStr}</span>
                 </div>
               </div>
             </div>
 
-            {/* Average Days to Print */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Production Efficiency</h3>
-                  <span className="panel-subtitle">Average registration to print</span>
+            {/* === COMPACT NOTIFICATION ROW === */}
+            <div className="dash-notif-row">
+              {/* Pending Approvals */}
+              <div className="dash-notif-card" onClick={() => handleNavClick('registrations')}>
+                <div className="dash-notif-icon"><Bell size={15} /></div>
+                <div className="dash-notif-body">
+                  <strong>Pending Approvals</strong>
+                  <span>{pendingCount > 0 ? `${pendingCount} registration${pendingCount !== 1 ? 's' : ''} awaiting review` : 'No pending registrations'}</span>
                 </div>
+                {pendingCount > 0 && <span className="dash-notif-count">{pendingCount}</span>}
+                <ArrowRight size={14} className="dash-notif-arrow" />
               </div>
-              <div className="efficiency-metric">
-                <div className="efficiency-value">{avgDaysToPrint}</div>
-                <div className="efficiency-label">Days Average</div>
-                <div className="efficiency-description">
-                  {avgDaysToPrint <= 7 ? '✓ Excellent' : avgDaysToPrint <= 14 ? '⚠ Good' : '⚠ Needs Improvement'}
+
+              {/* Birthday */}
+              <div className={`dash-notif-card${hasCelebrators ? ' active-birthday' : ''}`} onClick={() => {
+                setActiveTab('messages');
+                setMsgTab('birthday');
+                fetchBirthdayCelebrators();
+              }}>
+                <div className="dash-notif-icon"><Cake size={15} /></div>
+                <div className="dash-notif-body">
+                  <strong>{hasCelebrators ? `${celebratorsCount} Birthday${celebratorsCount !== 1 ? 's' : ''} Today` : 'No Birthdays Today'}</strong>
+                  <span>{hasCelebrators ? 'View celebrators & send greetings' : 'Manage birthday SMS settings'}</span>
                 </div>
+                {hasCelebrators && <span className="dash-notif-count">{celebratorsCount}</span>}
+                <ArrowRight size={14} className="dash-notif-arrow" />
               </div>
             </div>
 
-            {/* Member Engagement Score */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Member Engagement Score</h3>
-                  <span className="panel-subtitle">% attending events</span>
-                </div>
-              </div>
-              <div className="engagement-metric">
-                <div className="engagement-circle">
-                  <svg viewBox="0 0 100 100" className="engagement-svg">
-                    <circle cx="50" cy="50" r="45" className="engagement-bg" />
-                    <circle cx="50" cy="50" r="45" className="engagement-progress" style={{ strokeDasharray: `${memberEngagementScore * 2.827} 282.7` }} />
-                  </svg>
-                  <div className="engagement-value">{memberEngagementScore}%</div>
-                </div>
-                <div className="engagement-label">Members Engaged</div>
-              </div>
-            </div>
-          </div>
+            {/* === MAIN ANALYTICS: 2x2 Equal Grid === */}
+            <div className="dash-overview-grid-2x2">
 
-          {/* Row 1b: Member Source Breakdown */}
-          <div className="dashboard-main-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', marginBottom: '14px' }}>
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Member Source Breakdown</h3>
-                  <span className="panel-subtitle">Registered Voters vs Non-registered voters</span>
+              {/* Card 1: Card Production Status */}
+              <div className="dash-panel-v2">
+                <div className="dash-panel-v2-header">
+                  <div>
+                    <p className="dash-panel-v2-title">Card Production Status</p>
+                    <p className="dash-panel-v2-sub">Printed vs Not Printed</p>
+                  </div>
+                  <div className="dash-panel-v2-icon">
+                    <CreditCard size={15} strokeWidth={1.8} />
+                  </div>
+                </div>
+                <div className="dash-panel-v2-body">
+                  <div className="dash-stat-pair">
+                    <div className="dash-stat-item">
+                      <div className="dash-stat-label">
+                        <span className="dash-dot green" /> Printed
+                      </div>
+                      <div className="dash-stat-value">{cardsPrinted.toLocaleString()}</div>
+                    </div>
+                    <div className="dash-stat-item">
+                      <div className="dash-stat-label">
+                        <span className="dash-dot muted" /> Pending
+                      </div>
+                      <div className="dash-stat-value">{cardsPending.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div className="dash-progress-wrap">
+                    <div className="dash-progress-row">
+                      <span>Print completion rate</span>
+                      <strong>{printPct}%</strong>
+                    </div>
+                    <div className="dash-progress-track">
+                      <div className="dash-progress-fill" style={{ width: `${printPct}%` }} />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="card-production-stats">
-                <div className="production-stat-item">
-                  <div className="production-stat-icon printed" style={{ background: 'rgba(16, 185, 129, 0.12)', color: '#10b981' }}>
-                    <Users size={24} strokeWidth={1.5} />
+
+              {/* Card 2: Production Efficiency */}
+              <div className="dash-panel-v2">
+                <div className="dash-panel-v2-header">
+                  <div>
+                    <p className="dash-panel-v2-title">Production Efficiency</p>
+                    <p className="dash-panel-v2-sub">Average registration to print</p>
                   </div>
-                  <div className="production-stat-content">
-                    <span className="production-stat-label">Registered Voters</span>
-                    <span className="production-stat-value">{validResidentMembers.toLocaleString()}</span>
+                  <div className="dash-panel-v2-icon">
+                    <TrendingUp size={15} strokeWidth={1.8} />
                   </div>
                 </div>
-                <div className="production-stat-divider" />
-                <div className="production-stat-item">
-                  <div className="production-stat-icon pending" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b' }}>
-                    <UserPlus size={24} strokeWidth={1.5} />
+                <div className="dash-panel-v2-body">
+                  <div className="dash-eff-inner">
+                    <div className="dash-eff-number">{avgDaysToPrint}</div>
+                    <div className="dash-eff-right">
+                      <div className="dash-eff-label">Days Average</div>
+                      <div className="dash-eff-badge">
+                        {avgDaysToPrint <= 7 ? '✓ On Schedule' : '⚠ Action Needed'}
+                      </div>
+                      <div className="dash-eff-desc">Average turnaround time from application to card issuance</div>
+                    </div>
                   </div>
-                  <div className="production-stat-content">
-                    <span className="production-stat-label">Non-registered voters</span>
-                    <span className="production-stat-value">{nonValidResidentMembers.toLocaleString()}</span>
+                  <div className="dash-progress-wrap" style={{ marginTop: 14 }}>
+                    <div className="dash-progress-row">
+                      <span>Target turnaround SLA</span>
+                      <strong>7 Days</strong>
+                    </div>
+                    <div className="dash-progress-track">
+                      <div className="dash-progress-fill" style={{ width: `${Math.min(100, Math.round((7 / (avgDaysToPrint || 1)) * 100))}%` }} />
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {/* Card 3: Member Source Breakdown */}
+              <div className="dash-panel-v2">
+                <div className="dash-panel-v2-header">
+                  <div>
+                    <p className="dash-panel-v2-title">Member Source Breakdown</p>
+                    <p className="dash-panel-v2-sub">Registered voters vs non-registered</p>
+                  </div>
+                  <div className="dash-panel-v2-icon">
+                    <Users size={15} strokeWidth={1.8} />
+                  </div>
+                </div>
+                <div className="dash-panel-v2-body">
+                  <div className="dash-stat-pair">
+                    <div className="dash-stat-item">
+                      <div className="dash-stat-label">
+                        <span className="dash-dot green" /> Registered
+                      </div>
+                      <div className="dash-stat-value">{validResidentMembers.toLocaleString()}</div>
+                    </div>
+                    <div className="dash-stat-item">
+                      <div className="dash-stat-label">
+                        <span className="dash-dot muted" /> Non-Registered
+                      </div>
+                      <div className="dash-stat-value">{nonValidResidentMembers.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div className="dash-progress-wrap">
+                    <div className="dash-progress-row">
+                      <span>Registered voter ratio</span>
+                      <strong>{srcPct}%</strong>
+                    </div>
+                    <div className="dash-progress-track">
+                      <div className="dash-progress-fill" style={{ width: `${srcPct}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: Member Engagement Score */}
+              <div className="dash-panel-v2">
+                <div className="dash-panel-v2-header">
+                  <div>
+                    <p className="dash-panel-v2-title">Member Engagement Score</p>
+                    <p className="dash-panel-v2-sub">% of members attending events</p>
+                  </div>
+                  <div className="dash-panel-v2-icon">
+                    <Award size={15} strokeWidth={1.8} />
+                  </div>
+                </div>
+                <div className="dash-panel-v2-body">
+                  <div className="dash-donut-wrap">
+                    <div className="dash-donut-svg-wrap">
+                      <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="#f1f5f9" strokeWidth="10" />
+                        <circle cx="50" cy="50" r="42" fill="none" stroke="#059669" strokeWidth="10"
+                          strokeDasharray={`${memberEngagementScore * 2.638} 263.8`}
+                          strokeLinecap="round" />
+                      </svg>
+                      <div className="dash-donut-center">
+                        <span className="dash-donut-pct">{memberEngagementScore}%</span>
+                      </div>
+                    </div>
+                    <div className="dash-donut-right">
+                      <div className="dash-donut-main">Members Engaged</div>
+                      <div className="dash-donut-sub">Events participation rate</div>
+                      <div style={{ marginTop: 8, fontSize: '0.74rem', color: '#64748b' }}>
+                        Total approved members: <strong style={{ color: '#0f172a' }}>{totalApprovedMembers.toLocaleString()}</strong>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="dash-progress-wrap" style={{ marginTop: 10 }}>
+                    <div className="dash-progress-row">
+                      <span>Overall engagement index</span>
+                      <strong>{memberEngagementScore}%</strong>
+                    </div>
+                    <div className="dash-progress-track">
+                      <div className="dash-progress-fill" style={{ width: `${memberEngagementScore}%` }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
-          </div>
-        </>
-      )}
+          </>
+        );
+      })()}
+
 
       {dashTab === 'trends' && (
-        <>
-          {/* Row 2: Charts & Lists (2 Columns) */}
-          <div className="dashboard-main-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '14px', marginBottom: '14px' }}>
-            {/* Monthly Printing Trend */}
-            <div className="admin-panel dash-panel" style={{ height: '100%' }}>
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Monthly Printing Volume Trend</h3>
-                  <span className="panel-subtitle">Last 12 months</span>
-                </div>
+        <div className="dash-overview-grid-2x2">
+          {/* Monthly Printing Volume Trend */}
+          <div className="dash-panel-v2">
+            <div className="dash-panel-v2-header">
+              <div>
+                <p className="dash-panel-v2-title">Monthly Printing Volume Trend</p>
+                <p className="dash-panel-v2-sub">Card production history over the last 12 months</p>
               </div>
+              <div className="dash-panel-v2-icon">
+                <BarChart3 size={15} strokeWidth={1.8} />
+              </div>
+            </div>
+            <div className="dash-panel-v2-body">
               <div className="trend-chart-wrap">
                 {monthlyPrintingTrend.length > 0 ? (
                   <div className="trend-bars">
                     {monthlyPrintingTrend.map(({ month, count }) => {
                       const maxCount = Math.max(...monthlyPrintingTrend.map(m => m.count), 1);
-                      const barHeight = (count / maxCount) * 100;
+                      const barHeight = Math.max(4, Math.round((count / maxCount) * 100));
                       return (
                         <div key={month} className="trend-bar-item">
                           <div className="trend-bar-container">
@@ -3378,15 +3503,20 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
+          </div>
 
-            {/* Most Attended Events */}
-            <div className="admin-panel dash-panel" style={{ height: '100%' }}>
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Top Events</h3>
-                  <span className="panel-subtitle">Most attended events</span>
-                </div>
+          {/* Top Events */}
+          <div className="dash-panel-v2">
+            <div className="dash-panel-v2-header">
+              <div>
+                <p className="dash-panel-v2-title">Top Events</p>
+                <p className="dash-panel-v2-sub">Most attended events & attendance rate</p>
               </div>
+              <div className="dash-panel-v2-icon">
+                <Award size={15} strokeWidth={1.8} />
+              </div>
+            </div>
+            <div className="dash-panel-v2-body">
               <div className="top-events-list">
                 {topEvents.length > 0 ? (
                   topEvents.map((event, idx) => (
@@ -3408,174 +3538,331 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {dashTab === 'geography' && (
         <>
-          {/* Geography Summary Cards */}
-          <div className="demo-summary-grid">
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>
-                <MapPin size={20} />
-              </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Barangays</span>
-                <span className="demo-summary-value">{geoDistributionData.length}</span>
-              </div>
-            </div>
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
-                <Users size={20} />
-              </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Total Voters</span>
-                <span className="demo-summary-value">{totalResidents.toLocaleString()}</span>
+          {/* Geography KPI Cards */}
+          <div className="kpi-grid">
+            <div className="kpi-card">
+              <div className="kpi-icon"><MapPin size={20} strokeWidth={1.5} /></div>
+              <div className="kpi-body">
+                <span className="kpi-label">Barangays</span>
+                <span className="kpi-value">{geoDistributionData.length}</span>
+                <span className="kpi-change up">Coverage areas</span>
               </div>
             </div>
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(139,92,246,0.1)', color: '#8b5cf6' }}>
-                <Shield size={20} />
-              </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">EM Card Members</span>
-                <span className="demo-summary-value">{totalApprovedMembers.toLocaleString()}</span>
+            <div className="kpi-card">
+              <div className="kpi-icon"><Users size={20} strokeWidth={1.5} /></div>
+              <div className="kpi-body">
+                <span className="kpi-label">Total Voters</span>
+                <span className="kpi-value">{totalResidents.toLocaleString()}</span>
+                <span className="kpi-change up">Official COMELEC</span>
               </div>
             </div>
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
-                <TrendingUp size={20} />
+            <div className="kpi-card">
+              <div className="kpi-icon"><ClipboardList size={20} strokeWidth={1.5} /></div>
+              <div className="kpi-body">
+                <span className="kpi-label">EM Card Members</span>
+                <span className="kpi-value">{totalApprovedMembers.toLocaleString()}</span>
+                <span className="kpi-change up">{totalResidents > 0 ? ((totalApprovedMembers / totalResidents) * 100).toFixed(1) : 0}% total reach</span>
               </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Aid Recipients</span>
-                <span className="demo-summary-value">{aidByBarangay.reduce((sum, a) => sum + a.count, 0)}</span>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon"><TrendingUp size={20} strokeWidth={1.5} /></div>
+              <div className="kpi-body">
+                <span className="kpi-label">Aid Recipients</span>
+                <span className="kpi-value">{aidByBarangay.reduce((sum, a) => sum + a.count, 0).toLocaleString()}</span>
+                <span className="kpi-change up">Beneficiary services</span>
               </div>
             </div>
           </div>
 
-          {/* Geographic Distribution Analytics */}
-          <div className="dashboard-main-grid two-col">
-            {/* Highest & Lowest Registration Areas */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Registration Coverage</h3>
-                  <span className="panel-subtitle">Highest vs Lowest areas</span>
+          {/* Barangay Analytics 3-Column Grid */}
+          <div className="dash-overview-grid-3">
+            {/* Left: Voters by Barangay */}
+            <div className="dash-panel-v2">
+              <div className="dash-panel-v2-header">
+                <div>
+                  <p className="dash-panel-v2-title">Registered Voters</p>
+                  <p className="dash-panel-v2-sub">{votersByBarangay.length} barangays · {totalResidents.toLocaleString()} total</p>
+                </div>
+                <div className="dash-panel-v2-icon">
+                  <Users size={15} strokeWidth={1.8} />
                 </div>
               </div>
-              <div className="geo-coverage-container">
-                {highestRegistrationArea && (
-                  <div className="geo-coverage-item highest">
-                    <div className="geo-coverage-badge">
-                      <TrendingUp size={18} />
-                    </div>
-                    <div className="geo-coverage-content">
-                      <div className="geo-coverage-label">Highest Coverage</div>
-                      <div className="geo-coverage-area">{highestRegistrationArea.barangay}</div>
-                      <div className="geo-coverage-stats">
-                        <span>{highestRegistrationArea.registered.toLocaleString()}/{highestRegistrationArea.totalResidents.toLocaleString()}</span>
-                        <span className="geo-coverage-rate">{highestRegistrationArea.registrationRate}%</span>
-                      </div>
-                    </div>
+              <div className="dash-panel-v2-body">
+                {votersByBarangay.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {votersByBarangay.map(({ barangay, count }, idx) => {
+                      const total = totalResidents || 1;
+                      const pct = ((count / total) * 100).toFixed(1);
+                      const maxCount = Math.max(...votersByBarangay.map(v => v.count), 1);
+                      const relWidth = Math.max((count / maxCount) * 100, 1.5);
+                      return (
+                        <div key={barangay} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 6, borderBottom: idx < votersByBarangay.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                            <span style={{ fontWeight: 600, color: '#0f172a' }}>{barangay}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontWeight: 700, color: '#0f172a' }}>{count.toLocaleString()}</span>
+                              <span style={{ color: '#64748b', fontSize: '0.74rem', minWidth: 38, textAlign: 'right' }}>{pct}%</span>
+                            </div>
+                          </div>
+                          <div className="dash-progress-track" style={{ height: 5, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                            <div className="dash-progress-fill" style={{ width: `${relWidth}%`, background: '#059669', height: '100%', borderRadius: 3 }} />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
-                {lowestRegistrationArea && (
-                  <div className="geo-coverage-item lowest">
-                    <div className="geo-coverage-badge">
-                      <TrendingUp size={18} />
-                    </div>
-                    <div className="geo-coverage-content">
-                      <div className="geo-coverage-label">Lowest Coverage</div>
-                      <div className="geo-coverage-area">{lowestRegistrationArea.barangay}</div>
-                      <div className="geo-coverage-stats">
-                        <span>{lowestRegistrationArea.registered.toLocaleString()}/{lowestRegistrationArea.totalResidents.toLocaleString()}</span>
-                        <span className="geo-coverage-rate">{lowestRegistrationArea.registrationRate}%</span>
-                      </div>
-                    </div>
-                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '24px 12px', color: '#94a3b8', fontSize: '0.82rem' }}>No voter records found</div>
                 )}
               </div>
             </div>
 
-            {/* Underserved Communities */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Underserved Communities</h3>
-                  <span className="panel-subtitle">Areas with &lt;30% registration</span>
+            {/* Middle: EM Card Members by Barangay */}
+            <div className="dash-panel-v2">
+              <div className="dash-panel-v2-header">
+                <div>
+                  <p className="dash-panel-v2-title">EM Card Members</p>
+                  <p className="dash-panel-v2-sub">{regsByBarangay.length || votersByBarangay.length} barangays · % reach vs voters</p>
+                </div>
+                <div className="dash-panel-v2-icon">
+                  <ClipboardList size={15} strokeWidth={1.8} />
                 </div>
               </div>
-              {underservedCommunities.length > 0 ? (
-                <div className="demo-bar-list" style={{ paddingTop: 8 }}>
-                  {underservedCommunities.map((area, idx) => {
-                    const maxTotal = Math.max(...underservedCommunities.map(a => a.totalResidents), 1);
-                    const pct = Math.round((area.totalResidents / maxTotal) * 100);
-                    return (
-                      <div key={area.barangay} className="demo-bar-item">
-                        <div className="demo-bar-row">
-                          <div className="net-rank">{idx + 1}</div>
-                          <span className="demo-bar-name">{area.barangay}</span>
-                          <span className="demo-bar-count">{area.registered}</span>
-                          <span className="demo-bar-pct">{area.registrationRate}%</span>
+              <div className="dash-panel-v2-body">
+                {(regsByBarangay.length > 0 ? regsByBarangay : votersByBarangay.map(v => ({ barangay: v.barangay, count: 0 }))).length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {(regsByBarangay.length > 0 ? regsByBarangay : votersByBarangay.map(v => ({ barangay: v.barangay, count: 0 }))).map(({ barangay, count }, idx, arr) => {
+                      const voterEntry = votersByBarangay.find(v => v.barangay === barangay);
+                      const voterCount = voterEntry ? voterEntry.count : 0;
+                      const pct = voterCount > 0 ? ((count / voterCount) * 100).toFixed(1) : '0.0';
+                      const maxReg = Math.max(...regsByBarangay.map(r => r.count), 1);
+                      const barWidth = Math.max((count / maxReg) * 100, 1.5);
+                      return (
+                        <div key={barangay} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 6, borderBottom: idx < arr.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                            <span style={{ fontWeight: 600, color: '#0f172a' }}>{barangay}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontWeight: 700, color: '#0f172a' }}>{count.toLocaleString()}</span>
+                              <span style={{ color: '#64748b', fontSize: '0.74rem', minWidth: 38, textAlign: 'right' }}>{pct}%</span>
+                            </div>
+                          </div>
+                          <div className="dash-progress-track" style={{ height: 5, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                            <div className="dash-progress-fill" style={{ width: `${barWidth}%`, background: '#059669', height: '100%', borderRadius: 3 }} />
+                          </div>
                         </div>
-                        <div className="demo-bar-track">
-                          <div className="demo-bar-fill" style={{ width: `${pct}%`, background: '#ef4444' }} />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '24px 12px', color: '#94a3b8', fontSize: '0.82rem' }}>No member records found</div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Aid by Barangay */}
+            <div className="dash-panel-v2">
+              <div className="dash-panel-v2-header">
+                <div>
+                  <p className="dash-panel-v2-title">Aid Recipients</p>
+                  <p className="dash-panel-v2-sub">{votersByBarangay.length} barangays · {aidByBarangay.reduce((sum, a) => sum + a.count, 0)} total</p>
+                </div>
+                <div className="dash-panel-v2-icon">
+                  <TrendingUp size={15} strokeWidth={1.8} />
+                </div>
+              </div>
+              <div className="dash-panel-v2-body">
+                {(aidByBarangay.length > 0 ? aidByBarangay : votersByBarangay.map(v => ({ barangay: v.barangay, count: 0 }))).filter(a => a.count > 0).length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {(aidByBarangay.length > 0 ? aidByBarangay : votersByBarangay.map(v => ({ barangay: v.barangay, count: 0 }))).filter(a => a.count > 0).map(({ barangay, count }, idx, arr) => {
+                      const voterEntry = votersByBarangay.find(v => v.barangay === barangay);
+                      const voterCount = voterEntry ? voterEntry.count : 0;
+                      const pct = voterCount > 0 ? ((count / voterCount) * 100).toFixed(1) : '0.0';
+                      const maxAid = Math.max(...aidByBarangay.map(a => a.count), 1);
+                      const barWidth = Math.max((count / maxAid) * 100, 1.5);
+                      return (
+                        <div key={barangay} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 6, borderBottom: idx < arr.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                            <span style={{ fontWeight: 600, color: '#0f172a' }}>{barangay}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontWeight: 700, color: '#0f172a' }}>{count.toLocaleString()}</span>
+                              <span style={{ color: '#64748b', fontSize: '0.74rem', minWidth: 38, textAlign: 'right' }}>{pct}%</span>
+                            </div>
+                          </div>
+                          <div className="dash-progress-track" style={{ height: 5, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                            <div className="dash-progress-fill" style={{ width: `${barWidth}%`, background: '#059669', height: '100%', borderRadius: 3 }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '36px 12px', color: '#94a3b8', fontSize: '0.82rem' }}>
+                    <TrendingUp size={24} style={{ color: '#cbd5e1', margin: '0 auto 6px', display: 'block' }} />
+                    <span style={{ fontWeight: 600, color: '#64748b', display: 'block' }}>No Aid Records</span>
+                    <span>No beneficiary distributions logged for this area.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Geographic Distribution 2x2 Grid */}
+          <div className="dash-overview-grid-2x2">
+            {/* Highest & Lowest Registration Areas */}
+            <div className="dash-panel-v2">
+              <div className="dash-panel-v2-header">
+                <div>
+                  <p className="dash-panel-v2-title">Registration Coverage</p>
+                  <p className="dash-panel-v2-sub">Highest vs Lowest coverage areas</p>
+                </div>
+                <div className="dash-panel-v2-icon">
+                  <MapPin size={15} strokeWidth={1.8} />
+                </div>
+              </div>
+              <div className="dash-panel-v2-body">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {highestRegistrationArea && (
+                    <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+                      <div>
+                        <div className="dash-stat-label">
+                          <span className="dash-dot green" /> Highest Coverage
+                        </div>
+                        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '2px 0' }}>
+                          {highestRegistrationArea.barangay}
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                          {highestRegistrationArea.registered.toLocaleString()} of {highestRegistrationArea.totalResidents.toLocaleString()} registered
                         </div>
                       </div>
-                    );
-                  })}
+                      <span className="dash-eff-badge" style={{ fontSize: '0.85rem', fontWeight: 800, padding: '4px 10px', background: '#ecfdf5', color: '#065f46', borderColor: '#a7f3d0' }}>
+                        {highestRegistrationArea.registrationRate}%
+                      </span>
+                    </div>
+                  )}
+
+                  {lowestRegistrationArea && (
+                    <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px' }}>
+                      <div>
+                        <div className="dash-stat-label">
+                          <span className="dash-dot muted" /> Lowest Coverage
+                        </div>
+                        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '2px 0' }}>
+                          {lowestRegistrationArea.barangay}
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                          {lowestRegistrationArea.registered.toLocaleString()} of {lowestRegistrationArea.totalResidents.toLocaleString()} registered
+                        </div>
+                      </div>
+                      <span className="dash-eff-badge" style={{ fontSize: '0.85rem', fontWeight: 800, padding: '4px 10px', background: '#f8fafc', color: '#475569', borderColor: '#e2e8f0' }}>
+                        {lowestRegistrationArea.registrationRate}%
+                      </span>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="dash-empty-state">
-                  <Info size={32} />
-                  <span>No underserved communities</span>
-                  <span className="dash-empty-sub">All barangays have registration coverage above 30%.</span>
+              </div>
+            </div>
+
+            {/* Underserved Communities */}
+            <div className="dash-panel-v2">
+              <div className="dash-panel-v2-header">
+                <div>
+                  <p className="dash-panel-v2-title">Underserved Communities</p>
+                  <p className="dash-panel-v2-sub">Areas with under 30% registration coverage</p>
                 </div>
-              )}
+                <div className="dash-panel-v2-icon">
+                  <ShieldAlert size={15} strokeWidth={1.8} />
+                </div>
+              </div>
+              <div className="dash-panel-v2-body">
+                {underservedCommunities.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {underservedCommunities.slice(0, 7).map((area, idx) => {
+                      const maxTotal = Math.max(...underservedCommunities.map(a => a.totalResidents), 1);
+                      const pct = Math.round((area.totalResidents / maxTotal) * 100);
+                      return (
+                        <div key={area.barangay} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '6px 0', borderBottom: idx < 6 ? '1px solid #f8fafc' : 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', width: 16 }}>{idx + 1}</span>
+                              <span style={{ fontWeight: 600, color: '#0f172a' }}>{area.barangay}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ color: '#64748b' }}>{area.registered} registered</span>
+                              <strong style={{ color: '#0f172a', minWidth: 32, textAlign: 'right' }}>{area.registrationRate}%</strong>
+                            </div>
+                          </div>
+                          <div className="dash-progress-track" style={{ height: 4 }}>
+                            <div className="dash-progress-fill" style={{ width: `${pct}%`, background: '#94a3b8' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '30px 12px', color: '#94a3b8', fontSize: '0.85rem' }}>
+                    <CheckCircle size={28} style={{ color: '#059669', margin: '0 auto 8px', display: 'block' }} />
+                    <strong style={{ color: '#0f172a', display: 'block', marginBottom: 2 }}>High Coverage Across All Barangays</strong>
+                    <span>All barangays have registration coverage above 30%.</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Geographic Heatmap */}
           {geoDistributionData.length > 0 && (
-            <div className="admin-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Registration Rate Heatmap</h3>
-                  <span className="panel-subtitle">{geoDistributionData.length} barangays · Sorted by coverage</span>
+            <div className="dash-panel-v2" style={{ marginTop: 16 }}>
+              <div className="dash-panel-v2-header">
+                <div>
+                  <p className="dash-panel-v2-title">Registration Rate Heatmap</p>
+                  <p className="dash-panel-v2-sub">{geoDistributionData.length} barangays · Sorted by coverage</p>
+                </div>
+                <div className="dash-panel-v2-icon">
+                  <Activity size={15} strokeWidth={1.8} />
                 </div>
               </div>
-              <div className="geo-heatmap">
-                {geoDistributionData.map(({ barangay, registered, totalResidents, registrationRate }) => {
-                  let bgColor = '#fecaca';
-                  if (registrationRate >= 70) bgColor = '#bbf7d0';
-                  else if (registrationRate >= 50) bgColor = '#fde68a';
-                  else if (registrationRate >= 30) bgColor = '#fed7aa';
+              <div className="dash-panel-v2-body">
+                <div className="geo-heatmap">
+                  {geoDistributionData.map(({ barangay, registered, totalResidents, registrationRate }) => {
+                    let bg = '#f8fafc';
+                    let textCol = '#334155';
+                    let borderCol = '#e2e8f0';
+                    if (registrationRate >= 70) { bg = '#ecfdf5'; textCol = '#065f46'; borderCol = '#a7f3d0'; }
+                    else if (registrationRate >= 50) { bg = '#f0fdf4'; textCol = '#166534'; borderCol = '#bbf7d0'; }
+                    else if (registrationRate >= 30) { bg = '#fefce8'; textCol = '#854d0e'; borderCol = '#fef08a'; }
+                    else { bg = '#f8fafc'; textCol = '#64748b'; borderCol = '#e2e8f0'; }
 
-                  return (
-                    <div key={barangay} className="geo-heatmap-cell" style={{ backgroundColor: bgColor }}>
-                      <div className="geo-heatmap-name">{barangay}</div>
-                      <div className="geo-heatmap-rate">{registrationRate}%</div>
-                      <div className="geo-heatmap-count">{registered}/{totalResidents}</div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="geo-heatmap-legend">
-                <div className="legend-item">
-                  <div className="legend-color" style={{ backgroundColor: '#bbf7d0' }}></div>
-                  <span>70%+ (Excellent)</span>
+                    return (
+                      <div key={barangay} className="geo-heatmap-cell" style={{ backgroundColor: bg, borderColor: borderCol, color: textCol }}>
+                        <div className="geo-heatmap-name">{barangay}</div>
+                        <div className="geo-heatmap-rate">{registrationRate}%</div>
+                        <div className="geo-heatmap-count">{registered}/{totalResidents}</div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="legend-item">
-                  <div className="legend-color" style={{ backgroundColor: '#fde68a' }}></div>
-                  <span>50-69% (Good)</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-color" style={{ backgroundColor: '#fed7aa' }}></div>
-                  <span>30-49% (Fair)</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-color" style={{ backgroundColor: '#fecaca' }}></div>
-                  <span>&lt;30% (Needs Work)</span>
+                <div className="geo-heatmap-legend">
+                  <div className="legend-item">
+                    <div className="legend-color" style={{ backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0' }}></div>
+                    <span>70%+ (High)</span>
+                  </div>
+                  <div className="legend-item">
+                    <div className="legend-color" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}></div>
+                    <span>50-69% (Good)</span>
+                  </div>
+                  <div className="legend-item">
+                    <div className="legend-color" style={{ backgroundColor: '#fefce8', border: '1px solid #fef08a' }}></div>
+                    <span>30-49% (Moderate)</span>
+                  </div>
+                  <div className="legend-item">
+                    <div className="legend-color" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}></div>
+                    <span>&lt;30% (Low)</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3686,340 +3973,378 @@ export default function AdminPage() {
         </>
       )}
 
-      {dashTab === 'demographics' && (
-        <>
-          {/* Demographics Summary Cards */}
-          <div className="demo-summary-grid">
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>
-                <Users size={20} />
-              </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Total Members</span>
-                <span className="demo-summary-value">{sectorBreakdown.reduce((sum, s) => sum + s.count, 0)}</span>
-              </div>
-            </div>
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
-                <Tag size={20} />
-              </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Top Sector</span>
-                <span className="demo-summary-value">{sectorBreakdown[0]?.sector || '—'}</span>
-                <span className="demo-summary-sub">{sectorBreakdown[0]?.count || 0} members</span>
-              </div>
-            </div>
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(139,92,246,0.1)', color: '#8b5cf6' }}>
-                <Cake size={20} />
-              </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Dominant Age Group</span>
-                <span className="demo-summary-value">{ageDistribution[0]?.group ? `${ageDistribution[0].group} yrs` : '—'}</span>
-                <span className="demo-summary-sub">{ageDistribution[0]?.count || 0} members</span>
-              </div>
-            </div>
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
-                <PieChart size={20} />
-              </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Sectors Represented</span>
-                <span className="demo-summary-value">{sectorBreakdown.length}</span>
-              </div>
-            </div>
-          </div>
+      {dashTab === 'demographics' && (() => {
+        const sectorColors = ['#059669', '#0d9488', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0'];
+        const ageColors = ['#059669', '#10b981', '#34d399', '#0d9488', '#334155', '#475569', '#64748b', '#94a3b8'];
+        const totalSectorMembers = sectorBreakdown.reduce((sum, s) => sum + s.count, 0);
+        const totalAgeMembers = ageDistribution.reduce((sum, a) => sum + a.count, 0);
 
-          {/* Demographic Breakdown */}
-          <div className="dashboard-main-grid two-col">
-            {/* Members by Sector */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Members by Sector</h3>
-                  <span className="panel-subtitle">Distribution across categories</span>
+        return (
+          <>
+            {/* Demographics KPI Cards */}
+            <div className="kpi-grid">
+              <div className="kpi-card">
+                <div className="kpi-icon"><Users size={20} strokeWidth={1.5} /></div>
+                <div className="kpi-body">
+                  <span className="kpi-label">Total Members</span>
+                  <span className="kpi-value">{totalSectorMembers.toLocaleString()}</span>
+                  <span className="kpi-change up">Verified records</span>
                 </div>
               </div>
-              {sectorBreakdown.length > 0 ? (
-                <div className="demo-chart-wrap">
-                  {/* Donut Chart */}
-                  <div className="demo-donut-wrap">
-                    <svg viewBox="0 0 140 140" className="demo-donut-svg">
-                      {sectorBreakdown.map((sector, idx) => {
-                        const colors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316'];
-                        const total = sectorBreakdown.reduce((s, x) => s + x.count, 0);
-                        const prev = sectorBreakdown.slice(0, idx).reduce((s, x) => s + x.count, 0);
-                        const dash = (sector.count / total) * 339.292;
-                        const offset = 339.292 - ((prev / total) * 339.292);
-                        return (
-                          <circle
-                            key={sector.sector}
-                            cx="70" cy="70" r="54"
-                            fill="none"
-                            stroke={colors[idx % colors.length]}
-                            strokeWidth="18"
-                            strokeDasharray={`${dash} ${339.292 - dash}`}
-                            strokeDashoffset={offset}
-                            strokeLinecap="round"
-                            transform="rotate(-90 70 70)"
-                          />
-                        );
-                      })}
-                    </svg>
-                    <div className="demo-donut-center">
-                      <span className="demo-donut-num">{sectorBreakdown.reduce((s, x) => s + x.count, 0)}</span>
-                      <span className="demo-donut-label">Members</span>
-                    </div>
-                  </div>
-                  {/* Legend / Bars */}
-                  <div className="demo-bar-list">
-                    {sectorBreakdown.map((sector, idx) => {
-                      const colors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6', '#f97316'];
-                      const bg = colors[idx % colors.length];
-                      return (
-                        <div key={sector.sector} className="demo-bar-item">
-                          <div className="demo-bar-row">
-                            <div className="demo-bar-dot" style={{ background: bg }} />
-                            <span className="demo-bar-name">{sector.sector}</span>
-                            <span className="demo-bar-count">{sector.count}</span>
-                            <span className="demo-bar-pct">{sector.percentage}%</span>
-                          </div>
-                          <div className="demo-bar-track">
-                            <div className="demo-bar-fill" style={{ width: `${sector.percentage}%`, background: bg }} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+              <div className="kpi-card">
+                <div className="kpi-icon"><Tag size={20} strokeWidth={1.5} /></div>
+                <div className="kpi-body">
+                  <span className="kpi-label">Top Sector</span>
+                  <span className="kpi-value">{sectorBreakdown[0]?.sector || '—'}</span>
+                  <span className="kpi-change up">{sectorBreakdown[0]?.count || 0} members</span>
                 </div>
-              ) : (
-                <div className="dash-empty-state">
-                  <Info size={32} />
-                  <span>No sector data available.</span>
-                  <span className="dash-empty-sub">Sector information will appear once members are categorized.</span>
+              </div>
+              <div className="kpi-card">
+                <div className="kpi-icon"><Cake size={20} strokeWidth={1.5} /></div>
+                <div className="kpi-body">
+                  <span className="kpi-label">Dominant Age Group</span>
+                  <span className="kpi-value">{ageDistribution[0]?.group ? `${ageDistribution[0].group} yrs` : '—'}</span>
+                  <span className="kpi-change up">{ageDistribution[0]?.count || 0} members</span>
                 </div>
-              )}
+              </div>
+              <div className="kpi-card">
+                <div className="kpi-icon"><PieChart size={20} strokeWidth={1.5} /></div>
+                <div className="kpi-body">
+                  <span className="kpi-label">Sectors Represented</span>
+                  <span className="kpi-value">{sectorBreakdown.length}</span>
+                  <span className="kpi-change up">Active categories</span>
+                </div>
+              </div>
             </div>
 
-            {/* Age Distribution */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Age Distribution</h3>
-                  <span className="panel-subtitle">Breakdown by age group</span>
+            {/* Demographic Breakdown 2x2 Grid */}
+            <div className="dash-overview-grid-2x2">
+              {/* Members by Sector */}
+              <div className="dash-panel-v2">
+                <div className="dash-panel-v2-header">
+                  <div>
+                    <p className="dash-panel-v2-title">Members by Sector</p>
+                    <p className="dash-panel-v2-sub">Distribution across categories</p>
+                  </div>
+                  <div className="dash-panel-v2-icon">
+                    <Tag size={15} strokeWidth={1.8} />
+                  </div>
+                </div>
+                <div className="dash-panel-v2-body">
+                  {sectorBreakdown.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {/* Donut Chart */}
+                      <div className="demo-donut-wrap" style={{ margin: '8px auto 4px' }}>
+                        <svg viewBox="0 0 140 140" className="demo-donut-svg">
+                          {sectorBreakdown.map((sector, idx) => {
+                            const total = totalSectorMembers || 1;
+                            const prev = sectorBreakdown.slice(0, idx).reduce((s, x) => s + x.count, 0);
+                            const dash = (sector.count / total) * 339.292;
+                            const offset = 339.292 - ((prev / total) * 339.292);
+                            return (
+                              <circle
+                                key={sector.sector}
+                                cx="70" cy="70" r="54"
+                                fill="none"
+                                stroke={sectorColors[idx % sectorColors.length]}
+                                strokeWidth="16"
+                                strokeDasharray={`${dash} ${339.292 - dash}`}
+                                strokeDashoffset={offset}
+                                strokeLinecap="round"
+                                transform="rotate(-90 70 70)"
+                              />
+                            );
+                          })}
+                        </svg>
+                        <div className="demo-donut-center">
+                          <span className="demo-donut-num" style={{ color: '#0f172a' }}>{totalSectorMembers}</span>
+                          <span className="demo-donut-label">Members</span>
+                        </div>
+                      </div>
+
+                      {/* Legend / Bars */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {sectorBreakdown.map((sector, idx) => {
+                          const col = sectorColors[idx % sectorColors.length];
+                          return (
+                            <div key={sector.sector} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 6, borderBottom: idx < sectorBreakdown.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
+                                  <span style={{ fontWeight: 600, color: '#0f172a' }}>{sector.sector}</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontWeight: 700, color: '#0f172a' }}>{sector.count}</span>
+                                  <span style={{ color: '#64748b', fontSize: '0.74rem', minWidth: 36, textAlign: 'right' }}>{sector.percentage}%</span>
+                                </div>
+                              </div>
+                              <div className="dash-progress-track" style={{ height: 5, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                                <div className="dash-progress-fill" style={{ width: `${sector.percentage}%`, background: col, height: '100%', borderRadius: 3 }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '36px 12px', color: '#94a3b8', fontSize: '0.82rem' }}>
+                      <Tag size={24} style={{ color: '#cbd5e1', margin: '0 auto 6px', display: 'block' }} />
+                      <span style={{ fontWeight: 600, color: '#64748b', display: 'block' }}>No Sector Data</span>
+                      <span>Sector records will appear once members are categorized.</span>
+                    </div>
+                  )}
                 </div>
               </div>
-              {ageDistribution.length > 0 ? (
-                <div className="demo-chart-wrap">
-                  {/* Donut Chart */}
-                  <div className="demo-donut-wrap">
-                    <svg viewBox="0 0 140 140" className="demo-donut-svg">
-                      {ageDistribution.map((age, idx) => {
-                        const colors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6'];
-                        const total = ageDistribution.reduce((s, x) => s + x.count, 0);
-                        const prev = ageDistribution.slice(0, idx).reduce((s, x) => s + x.count, 0);
-                        const dash = (age.count / total) * 339.292;
-                        const offset = 339.292 - ((prev / total) * 339.292);
-                        return (
-                          <circle
-                            key={age.group}
-                            cx="70" cy="70" r="54"
-                            fill="none"
-                            stroke={colors[idx % colors.length]}
-                            strokeWidth="18"
-                            strokeDasharray={`${dash} ${339.292 - dash}`}
-                            strokeDashoffset={offset}
-                            strokeLinecap="round"
-                            transform="rotate(-90 70 70)"
-                          />
-                        );
-                      })}
-                    </svg>
-                    <div className="demo-donut-center">
-                      <span className="demo-donut-num">{ageDistribution.reduce((s, x) => s + x.count, 0)}</span>
-                      <span className="demo-donut-label">Members</span>
-                    </div>
+
+              {/* Age Distribution */}
+              <div className="dash-panel-v2">
+                <div className="dash-panel-v2-header">
+                  <div>
+                    <p className="dash-panel-v2-title">Age Distribution</p>
+                    <p className="dash-panel-v2-sub">Breakdown by age group</p>
                   </div>
-                  {/* Legend / Bars */}
-                  <div className="demo-bar-list">
-                    {ageDistribution.map((age, idx) => {
-                      const colors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#14b8a6'];
-                      const bg = colors[idx % colors.length];
-                      return (
-                        <div key={age.group} className="demo-bar-item">
-                          <div className="demo-bar-row">
-                            <div className="demo-bar-dot" style={{ background: bg }} />
-                            <span className="demo-bar-name">{age.group} years</span>
-                            <span className="demo-bar-count">{age.count}</span>
-                            <span className="demo-bar-pct">{age.percentage}%</span>
-                          </div>
-                          <div className="demo-bar-track">
-                            <div className="demo-bar-fill" style={{ width: `${age.percentage}%`, background: bg }} />
-                          </div>
+                  <div className="dash-panel-v2-icon">
+                    <Users size={15} strokeWidth={1.8} />
+                  </div>
+                </div>
+                <div className="dash-panel-v2-body">
+                  {ageDistribution.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {/* Donut Chart */}
+                      <div className="demo-donut-wrap" style={{ margin: '8px auto 4px' }}>
+                        <svg viewBox="0 0 140 140" className="demo-donut-svg">
+                          {ageDistribution.map((age, idx) => {
+                            const total = totalAgeMembers || 1;
+                            const prev = ageDistribution.slice(0, idx).reduce((s, x) => s + x.count, 0);
+                            const dash = (age.count / total) * 339.292;
+                            const offset = 339.292 - ((prev / total) * 339.292);
+                            return (
+                              <circle
+                                key={age.group}
+                                cx="70" cy="70" r="54"
+                                fill="none"
+                                stroke={ageColors[idx % ageColors.length]}
+                                strokeWidth="16"
+                                strokeDasharray={`${dash} ${339.292 - dash}`}
+                                strokeDashoffset={offset}
+                                strokeLinecap="round"
+                                transform="rotate(-90 70 70)"
+                              />
+                            );
+                          })}
+                        </svg>
+                        <div className="demo-donut-center">
+                          <span className="demo-donut-num" style={{ color: '#0f172a' }}>{totalAgeMembers}</span>
+                          <span className="demo-donut-label">Members</span>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+
+                      {/* Legend / Bars */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {ageDistribution.map((age, idx) => {
+                          const col = ageColors[idx % ageColors.length];
+                          return (
+                            <div key={age.group} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 6, borderBottom: idx < ageDistribution.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
+                                  <span style={{ fontWeight: 600, color: '#0f172a' }}>{age.group} years</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontWeight: 700, color: '#0f172a' }}>{age.count}</span>
+                                  <span style={{ color: '#64748b', fontSize: '0.74rem', minWidth: 36, textAlign: 'right' }}>{age.percentage}%</span>
+                                </div>
+                              </div>
+                              <div className="dash-progress-track" style={{ height: 5, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                                <div className="dash-progress-fill" style={{ width: `${age.percentage}%`, background: col, height: '100%', borderRadius: 3 }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '36px 12px', color: '#94a3b8', fontSize: '0.82rem' }}>
+                      <Cake size={24} style={{ color: '#cbd5e1', margin: '0 auto 6px', display: 'block' }} />
+                      <span style={{ fontWeight: 600, color: '#64748b', display: 'block' }}>No Age Data</span>
+                      <span>Birthday information will appear once member birthdays are recorded.</span>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="dash-empty-state">
-                  <Info size={32} />
-                  <span>No age data available.</span>
-                  <span className="dash-empty-sub">Birthday information will appear once member birthdays are recorded.</span>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        );
+      })()}
 
       {dashTab === 'network' && (
         <>
-          {/* Network Summary Cards */}
-          <div className="demo-summary-grid">
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}>
-                <Share2 size={20} />
-              </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Success Rate</span>
-                <span className="demo-summary-value">{referralSuccessRate}%</span>
-              </div>
-            </div>
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(139,92,246,0.1)', color: '#8b5cf6' }}>
-                <Users size={20} />
-              </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Active Referrers</span>
-                <span className="demo-summary-value">{topReferrers.length}</span>
+          {/* Network KPI Cards */}
+          <div className="kpi-grid">
+            <div className="kpi-card">
+              <div className="kpi-icon"><Share2 size={20} strokeWidth={1.5} /></div>
+              <div className="kpi-body">
+                <span className="kpi-label">Success Rate</span>
+                <span className="kpi-value">{referralSuccessRate}%</span>
+                <span className="kpi-change up">Conversion rate</span>
               </div>
             </div>
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}>
-                <UserCheck size={20} />
-              </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Total Referred</span>
-                <span className="demo-summary-value">{topReferrers.reduce((sum, r) => sum + r.totalReferred, 0)}</span>
+            <div className="kpi-card">
+              <div className="kpi-icon"><Users size={20} strokeWidth={1.5} /></div>
+              <div className="kpi-body">
+                <span className="kpi-label">Active Referrers</span>
+                <span className="kpi-value">{topReferrers.length}</span>
+                <span className="kpi-change up">Community advocates</span>
               </div>
             </div>
-            <div className="demo-summary-card">
-              <div className="demo-summary-icon" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
-                <CheckCircle size={20} />
+            <div className="kpi-card">
+              <div className="kpi-icon"><UserCheck size={20} strokeWidth={1.5} /></div>
+              <div className="kpi-body">
+                <span className="kpi-label">Total Referred</span>
+                <span className="kpi-value">{topReferrers.reduce((sum, r) => sum + r.totalReferred, 0).toLocaleString()}</span>
+                <span className="kpi-change up">Network invites</span>
               </div>
-              <div className="demo-summary-info">
-                <span className="demo-summary-label">Approved</span>
-                <span className="demo-summary-value">{topReferrers.reduce((sum, r) => sum + r.approved, 0)}</span>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-icon"><CheckCircle size={20} strokeWidth={1.5} /></div>
+              <div className="kpi-body">
+                <span className="kpi-label">Approved Members</span>
+                <span className="kpi-value">{topReferrers.reduce((sum, r) => sum + r.approved, 0).toLocaleString()}</span>
+                <span className="kpi-change up">Verified referrals</span>
               </div>
             </div>
           </div>
 
-          {/* Referral Network Analytics */}
-          <div className="dashboard-main-grid two-col">
+          {/* Referral Network Analytics 2x2 Grid */}
+          <div className="dash-overview-grid-2x2">
             {/* Referral Success Rate */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Referral Success Rate</h3>
-                  <span className="panel-subtitle">Overall conversion rate</span>
+            <div className="dash-panel-v2">
+              <div className="dash-panel-v2-header">
+                <div>
+                  <p className="dash-panel-v2-title">Referral Success Rate</p>
+                  <p className="dash-panel-v2-sub">Overall conversion rate</p>
+                </div>
+                <div className="dash-panel-v2-icon">
+                  <Share2 size={15} strokeWidth={1.8} />
                 </div>
               </div>
-              <div className="demo-chart-wrap">
-                <div className="demo-donut-wrap">
-                  <svg viewBox="0 0 140 140" className="demo-donut-svg">
-                    <circle cx="70" cy="70" r="54" fill="none" stroke="rgba(59,130,246,0.1)" strokeWidth="18" />
-                    <circle
-                      cx="70" cy="70" r="54" fill="none"
-                      stroke="#3b82f6" strokeWidth="18"
-                      strokeDasharray={`${(referralSuccessRate / 100) * 339.292} ${339.292 - ((referralSuccessRate / 100) * 339.292)}`}
-                      strokeDashoffset={0}
-                      strokeLinecap="round"
-                      transform="rotate(-90 70 70)"
-                    />
-                  </svg>
-                  <div className="demo-donut-center">
-                    <span className="demo-donut-num" style={{ color: '#3b82f6' }}>{referralSuccessRate}%</span>
-                    <span className="demo-donut-label">Approved</span>
+              <div className="dash-panel-v2-body">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div className="demo-donut-wrap" style={{ margin: '8px auto 4px' }}>
+                    <svg viewBox="0 0 140 140" className="demo-donut-svg">
+                      <circle cx="70" cy="70" r="54" fill="none" stroke="#f1f5f9" strokeWidth="16" />
+                      <circle
+                        cx="70" cy="70" r="54" fill="none"
+                        stroke="#059669" strokeWidth="16"
+                        strokeDasharray={`${(referralSuccessRate / 100) * 339.292} ${339.292 - ((referralSuccessRate / 100) * 339.292)}`}
+                        strokeDashoffset={0}
+                        strokeLinecap="round"
+                        transform="rotate(-90 70 70)"
+                      />
+                    </svg>
+                    <div className="demo-donut-center">
+                      <span className="demo-donut-num" style={{ color: '#0f172a' }}>{referralSuccessRate}%</span>
+                      <span className="demo-donut-label">Approved</span>
+                    </div>
                   </div>
-                </div>
-                <div className="net-success-legend">
-                  <div className="net-legend-item">
-                    <div className="net-legend-dot" style={{ background: '#3b82f6' }} />
-                    <span>Approved via referral</span>
-                    <strong>{topReferrers.reduce((sum, r) => sum + r.approved, 0)}</strong>
-                  </div>
-                  <div className="net-legend-item">
-                    <div className="net-legend-dot" style={{ background: 'rgba(59,130,246,0.15)' }} />
-                    <span>Other approvals</span>
-                    <strong>{Math.max(0, totalApprovedMembers - topReferrers.reduce((sum, r) => sum + r.approved, 0))}</strong>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
+                      <div className="dash-stat-label">
+                        <span className="dash-dot green" /> Approved via referral
+                      </div>
+                      <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>
+                        {topReferrers.reduce((sum, r) => sum + r.approved, 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
+                      <div className="dash-stat-label">
+                        <span className="dash-dot muted" /> Other approvals
+                      </div>
+                      <span style={{ fontWeight: 700, color: '#64748b', fontSize: '0.9rem' }}>
+                        {Math.max(0, totalApprovedMembers - topReferrers.reduce((sum, r) => sum + r.approved, 0)).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Network Leaders */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Network Leaders</h3>
-                  <span className="panel-subtitle">Top referrers by volume</span>
+            <div className="dash-panel-v2">
+              <div className="dash-panel-v2-header">
+                <div>
+                  <p className="dash-panel-v2-title">Network Leaders</p>
+                  <p className="dash-panel-v2-sub">Top referrers by volume</p>
+                </div>
+                <div className="dash-panel-v2-icon">
+                  <Users size={15} strokeWidth={1.8} />
                 </div>
               </div>
-              {topReferrers.length > 0 ? (
-                <div className="demo-bar-list" style={{ paddingTop: 8 }}>
-                  {topReferrers.map((referrer, idx) => {
-                    const maxRef = Math.max(...topReferrers.map(r => r.totalReferred), 1);
-                    const pct = Math.round((referrer.totalReferred / maxRef) * 100);
-                    return (
-                      <div key={referrer.name} className="demo-bar-item">
-                        <div className="demo-bar-row">
-                          <div className="net-rank">{idx + 1}</div>
-                          <span className="demo-bar-name">{referrer.name}</span>
-                          <span className="demo-bar-count">{referrer.totalReferred}</span>
-                          <span className="demo-bar-pct">{referrer.successRate}%</span>
+              <div className="dash-panel-v2-body">
+                {topReferrers.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {topReferrers.map((referrer, idx) => {
+                      const maxRef = Math.max(...topReferrers.map(r => r.totalReferred), 1);
+                      const pct = Math.round((referrer.totalReferred / maxRef) * 100);
+                      return (
+                        <div key={referrer.name} style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 6, borderBottom: idx < topReferrers.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', width: 16 }}>{idx + 1}</span>
+                              <span style={{ fontWeight: 600, color: '#0f172a' }}>{referrer.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontWeight: 700, color: '#0f172a' }}>{referrer.totalReferred}</span>
+                              <span style={{ color: '#64748b', fontSize: '0.74rem', minWidth: 36, textAlign: 'right' }}>{referrer.successRate}%</span>
+                            </div>
+                          </div>
+                          <div className="dash-progress-track" style={{ height: 5, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                            <div className="dash-progress-fill" style={{ width: `${pct}%`, background: '#059669', height: '100%', borderRadius: 3 }} />
+                          </div>
                         </div>
-                        <div className="demo-bar-track">
-                          <div className="demo-bar-fill" style={{ width: `${pct}%`, background: '#3b82f6' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="dash-empty-state">
-                  <Info size={32} />
-                  <span>No referrer data yet.</span>
-                  <span className="dash-empty-sub">Referral leaders will appear once members start referring others.</span>
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '36px 12px', color: '#94a3b8', fontSize: '0.82rem' }}>
+                    <Users size={24} style={{ color: '#cbd5e1', margin: '0 auto 6px', display: 'block' }} />
+                    <span style={{ fontWeight: 600, color: '#64748b', display: 'block' }}>No Referrer Data</span>
+                    <span>Referral leaders will appear once members start referring others.</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Network Growth Chart */}
           {networkGrowthData.length > 0 && (
-            <div className="admin-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Network Growth Trend</h3>
-                  <span className="panel-subtitle">Referral registrations over time</span>
+            <div className="dash-panel-v2" style={{ marginTop: 16 }}>
+              <div className="dash-panel-v2-header">
+                <div>
+                  <p className="dash-panel-v2-title">Network Growth Trend</p>
+                  <p className="dash-panel-v2-sub">Referral registrations over time</p>
+                </div>
+                <div className="dash-panel-v2-icon">
+                  <Activity size={15} strokeWidth={1.8} />
                 </div>
               </div>
-              <div className="net-growth-wrap">
-                <div className="net-growth-chart">
-                  {networkGrowthData.map(({ month, count }) => {
-                    const maxCount = Math.max(...networkGrowthData.map(d => d.count), 1);
-                    const barHeight = (count / maxCount) * 100;
-                    return (
-                      <div key={month} className="net-growth-item">
-                        <div className="net-growth-bar-wrap">
-                          <div className="net-growth-bar" style={{ height: `${barHeight}%` }} />
+              <div className="dash-panel-v2-body">
+                <div className="growth-chart-container">
+                  <div className="growth-chart">
+                    {networkGrowthData.map(({ month, count }) => {
+                      const maxCount = Math.max(...networkGrowthData.map(d => d.count), 1);
+                      const barHeight = (count / maxCount) * 100;
+                      return (
+                        <div key={month} className="growth-bar-item">
+                          <div className="growth-bar-container">
+                            <div className="growth-bar current" style={{ height: `${barHeight}%`, background: '#059669' }} />
+                          </div>
+                          <span className="growth-bar-label">{month}</span>
+                          <span className="growth-bar-value">{count}</span>
                         </div>
-                        <span className="net-growth-month">{month}</span>
-                        <span className="net-growth-count">{count}</span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -4082,146 +4407,6 @@ export default function AdminPage() {
         </>
       )}
 
-      {dashTab === 'geography' && (
-        <>
-          {/* Barangay Analytics */}
-          <div className="dashboard-main-grid three-col">
-            {/* Left: Voters by Barangay */}
-            {votersByBarangay.length > 0 && (
-              <div className="admin-panel dash-panel">
-                <div className="panel-header">
-                  <div className="panel-header-left">
-                    <h3>Registered Voters</h3>
-                    <span className="panel-subtitle">{votersByBarangay.length} barangays · {totalResidents.toLocaleString()} total</span>
-                  </div>
-                </div>
-                <div className="demo-bar-list" style={{ paddingTop: 8 }}>
-                  {votersByBarangay.map(({ barangay, count }) => {
-                    const total = totalResidents || 1;
-                    const pct = ((count / total) * 100).toFixed(1);
-                    const barWidth = total > 0 ? Math.max((count / total) * 100, 1.5) : 0;
-                    const maxCount = Math.max(...votersByBarangay.map(v => v.count), 1);
-                    const relWidth = Math.max((count / maxCount) * 100, 1.5);
-                    return (
-                      <div key={barangay} className="demo-bar-item">
-                        <div className="demo-bar-row">
-                          <span className="demo-bar-name">{barangay}</span>
-                          <span className="demo-bar-count">{count.toLocaleString()}</span>
-                          <span className="demo-bar-pct">{pct}%</span>
-                        </div>
-                        <div className="demo-bar-track">
-                          <div className="demo-bar-fill" style={{ width: `${relWidth}%`, background: '#10b981' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Middle: EM Card Members by Barangay */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>EM Card Members</h3>
-                  <span className="panel-subtitle">{regsByBarangay.length || votersByBarangay.length} barangays · % vs own voters</span>
-                </div>
-              </div>
-              <div className="demo-bar-list" style={{ paddingTop: 8 }}>
-                {(regsByBarangay.length > 0 ? regsByBarangay : votersByBarangay.map(v => ({ barangay: v.barangay, count: 0 }))).map(({ barangay, count }) => {
-                  const voterEntry = votersByBarangay.find(v => v.barangay === barangay);
-                  const voterCount = voterEntry ? voterEntry.count : 0;
-                  const pct = voterCount > 0 ? ((count / voterCount) * 100).toFixed(1) : '0.0';
-                  const maxReg = Math.max(...regsByBarangay.map(r => r.count), 1);
-                  const barWidth = Math.max((count / maxReg) * 100, 1.5);
-                  return (
-                    <div key={barangay} className="demo-bar-item">
-                      <div className="demo-bar-row">
-                        <span className="demo-bar-name">{barangay}</span>
-                        <span className="demo-bar-count">{count}</span>
-                        <span className="demo-bar-pct">{pct}%</span>
-                      </div>
-                      <div className="demo-bar-track">
-                        <div className="demo-bar-fill" style={{ width: `${barWidth}%`, background: '#3b82f6' }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Right: Aid by Barangay */}
-            <div className="admin-panel dash-panel">
-              <div className="panel-header">
-                <div className="panel-header-left">
-                  <h3>Aid Recipients</h3>
-                  <span className="panel-subtitle">{votersByBarangay.length} barangays · {aidByBarangay.reduce((sum, a) => sum + a.count, 0)} total</span>
-                </div>
-              </div>
-              <div className="demo-bar-list" style={{ paddingTop: 8 }}>
-                {(aidByBarangay.length > 0 ? aidByBarangay : votersByBarangay.map(v => ({ barangay: v.barangay, count: 0 }))).map(({ barangay, count }) => {
-                  const voterEntry = votersByBarangay.find(v => v.barangay === barangay);
-                  const voterCount = voterEntry ? voterEntry.count : 0;
-                  const pct = voterCount > 0 ? ((count / voterCount) * 100).toFixed(1) : '0.0';
-                  const maxAid = Math.max(...aidByBarangay.map(a => a.count), 1);
-                  const barWidth = Math.max((count / maxAid) * 100, 1.5);
-                  return (
-                    <div key={barangay} className="demo-bar-item">
-                      <div className="demo-bar-row">
-                        <span className="demo-bar-name">{barangay}</span>
-                        <span className="demo-bar-count">{count}</span>
-                        <span className="demo-bar-pct">{pct}%</span>
-                      </div>
-                      <div className="demo-bar-track">
-                        <div className="demo-bar-fill" style={{ width: `${barWidth}%`, background: '#f59e0b' }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {dashTab === 'overview' && (
-        <>
-          {/* Recent Registrations Table */}
-      <div className="admin-panel">
-        <div className="panel-header">
-          <h3>Recent Registrations</h3>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span className="panel-badge">Live Data</span>
-            <button className="view-all-link" onClick={() => handleNavClick('registrations')}>
-              View All <ArrowRight size={14} />
-            </button>
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table className="admin-table">
-            <thead><tr><th>Name</th><th>Referral</th><th>Sector</th><th>House</th><th>Purok</th><th>Brgy</th><th>Contact</th><th>Birthday</th><th>Date Registered</th></tr></thead>
-            <tbody>
-              {dashLoading ? <tr><td colSpan={9} className="table-loading"><div className="table-loading-flex"><div className="spinner" /><span>Loading recent registrations...</span></div></td></tr>
-                : recentRegistrations.length === 0 ? <tr><td colSpan={9} className="table-empty"><div className="table-empty-flex"><ClipboardList size={32} /><span>No registrations yet.</span><button className="btn btn-action-primary" onClick={() => handleNavClick('registrations')} style={{ marginTop: '8px' }}>Go to Registrations</button></div></td></tr>
-                  : recentRegistrations.map(reg => (
-                    <tr key={reg.id}>
-                      <td><strong>{getResidentName(reg)}</strong></td>
-                      <td>{reg.referral_name}</td>
-                      <td><span className="sector-tag">{reg.sector_category}</span></td>
-                      <td>{reg.house_no || '-'}</td>
-                      <td>{reg.purok || '-'}</td>
-                      <td>{reg.barangay || '-'}</td>
-                      <td>{reg.contact || '-'}</td>
-                      <td>{reg.birthday}</td>
-                      <td>{new Date(reg.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </>
-  )}
   </>
   );
   };
@@ -4345,24 +4530,55 @@ export default function AdminPage() {
           {/* Pagination */}
           {totalFiltered > residentsPerPage && (
             <div className="residents-pagination">
-              <span className="pagination-info">Showing {startIndex + 1}–{endIndex} of {totalFiltered}</span>
+              <span className="pagination-info">Showing <strong>{startIndex + 1}–{endIndex}</strong> of <strong>{totalFiltered}</strong> residents</span>
               <div className="pagination-buttons">
-                <button className="page-btn" onClick={() => goToPage(safePage - 1)} disabled={safePage === 1}>← Prev</button>
-                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                  let p;
-                  if (totalPages <= 5) { p = i + 1; }
-                  else if (safePage <= 3) { p = i + 1; }
-                  else if (safePage >= totalPages - 2) { p = totalPages - 4 + i; }
-                  else { p = safePage - 2 + i; }
+                <button
+                  className="page-btn page-btn-nav"
+                  onClick={() => goToPage(1)}
+                  disabled={safePage <= 1}
+                  title="First Page (1)"
+                >
+                  <ChevronsLeft size={14} />
+                </button>
+                <button
+                  className="page-btn page-btn-nav"
+                  onClick={() => goToPage(safePage - 1)}
+                  disabled={safePage <= 1}
+                  title="Previous Page"
+                >
+                  <ChevronLeft size={14} /> <span>Prev</span>
+                </button>
+                {getPaginationItems(safePage, totalPages).map((item, idx) => {
+                  if (item === '...') {
+                    return <span key={`dots-${idx}`} className="pagination-ellipsis">…</span>;
+                  }
                   return (
                     <button
-                      key={p}
-                      className={`page-btn ${p === safePage ? 'page-btn-active' : ''}`}
-                      onClick={() => goToPage(p)}
-                    >{p}</button>
+                      key={item}
+                      className={`page-btn ${item === safePage ? 'page-btn-active' : ''}`}
+                      onClick={() => goToPage(item)}
+                      title={`Page ${item}`}
+                    >
+                      {item}
+                    </button>
                   );
                 })}
-                <button className="page-btn" onClick={() => goToPage(safePage + 1)} disabled={safePage === totalPages}>Next →</button>
+                <button
+                  className="page-btn page-btn-nav"
+                  onClick={() => goToPage(safePage + 1)}
+                  disabled={safePage >= totalPages}
+                  title="Next Page"
+                >
+                  <span>Next</span> <ChevronRight size={14} />
+                </button>
+                <button
+                  className="page-btn page-btn-nav"
+                  onClick={() => goToPage(totalPages)}
+                  disabled={safePage >= totalPages}
+                  title={`Last Page (${totalPages})`}
+                >
+                  <ChevronsRight size={14} />
+                </button>
               </div>
             </div>
           )}
@@ -4575,6 +4791,9 @@ export default function AdminPage() {
     if (filterSector) {
       members = members.filter(reg => (reg.sector_category || '').toLowerCase() === filterSector.toLowerCase());
     }
+    if (filterOrganization) {
+      members = members.filter(reg => (reg.organization || '').toLowerCase() === filterOrganization.toLowerCase());
+    }
     if (filterPrinted) {
       members = members.filter(reg => {
         const isPrinted = !!reg.printed_at;
@@ -4643,6 +4862,7 @@ export default function AdminPage() {
       return (reg.purok || r.purok || '').toString().trim();
     }).filter(Boolean))].sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
     const sectorOptions = [...new Set(baseMembers.map(reg => (reg.sector_category || '').toString().trim()).filter(Boolean))].sort();
+    const orgOptions = organizations.map(o => o.name);
 
     return (
       <div className="admin-panel">
@@ -4744,6 +4964,14 @@ export default function AdminPage() {
             </select>
             <select
               className="members-filter-select"
+              value={filterOrganization}
+              onChange={(e) => { setFilterOrganization(e.target.value); setMembersPage(1); }}
+            >
+              <option value="">All Organizations</option>
+              {orgOptions.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <select
+              className="members-filter-select"
               value={filterPrinted}
               onChange={(e) => { setFilterPrinted(e.target.value); setMembersPage(1); }}
             >
@@ -4768,6 +4996,7 @@ export default function AdminPage() {
                   setFilterBarangay('');
                   setFilterPurok('');
                   setFilterSector('');
+                  setFilterOrganization('');
                   setFilterPrinted('');
                   setFilterVoterSource('');
                   setMembersPage(1);
@@ -4809,6 +5038,7 @@ export default function AdminPage() {
                       <th className="col-barangay">Barangay</th>
                       <th className="col-voter">Voter Status</th>
                       <th className="col-precinct">Precinct</th>
+                      <th className="col-org">Organization</th>
                       <th className="col-emcard">EM Card No</th>
                       <th className="col-print">Print</th>
                       <th className="col-date">Date</th>
@@ -4862,6 +5092,9 @@ export default function AdminPage() {
                               <span style={{ color: '#94a3b8', fontSize: 11 }}>-</span>
                             )}
                           </td>
+                          <td className="col-org member-cell-org" onClick={() => setSelectedMember(reg)}>
+                            {reg.organization ? <span className="member-org-tag" style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4, border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#475569' }}>{reg.organization}</span> : <span style={{ color: '#94a3b8', fontSize: 11 }}>-</span>}
+                          </td>
                           <td className="col-emcard member-cell-emcard" onClick={() => setSelectedMember(reg)}>
                             {reg.em_card_no ? (
                               <code className="member-emcard-code">{reg.em_card_no}</code>
@@ -4902,20 +5135,64 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="pagination-row" style={{ marginTop: 14 }}>
-                <span className="pagination-info">Showing {startIndex + 1}–{Math.min(startIndex + membersPerPage, totalFiltered)} of {totalFiltered}</span>
-                <div className="pagination-controls">
-                  <button className="pagination-btn" onClick={() => goToPage(safePage - 1)} disabled={safePage <= 1}>Prev</button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                    <button key={p} className={`pagination-btn ${p === safePage ? 'active' : ''}`} onClick={() => goToPage(p)}>{p}</button>
-                  ))}
-                  <button className="pagination-btn" onClick={() => goToPage(safePage + 1)} disabled={safePage >= totalPages}>Next</button>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="residents-pagination">
+                  <span className="pagination-info">
+                    Showing <strong>{startIndex + 1}–{Math.min(startIndex + membersPerPage, totalFiltered)}</strong> of <strong>{totalFiltered}</strong> members
+                  </span>
+                  <div className="pagination-buttons">
+                    <button
+                      className="page-btn page-btn-nav"
+                      onClick={() => goToPage(1)}
+                      disabled={safePage <= 1}
+                      title="First Page (1)"
+                    >
+                      <ChevronsLeft size={14} />
+                    </button>
+                    <button
+                      className="page-btn page-btn-nav"
+                      onClick={() => goToPage(safePage - 1)}
+                      disabled={safePage <= 1}
+                      title="Previous Page"
+                    >
+                      <ChevronLeft size={14} /> <span>Prev</span>
+                    </button>
+                    {getPaginationItems(safePage, totalPages).map((item, idx) => {
+                      if (item === '...') {
+                        return <span key={`dots-${idx}`} className="pagination-ellipsis">…</span>;
+                      }
+                      return (
+                        <button
+                          key={item}
+                          className={`page-btn ${item === safePage ? 'page-btn-active' : ''}`}
+                          onClick={() => goToPage(item)}
+                          title={`Page ${item}`}
+                        >
+                          {item}
+                        </button>
+                      );
+                    })}
+                    <button
+                      className="page-btn page-btn-nav"
+                      onClick={() => goToPage(safePage + 1)}
+                      disabled={safePage >= totalPages}
+                      title="Next Page"
+                    >
+                      <span>Next</span> <ChevronRight size={14} />
+                    </button>
+                    <button
+                      className="page-btn page-btn-nav"
+                      onClick={() => goToPage(totalPages)}
+                      disabled={safePage >= totalPages}
+                      title={`Last Page (${totalPages})`}
+                    >
+                      <ChevronsRight size={14} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         ) : (
           /* By Household View */
@@ -5612,440 +5889,593 @@ export default function AdminPage() {
     const typeColors = { announcement: '#3b82f6', event_reminder: '#f59e0b', emergency: '#ef4444', broadcast: '#10b981' };
 
     return (
-      <div className="admin-panel">
-        <div className="panel-header">
-          <h3>Messages</h3>
-          <div className="msg-tabs">
-            <button className={`msg-tab-btn ${msgTab === 'compose' ? 'active' : ''}`} onClick={() => setMsgTab('compose')}>
-              <Pencil size={14} /> Compose
-            </button>
-            <button className={`msg-tab-btn ${msgTab === 'birthday' ? 'active' : ''}`} onClick={() => setMsgTab('birthday')}>
-              <Cake size={14} /> Birthdays
-            </button>
-            <button className={`msg-tab-btn ${msgTab === 'inquiries' ? 'active' : ''}`} onClick={() => { setMsgTab('inquiries'); fetchContactInquiries(); }}>
-              <Inbox size={14} /> Inquiries
-            </button>
-            <button className={`msg-tab-btn ${msgTab === 'feedback' ? 'active' : ''}`} onClick={() => { setMsgTab('feedback'); fetchGrievances(); }}>
-              <MessageSquare size={14} /> Feedback
-            </button>
-            <button className={`msg-tab-btn ${msgTab === 'history' ? 'active' : ''}`} onClick={() => { setMsgTab('history'); fetchMessages(); }}>
-              <History size={14} /> History
-            </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Messages Header & Tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 4 }}>
+          <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Messages</h2>
+            <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: '#64748b' }}>
+              Broadcast SMS notifications, automated birthday greetings, and citizen inquiries.
+            </p>
+          </div>
+
+          {/* Messages Sub-tabs */}
+          <div className="dashboard-tabs" style={{ margin: 0 }}>
+            {[
+              { id: 'compose', label: 'Compose', icon: <Pencil size={14} strokeWidth={1.8} /> },
+              { id: 'birthday', label: 'Birthdays', icon: <Cake size={14} strokeWidth={1.8} /> },
+              { id: 'inquiries', label: 'Inquiries', icon: <Inbox size={14} strokeWidth={1.8} /> },
+              { id: 'feedback', label: 'Feedback', icon: <MessageSquare size={14} strokeWidth={1.8} /> },
+              { id: 'history', label: 'History', icon: <History size={14} strokeWidth={1.8} /> },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                className={`dashboard-tab-btn ${msgTab === tab.id ? 'active' : ''}`}
+                onClick={() => {
+                  setMsgTab(tab.id);
+                  if (tab.id === 'inquiries') fetchContactInquiries();
+                  if (tab.id === 'feedback') fetchGrievances();
+                  if (tab.id === 'history') fetchMessages();
+                }}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        {msgTab === 'compose' && (
-          <div className="msg-compose-wrap">
-            {/* SMS Provider Status Banner */}
-            {smsProvider && (
-              <div className={`sms-provider-banner ${smsProvider.configured ? 'ok' : 'warn'}`}>
-                {smsProvider.configured ? (
-                  <>
-                    <span className="sms-provider-dot ok" />
-                    <strong>Provider: {smsProvider.provider?.toUpperCase()}</strong>
-                    {smsProvider.senderName && <span> · Sender: {smsProvider.senderName}</span>}
-                  </>
-                ) : (
-                  <>
-                    <span className="sms-provider-dot warn" />
-                    <strong>SMS not configured</strong>
-                    <span> · Add SEMAPHORE_API_KEY to Vercel env vars</span>
-                  </>
-                )}
-              </div>
-            )}
-            <form onSubmit={handleSendMessage} className="msg-compose-form">
-              <div className="msg-form-row">
-                <label className="msg-label">Title / Subject</label>
-                <input
-                  type="text"
-                  className="msg-input"
-                  placeholder="e.g. Barangay Assembly Meeting"
-                  value={msgForm.title}
-                  onChange={e => setMsgForm(f => ({ ...f, title: e.target.value }))}
-                  maxLength={100}
-                />
-              </div>
+        {/* SMS Provider Status Banner */}
+        {smsProvider && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: '0.82rem', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className={`sms-provider-dot ${smsProvider.configured ? 'ok' : 'warn'}`} style={{ width: 8, height: 8, borderRadius: '50%', background: smsProvider.configured ? '#059669' : '#f59e0b', flexShrink: 0 }} />
+              <span style={{ color: '#0f172a', fontWeight: 600 }}>
+                {smsProvider.configured ? `Gateway: ${smsProvider.provider?.toUpperCase()} Active` : 'SMS Gateway Not Configured'}
+              </span>
+              {smsProvider.senderName && (
+                <span style={{ color: '#64748b' }}>· Sender ID: <strong style={{ color: '#0f172a' }}>{smsProvider.senderName}</strong></span>
+              )}
+            </div>
+            <span style={{ fontSize: '0.74rem', fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: smsProvider.configured ? '#ecfdf5' : '#fef3c7', color: smsProvider.configured ? '#065f46' : '#92400e', border: smsProvider.configured ? '1px solid #a7f3d0' : '1px solid #fde68a' }}>
+              {smsProvider.configured ? 'Online & Ready' : 'Config Required'}
+            </span>
+          </div>
+        )}
 
-              <div className="msg-form-row">
-                <label className="msg-label">Target Audience</label>
-                <div className="msg-target-row">
-                  <select
-                    className="msg-select"
-                    value={msgForm.targetType}
-                    onChange={e => { const type = e.target.value; setMsgForm(f => ({ ...f, targetType: type, targetValue: '' })); if (type === 'all') calculateRecipientPreview(type, ''); }}
-                  >
-                    <option value="all">All Registered Members</option>
-                    <option value="sector">By Sector / Organization</option>
-                    <option value="barangay">By Barangay</option>
-                    <option value="leader">By Referral Leader</option>
-                    <option value="specific">Specific User</option>
-                    <option value="test">Test: Send to me only</option>
-                  </select>
-                  {msgForm.targetType === 'sector' && (
-                    <select className="msg-select" value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); calculateRecipientPreview('sector', val); }}>
-                      <option value="">Select Sector...</option>
-                      <option value="Senior Citizens">Senior Citizens</option>
-                      <option value="PWD">PWD</option>
-                      <option value="Solo Parent">Solo Parent</option>
-                      <option value="Youth">Youth</option>
-                      <option value="Women">Women</option>
-                      <option value="Farmers">Farmers</option>
-                      <option value="Fisherfolk">Fisherfolk</option>
-                      <option value="Workers / Labor">Workers / Labor</option>
-                      <option value="Religious">Religious</option>
-                      <option value="Transport">Transport</option>
-                      <option value="Indigenous People">Indigenous People</option>
-                    </select>
-                  )}
-                  {msgForm.targetType === 'barangay' && (
-                    <select className="msg-select" value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); calculateRecipientPreview('barangay', val); }}>
-                      <option value="">Select Barangay...</option>
-                      {allBarangays.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                  )}
-                  {msgForm.targetType === 'leader' && (
-                    <input type="text" className="msg-input" placeholder="Enter leader name..." value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); if (val.length > 2) calculateRecipientPreview('leader', val); }} />
-                  )}
-                  {msgForm.targetType === 'specific' && (
-                    <div className="msg-user-search-wrap">
+        {msgTab === 'compose' && (
+          <form onSubmit={handleSendMessage}>
+            <div className="dash-overview-grid-2x2" style={{ alignItems: 'flex-start' }}>
+              {/* Left Column: Compose Editor */}
+              <div className="dash-panel-v2">
+                <div className="dash-panel-v2-header">
+                  <div>
+                    <p className="dash-panel-v2-title">Compose SMS Broadcast</p>
+                    <p className="dash-panel-v2-sub">Configure target recipients and message text</p>
+                  </div>
+                  <div className="dash-panel-v2-icon">
+                    <Pencil size={15} strokeWidth={1.8} />
+                  </div>
+                </div>
+                <div className="dash-panel-v2-body">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Title / Subject */}
+                    <div className="msg-form-row">
+                      <label className="msg-label">Title / Subject</label>
                       <input
                         type="text"
                         className="msg-input"
-                        placeholder="Search by name or EM card no..."
-                        value={msgUserSearch}
-                        onChange={e => { setMsgUserSearch(e.target.value); searchSpecificUser(e.target.value); }}
+                        placeholder="e.g. Barangay Assembly Meeting"
+                        value={msgForm.title}
+                        onChange={e => setMsgForm(f => ({ ...f, title: e.target.value }))}
+                        maxLength={100}
                       />
-                      {msgUserResults.length > 0 && (
-                        <div className="msg-user-results">
-                          {msgUserResults.map(reg => {
-                            const name = getResidentName(reg);
-                            return (
-                              <div
-                                key={reg.id}
-                                className="msg-user-result-item"
-                                onClick={() => {
-                                  setMsgForm(f => ({ ...f, targetValue: reg.id }));
-                                  setMsgUserSearch(name);
-                                  setMsgUserResults([]);
-                                  calculateRecipientPreview('specific', reg.id);
-                                }}
-                              >
-                                <span className="msg-user-result-name">{name}</span>
-                                <span className="msg-user-result-phone">{reg.contact || 'No phone'}</span>
-                                <span className="msg-user-result-meta">{reg.sector_category || '-'} · {reg.barangay || '-'}</span>
+                    </div>
+
+                    {/* Target Audience */}
+                    <div className="msg-form-row">
+                      <label className="msg-label">Target Audience</label>
+                      <div className="msg-target-row">
+                        <select
+                          className="msg-select"
+                          value={msgForm.targetType}
+                          onChange={e => { const type = e.target.value; setMsgForm(f => ({ ...f, targetType: type, targetValue: '' })); if (type === 'all') calculateRecipientPreview(type, ''); }}
+                        >
+                          <option value="all">All Registered Members</option>
+                          <option value="sector">By Sector / Organization</option>
+                          <option value="barangay">By Barangay</option>
+                          <option value="leader">By Referral Leader</option>
+                          <option value="specific">Specific User</option>
+                          <option value="test">Test: Send to me only</option>
+                        </select>
+                        {msgForm.targetType === 'sector' && (
+                          <select className="msg-select" value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); calculateRecipientPreview('sector', val); }}>
+                            <option value="">Select Sector...</option>
+                            <option value="Senior Citizens">Senior Citizens</option>
+                            <option value="PWD">PWD</option>
+                            <option value="Solo Parent">Solo Parent</option>
+                            <option value="Youth">Youth</option>
+                            <option value="Women">Women</option>
+                            <option value="Farmers">Farmers</option>
+                            <option value="Fisherfolk">Fisherfolk</option>
+                            <option value="Workers / Labor">Workers / Labor</option>
+                            <option value="Religious">Religious</option>
+                            <option value="Transport">Transport</option>
+                            <option value="Indigenous People">Indigenous People</option>
+                          </select>
+                        )}
+                        {msgForm.targetType === 'barangay' && (
+                          <select className="msg-select" value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); calculateRecipientPreview('barangay', val); }}>
+                            <option value="">Select Barangay...</option>
+                            {allBarangays.map(b => <option key={b} value={b}>{b}</option>)}
+                          </select>
+                        )}
+                        {msgForm.targetType === 'leader' && (
+                          <input type="text" className="msg-input" placeholder="Enter leader name..." value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); if (val.length > 2) calculateRecipientPreview('leader', val); }} />
+                        )}
+                        {msgForm.targetType === 'specific' && (
+                          <div className="msg-user-search-wrap">
+                            <input
+                              type="text"
+                              className="msg-input"
+                              placeholder="Search by name or EM card no..."
+                              value={msgUserSearch}
+                              onChange={e => { setMsgUserSearch(e.target.value); searchSpecificUser(e.target.value); }}
+                            />
+                            {msgUserResults.length > 0 && (
+                              <div className="msg-user-results">
+                                {msgUserResults.map(reg => {
+                                  const name = getResidentName(reg);
+                                  return (
+                                    <div
+                                      key={reg.id}
+                                      className="msg-user-result-item"
+                                      onClick={() => {
+                                        setMsgForm(f => ({ ...f, targetValue: reg.id }));
+                                        setMsgUserSearch(name);
+                                        setMsgUserResults([]);
+                                        calculateRecipientPreview('specific', reg.id);
+                                      }}
+                                    >
+                                      <span className="msg-user-result-name">{name}</span>
+                                      <span className="msg-user-result-phone">{reg.contact || 'No phone'}</span>
+                                      <span className="msg-user-result-meta">{reg.sector_category || '-'} · {reg.barangay || '-'}</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
+                            )}
+                          </div>
+                        )}
+                        {msgForm.targetType === 'test' && (
+                          <input type="tel" className="msg-input" placeholder="Your phone number (e.g. 09171234567)" value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); calculateRecipientPreview('test', val); }} maxLength={11} />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Message Body */}
+                    <div className="msg-form-row">
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <label className="msg-label" style={{ margin: 0 }}>Message Body</label>
+                        <span className="msg-char-count" style={{ margin: 0 }}>
+                          {msgForm.body.length}/160 chars · {Math.ceil(msgForm.body.length / 160) || 1} Credit/SMS
+                        </span>
+                      </div>
+                      <textarea
+                        className="msg-textarea"
+                        placeholder="Type your SMS message here..."
+                        value={msgForm.body}
+                        onChange={e => setMsgForm(f => ({ ...f, body: e.target.value }))}
+                        maxLength={480}
+                        rows={6}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Mobile Simulation & Campaign Summary */}
+              <div className="dash-panel-v2">
+                <div className="dash-panel-v2-header">
+                  <div>
+                    <p className="dash-panel-v2-title">Live SMS Preview</p>
+                    <p className="dash-panel-v2-sub">Handset simulation and campaign totals</p>
+                  </div>
+                  <div className="dash-panel-v2-icon">
+                    <Send size={15} strokeWidth={1.8} />
+                  </div>
+                </div>
+                <div className="dash-panel-v2-body">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {/* Phone Preview Mockup */}
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 14, padding: '16px 14px', position: 'relative' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', color: '#64748b', marginBottom: 12, borderBottom: '1px solid #e2e8f0', paddingBottom: 6 }}>
+                        <span style={{ fontWeight: 600 }}>EMcard (SMS)</span>
+                        <span>Today</span>
+                      </div>
+                      <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '12px 12px 12px 2px', padding: '12px 14px', color: '#065f46', fontSize: '0.84rem', lineHeight: 1.45, wordBreak: 'break-word', minHeight: 70 }}>
+                        {msgForm.body || 'Type your message on the left to see live preview...'}
+                      </div>
+                    </div>
+
+                    {/* Campaign Summary Stats */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
+                        <div className="dash-stat-label">
+                          <span className="dash-dot green" /> Estimated Recipients
                         </div>
+                        <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.92rem' }}>
+                          {msgRecipientPreview.loading ? 'Calculating...' : msgRecipientPreview.count.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
+                        <div className="dash-stat-label">
+                          <span className="dash-dot muted" /> Total Credits Required
+                        </div>
+                        <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.92rem' }}>
+                          {msgRecipientPreview.loading ? '-' : (msgRecipientPreview.count * (Math.ceil(msgForm.body.length / 160) || 1)).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      type="submit"
+                      className="btn btn-msg-send"
+                      style={{ width: '100%', padding: '12px 20px', borderRadius: 8, fontWeight: 700, fontSize: '0.9rem', background: '#059669', color: '#ffffff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                      disabled={msgSending || !msgForm.body.trim() || msgRecipientPreview.count === 0}
+                    >
+                      {msgSending ? (
+                        <span className="btn-sending-content">
+                          <span className="sending-spinner"></span>
+                          {sendProgress.message || 'Sending Broadcast...'}
+                        </span>
+                      ) : (
+                        <>
+                          <Send size={15} />
+                          <span>Send SMS{msgRecipientPreview.count > 0 ? ` (${msgRecipientPreview.count.toLocaleString()})` : ''}</span>
+                        </>
                       )}
-                    </div>
-                  )}
-                  {msgForm.targetType === 'test' && (
-                    <input type="tel" className="msg-input" placeholder="Your phone number (e.g. 09171234567)" value={msgForm.targetValue} onChange={e => { const val = e.target.value; setMsgForm(f => ({ ...f, targetValue: val })); calculateRecipientPreview('test', val); }} maxLength={11} />
-                  )}
-                </div>
-              </div>
-
-              <div className="msg-form-row">
-                <label className="msg-label">Message Body</label>
-                <textarea
-                  className="msg-textarea"
-                  placeholder="Type your SMS message here..."
-                  value={msgForm.body}
-                  onChange={e => setMsgForm(f => ({ ...f, body: e.target.value }))}
-                  maxLength={480}
-                  rows={5}
-                  required
-                />
-                <div className="msg-char-count">{msgForm.body.length}/160 characters · Credits per SMS: {Math.ceil(msgForm.body.length / 160) || 1}</div>
-              </div>
-
-              <div className="msg-form-footer">
-                <div className="msg-preview-box">
-                  <span className="msg-preview-label">Preview:</span>
-                  <p className="msg-preview-text">{msgForm.body || 'Your message will appear here...'}</p>
-                </div>
-                <div className="msg-send-info">
-                  <div className="msg-recipient-count">
-                    <span className="msg-info-label">Recipients:</span>
-                    <span className="msg-info-value">
-                      {msgRecipientPreview.loading ? 'Calculating...' : msgRecipientPreview.count.toLocaleString()}
-                    </span>
+                    </button>
                   </div>
-                  <div className="msg-total-credits">
-                    <span className="msg-info-label">Total Credits:</span>
-                    <span className="msg-info-value">
-                      {msgRecipientPreview.loading ? '-' : (msgRecipientPreview.count * (Math.ceil(msgForm.body.length / 160) || 1)).toLocaleString()}
-                    </span>
-                  </div>
-                  <button type="submit" className="btn btn-msg-send" disabled={msgSending || !msgForm.body.trim() || msgRecipientPreview.count === 0}>
-                    {msgSending ? (
-                      <span className="btn-sending-content">
-                        <span className="sending-spinner"></span>
-                        {sendProgress.message || 'Sending...'}
-                      </span>
-                    ) : `Send SMS${msgRecipientPreview.count > 0 ? ` to ${msgRecipientPreview.count}` : ''}`}
-                  </button>
                 </div>
               </div>
+            </div>
 
-              {/* Progress Overlay */}
-              {msgSending && (
-                <div className="msg-sending-overlay">
-                  <div className="msg-progress-card">
-                    <div className="msg-progress-header">
-                      <span className="msg-progress-icon">
-                        {sendProgress.stage === 'complete' ? '✓' : sendProgress.stage === 'error' ? '✗' : '⏳'}
+            {/* Progress Overlay */}
+            {msgSending && (
+              <div className="msg-sending-overlay">
+                <div className="msg-progress-card">
+                  <div className="msg-progress-header">
+                    <span className="msg-progress-icon">
+                      {sendProgress.stage === 'complete' ? '✓' : sendProgress.stage === 'error' ? '✗' : '⏳'}
+                    </span>
+                    <h4>Sending SMS Campaign</h4>
+                  </div>
+                  <div className="msg-progress-bar-wrap">
+                    <div 
+                      className="msg-progress-bar" 
+                      style={{ width: `${sendProgress.percent}%`, backgroundColor: sendProgress.stage === 'error' ? '#ef4444' : sendProgress.stage === 'complete' ? '#10b981' : '#059669' }}
+                    ></div>
+                  </div>
+                  <p className="msg-progress-message">{sendProgress.message}</p>
+                  <div className="msg-progress-steps">
+                    <div className={`msg-step ${['preparing', 'sending', 'finalizing', 'complete'].includes(sendProgress.stage) ? 'active' : ''} ${sendProgress.stage === 'preparing' ? 'current' : ''}`}>
+                      <span className="msg-step-dot">1</span>
+                      <span className="msg-step-label">Prepare</span>
+                    </div>
+                    <div className="msg-step-connector"></div>
+                    <div className={`msg-step ${['sending', 'finalizing', 'complete'].includes(sendProgress.stage) ? 'active' : ''} ${sendProgress.stage === 'sending' ? 'current' : ''}`}>
+                      <span className="msg-step-dot">2</span>
+                      <span className="msg-step-label">Send</span>
+                    </div>
+                    <div className="msg-step-connector"></div>
+                    <div className={`msg-step ${['finalizing', 'complete'].includes(sendProgress.stage) ? 'active' : ''} ${sendProgress.stage === 'finalizing' ? 'current' : ''}`}>
+                      <span className="msg-step-dot">3</span>
+                      <span className="msg-step-label">Finalize</span>
+                    </div>
+                    <div className="msg-step-connector"></div>
+                    <div className={`msg-step ${sendProgress.stage === 'complete' ? 'active' : ''} ${sendProgress.stage === 'complete' ? 'current' : ''}`}>
+                      <span className="msg-step-dot">4</span>
+                      <span className="msg-step-label">Done</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </form>
+        )}
+
+        {msgTab === 'birthday' && (
+          <div className="dash-panel-v2">
+            <div className="dash-panel-v2-header">
+              <div>
+                <p className="dash-panel-v2-title">Today's Birthday Celebrators</p>
+                <p className="dash-panel-v2-sub">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+              </div>
+              <div className="dash-panel-v2-icon">
+                <Cake size={15} strokeWidth={1.8} />
+              </div>
+            </div>
+            <div className="dash-panel-v2-body">
+              {birthdayLoading ? (
+                <div className="table-loading" style={{ padding: '32px 0', textAlign: 'center', color: '#64748b' }}>Loading birthday celebrators...</div>
+              ) : birthdayRecipients.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', textAlign: 'center' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', marginBottom: 12 }}>
+                    <Cake size={20} />
+                  </div>
+                  <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: '0.9rem' }}>No birthday celebrators today</p>
+                  <p style={{ margin: '4px 0 16px', color: '#64748b', fontSize: '0.82rem' }}>Registered members with birthdays today will show up here.</p>
+                  <button className="btn btn-sm btn-secondary" onClick={fetchBirthdayCelebrators} style={{ padding: '6px 14px', borderRadius: 6, fontSize: '0.8rem', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a', cursor: 'pointer', fontWeight: 600 }}>Refresh</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
+                    {birthdayRecipients.map(reg => {
+                      const name = getResidentName(reg);
+                      return (
+                        <div key={reg.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                          <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <Cake size={16} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>
+                            <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: 2 }}>{reg.barangay || '-'} · {reg.contact || 'No phone'}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <label className="msg-label" style={{ margin: 0 }}>Birthday Message</label>
+                      <span className="msg-char-count" style={{ margin: 0 }}>
+                        {birthdayMessage.length}/160 chars · {Math.ceil(birthdayMessage.length / 160) || 1} Credit/SMS
                       </span>
-                      <h4>Sending SMS Campaign</h4>
                     </div>
-                    <div className="msg-progress-bar-wrap">
-                      <div 
-                        className="msg-progress-bar" 
-                        style={{ width: `${sendProgress.percent}%`, backgroundColor: sendProgress.stage === 'error' ? '#ef4444' : sendProgress.stage === 'complete' ? '#10b981' : '#059669' }}
-                      ></div>
+                    <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0 0 8px' }}>
+                      Use <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4, fontWeight: 600, color: '#0f172a' }}>{'{firstName}'}</code> to automatically insert each celebrator's first name.
+                    </p>
+                    <textarea
+                      className="msg-textarea"
+                      placeholder="Type your birthday greeting..."
+                      value={birthdayMessage}
+                      onChange={e => setBirthdayMessage(e.target.value)}
+                      maxLength={480}
+                      rows={4}
+                    />
+
+                    <div style={{ marginTop: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px' }}>
+                      <p style={{ margin: '0 0 8px', fontSize: '0.76rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Sample Personalized Preview ({birthdayRecipients.length} Celebrator{birthdayRecipients.length > 1 ? 's' : ''}):
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                        {birthdayRecipients.slice(0, 5).map(reg => {
+                          const firstName = getResidentFirstName(reg);
+                          const previewText = birthdayMessage
+                            .replace(/\{firstName\}/gi, firstName)
+                            .replace(/\{first_name\}/gi, firstName)
+                            .replace(/\{name\}/gi, firstName);
+                          return (
+                            <div key={reg.id} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: '0.82rem' }}>
+                              <strong style={{ color: '#059669', marginRight: 6 }}>{firstName}:</strong>
+                              <span style={{ color: '#334155' }}>{previewText || '(empty greeting)'}</span>
+                            </div>
+                          );
+                        })}
+                        {birthdayRecipients.length > 5 && (
+                          <div style={{ fontSize: '0.74rem', color: '#64748b', textAlign: 'center', padding: '4px 0' }}>
+                            + {birthdayRecipients.length - 5} more celebrators with personalized names
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <p className="msg-progress-message">{sendProgress.message}</p>
-                    <div className="msg-progress-steps">
-                      <div className={`msg-step ${['preparing', 'sending', 'finalizing', 'complete'].includes(sendProgress.stage) ? 'active' : ''} ${sendProgress.stage === 'preparing' ? 'current' : ''}`}>
-                        <span className="msg-step-dot">1</span>
-                        <span className="msg-step-label">Prepare</span>
-                      </div>
-                      <div className="msg-step-connector"></div>
-                      <div className={`msg-step ${['sending', 'finalizing', 'complete'].includes(sendProgress.stage) ? 'active' : ''} ${sendProgress.stage === 'sending' ? 'current' : ''}`}>
-                        <span className="msg-step-dot">2</span>
-                        <span className="msg-step-label">Send</span>
-                      </div>
-                      <div className="msg-step-connector"></div>
-                      <div className={`msg-step ${['finalizing', 'complete'].includes(sendProgress.stage) ? 'active' : ''} ${sendProgress.stage === 'finalizing' ? 'current' : ''}`}>
-                        <span className="msg-step-dot">3</span>
-                        <span className="msg-step-label">Finalize</span>
-                      </div>
-                      <div className="msg-step-connector"></div>
-                      <div className={`msg-step ${sendProgress.stage === 'complete' ? 'active' : ''} ${sendProgress.stage === 'complete' ? 'current' : ''}`}>
-                        <span className="msg-step-dot">4</span>
-                        <span className="msg-step-label">Done</span>
-                      </div>
+
+                    <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        className="btn btn-msg-send"
+                        onClick={handleSendBirthday}
+                        disabled={birthdaySending || !birthdayMessage.trim()}
+                        style={{ padding: '10px 20px', borderRadius: 8, fontWeight: 700, fontSize: '0.88rem', background: '#059669', color: '#ffffff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                      >
+                        <Send size={14} />
+                        <span>{birthdaySending ? 'Sending Greetings...' : `Send to ${birthdayRecipients.length} Celebrator${birthdayRecipients.length > 1 ? 's' : ''}`}</span>
+                      </button>
                     </div>
                   </div>
                 </div>
               )}
-            </form>
-          </div>
-        )}
-
-        {msgTab === 'birthday' && (
-          <div className="msg-birthday-wrap">
-            <div className="msg-birthday-header">
-              <h4 style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                <Cake size={18} style={{ color: '#fbbf24' }} /> Today's Birthday Celebrators
-              </h4>
-              <span className="msg-birthday-date">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
             </div>
-
-            {birthdayLoading ? (
-              <div className="table-loading">Loading birthday celebrators...</div>
-            ) : birthdayRecipients.length === 0 ? (
-              <div className="msg-birthday-empty">
-                <span className="msg-birthday-empty-icon" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', width: '48px', height: '48px', background: '#fef3c7', borderRadius: '50%', color: '#d97706' }}>
-                  <Cake size={24} />
-                </span>
-                <p>No birthday celebrators today.</p>
-                <button className="btn btn-sm btn-secondary" onClick={fetchBirthdayCelebrators}>Refresh</button>
-              </div>
-            ) : (
-              <>
-                <div className="msg-birthday-list">
-                  {birthdayRecipients.map(reg => {
-                    const name = getResidentName(reg);
-                    return (
-                      <div key={reg.id} className="msg-birthday-item">
-                        <div className="msg-birthday-avatar" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#fef3c7', color: '#d97706', borderRadius: '50%', width: '36px', height: '36px', flexShrink: 0 }}>
-                          <Cake size={16} />
-                        </div>
-                        <div className="msg-birthday-info">
-                          <span className="msg-birthday-name">{name}</span>
-                          <span className="msg-birthday-meta">{reg.barangay || '-'} · {reg.sector_category || '-'} · {reg.contact}</span>
-                        </div>
-                        <span className="msg-birthday-badge">{reg.birthday}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="msg-birthday-compose">
-                  <label className="msg-label">Birthday Message</label>
-                  <p className="msg-birthday-hint">Use <code>{`{firstName}`}</code> to automatically insert each celebrator's first name.</p>
-                  <textarea
-                    className="msg-textarea"
-                    placeholder="Type your birthday greeting..."
-                    value={birthdayMessage}
-                    onChange={e => setBirthdayMessage(e.target.value)}
-                    maxLength={480}
-                    rows={4}
-                  />
-                  <div className="msg-char-count">{birthdayMessage.length}/160 characters · Credits: {Math.ceil(birthdayMessage.length / 160) || 1}</div>
-
-                  <div className="msg-birthday-preview-section">
-                    <span className="msg-preview-label">What each celebrator will receive:</span>
-                    <div className="msg-birthday-preview-list">
-                      {birthdayRecipients.map(reg => {
-                        const firstName = reg?.ValidResidents?.first_name || '';
-                        const preview = birthdayMessage.replace(/\{firstName\}/g, firstName);
-                        return (
-                          <div key={reg.id} className="msg-birthday-preview-item">
-                            <span className="msg-birthday-preview-name">{firstName || 'Unknown'}:</span>
-                            <p className="msg-birthday-preview-text">{preview}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="msg-form-footer" style={{ marginTop: '16px' }}>
-                    <button
-                      className="btn btn-msg-send"
-                      onClick={handleSendBirthday}
-                      disabled={birthdaySending || !birthdayMessage.trim()}
-                    >
-                      {birthdaySending ? 'Sending...' : `Send to ${birthdayRecipients.length} celebrator${birthdayRecipients.length > 1 ? 's' : ''}`}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
           </div>
         )}
 
         {msgTab === 'inquiries' && (
-          <div className="msg-history-wrap">
-            {contactInquiriesLoading ? <div className="table-loading">Loading inquiries...</div>
-              : contactInquiries.length === 0 ? <div className="table-empty">No contact inquiries yet.</div>
-                : (
-                  <div className="msg-list">
-                    {contactInquiries.map(msg => (
-                      <div key={msg.id} className="msg-card">
-                        <div className="msg-card-header">
-                          <span className="msg-card-type" style={{ background: '#3b82f6', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '6px', borderRadius: '4px' }}>
-                            <Inbox size={14} style={{ color: '#fff' }} />
-                          </span>
-                          <span className="msg-card-date">{new Date(msg.created_at).toLocaleString()}</span>
+          <div className="dash-panel-v2">
+            <div className="dash-panel-v2-header">
+              <div>
+                <p className="dash-panel-v2-title">Citizen Inquiries</p>
+                <p className="dash-panel-v2-sub">Direct inquiries and requests received from the public portal</p>
+              </div>
+              <div className="dash-panel-v2-icon">
+                <Inbox size={15} strokeWidth={1.8} />
+              </div>
+            </div>
+            <div className="dash-panel-v2-body">
+              {contactInquiriesLoading ? (
+                <div className="table-loading" style={{ padding: '32px 0', textAlign: 'center', color: '#64748b' }}>Loading inquiries...</div>
+              ) : contactInquiries.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', textAlign: 'center' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', marginBottom: 12 }}>
+                    <Inbox size={20} />
+                  </div>
+                  <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: '0.9rem' }}>No contact inquiries yet</p>
+                  <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.82rem' }}>Messages submitted via contact forms will appear here.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {contactInquiries.map(msg => (
+                    <div key={msg.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>{msg.name}</span>
+                          <span style={{ color: '#64748b', fontSize: '0.78rem' }}>· {msg.email}</span>
                         </div>
-                        <h4 className="msg-card-title">{msg.name} — {msg.email}</h4>
-                        <p className="msg-card-body">{msg.message}</p>
-                        <div className="msg-card-stats">
-                          <span className="msg-status-pill" style={{ background: msg.status === 'unread' ? '#fbbf24' : '#e5e7eb', color: msg.status === 'unread' ? '#92400e' : '#374151' }}>{msg.status}</span>
-                          <span className="msg-stat">Type: {msg.inquiry_type || 'General'}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: msg.status === 'unread' ? '#fef3c7' : '#f1f5f9', color: msg.status === 'unread' ? '#92400e' : '#475569' }}>
+                            {msg.status}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{new Date(msg.created_at).toLocaleString()}</span>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <p style={{ margin: 0, fontSize: '0.84rem', color: '#334155', lineHeight: 1.5 }}>{msg.message}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {msgTab === 'feedback' && (
-          <div className="msg-history-wrap">
-            {grievancesLoading ? <div className="table-loading">Loading feedback...</div>
-              : grievances.length === 0 ? <div className="table-empty">No citizen feedback yet.</div>
-                : (
-                  <div className="msg-list">
-                    {grievances.map(g => (
-                      <div key={g.id} className={`msg-card msg-status-${g.status || 'open'}`}>
-                        <div className="msg-card-header">
-                          <span className="msg-card-type" style={{ background: '#10b981', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '6px', borderRadius: '4px', color: '#fff' }}>
-                            <MessageSquare size={14} />
-                          </span>
-                          <span className="msg-card-date">{new Date(g.created_at).toLocaleString()}</span>
-                        </div>
-                        <div className="msg-card-body">
-                          <div className="msg-card-title" style={{ fontSize: '0.85rem', marginBottom: '6px' }}>
-                            <strong>{g.type || 'Feedback'}</strong>
-                            {(() => {
-                              const r = g.registrations;
-                              if (!r) return null;
-                              // Try ValidResidents first, then fall back to registrations direct fields
-                              const vr = r.ValidResidents;
-                              const firstName = vr?.first_name || r.first_name;
-                              const lastName = vr?.last_name || r.last_name;
-                              const barangay = vr?.barangay || r.barangay;
-                              if (!firstName && !lastName) return null;
-                              return (
-                                <span style={{ color: '#6b7280', marginLeft: '8px' }}>
-                                  — {firstName} {lastName} ({barangay || '-'})
-                                </span>
-                              );
-                            })()}
-                          </div>
-                          <div className="msg-card-preview" style={{ fontSize: '0.8rem', color: '#374151', lineHeight: '1.5' }}>
-                            {g.message}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+          <div className="dash-panel-v2">
+            <div className="dash-panel-v2-header">
+              <div>
+                <p className="dash-panel-v2-title">Citizen Feedback & Grievances</p>
+                <p className="dash-panel-v2-sub">Community concerns and feedback submissions</p>
+              </div>
+              <div className="dash-panel-v2-icon">
+                <MessageSquare size={15} strokeWidth={1.8} />
+              </div>
+            </div>
+            <div className="dash-panel-v2-body">
+              {grievancesLoading ? (
+                <div className="table-loading" style={{ padding: '32px 0', textAlign: 'center', color: '#64748b' }}>Loading feedback...</div>
+              ) : grievances.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', textAlign: 'center' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', marginBottom: 12 }}>
+                    <MessageSquare size={20} />
                   </div>
-                )
-            }
+                  <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: '0.9rem' }}>No citizen feedback yet</p>
+                  <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.82rem' }}>Feedback and concerns submitted by citizens will appear here.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {grievances.map(g => {
+                    const r = g.registrations;
+                    const vr = r?.ValidResidents;
+                    const firstName = vr?.first_name || r?.first_name;
+                    const lastName = vr?.last_name || r?.last_name;
+                    const barangay = vr?.barangay || r?.barangay;
+                    return (
+                      <div key={g.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>{g.type || 'Feedback'}</span>
+                            {(firstName || lastName) && (
+                              <span style={{ color: '#64748b', fontSize: '0.78rem' }}>
+                                · {firstName} {lastName} {barangay ? `(${barangay})` : ''}
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{new Date(g.created_at).toLocaleString()}</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.84rem', color: '#334155', lineHeight: 1.5 }}>{g.message}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {msgTab === 'history' && (
-          <div className="msg-history-wrap">
-            {messagesLoading ? <div className="table-loading">Loading messages...</div>
-              : messages.length === 0 ? <div className="table-empty">No messages sent yet.</div>
-                : (
-                  <div className="msg-list">
-                    {messages.map(msg => (
-                      <div key={msg.id} className={`msg-card msg-status-${msg.status}`} onClick={() => fetchMsgRecipients(msg.id)}>
-                        <div className="msg-card-header">
-                          <span className="msg-card-type" style={{ background: typeColors[msg.type] || '#6b7280', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '6px', borderRadius: '4px', color: '#fff' }}>
-                            {typeIcons[msg.type] || <MessageSquare size={14} />}
+          <div className="dash-panel-v2">
+            <div className="dash-panel-v2-header">
+              <div>
+                <p className="dash-panel-v2-title">Broadcast History</p>
+                <p className="dash-panel-v2-sub">Previous SMS broadcasts and delivery analytics</p>
+              </div>
+              <div className="dash-panel-v2-icon">
+                <History size={15} strokeWidth={1.8} />
+              </div>
+            </div>
+            <div className="dash-panel-v2-body">
+              {messagesLoading ? (
+                <div className="table-loading" style={{ padding: '32px 0', textAlign: 'center', color: '#64748b' }}>Loading messages...</div>
+              ) : messages.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', textAlign: 'center' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', marginBottom: 12 }}>
+                    <History size={20} />
+                  </div>
+                  <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: '0.9rem' }}>No messages sent yet</p>
+                  <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '0.82rem' }}>Past SMS campaigns will show delivery logs here.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {messages.map(msg => (
+                    <div
+                      key={msg.id}
+                      onClick={() => fetchMsgRecipients(msg.id)}
+                      style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ width: 22, height: 22, borderRadius: 6, background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {typeIcons[msg.type] || <MessageSquare size={13} />}
                           </span>
-                          <span className="msg-card-date">{new Date(msg.created_at).toLocaleString()}</span>
+                          <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>{msg.title || 'Untitled Broadcast'}</span>
                         </div>
-                        <h4 className="msg-card-title">{msg.title}</h4>
-                        <p className="msg-card-body">{msg.body}</p>
-                        <div className="msg-card-stats">
-                          <span className="msg-stat"><strong>{msg.total_recipients}</strong> total</span>
-                          <span className="msg-stat success"><strong>{msg.sent_count}</strong> sent</span>
-                          {msg.failed_count > 0 && <span className="msg-stat error"><strong>{msg.failed_count}</strong> failed</span>}
-                          <span className={`msg-status-pill status-${msg.status}`}>{msg.status}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: msg.status === 'completed' || msg.status === 'sent' ? '#ecfdf5' : '#f1f5f9', color: msg.status === 'completed' || msg.status === 'sent' ? '#065f46' : '#475569' }}>
+                            {msg.status}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{new Date(msg.created_at).toLocaleString()}</span>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-
-            {/* Recipients Detail Modal */}
-            {selectedMessage && createPortal(
-              <div className="modal-overlay" onClick={() => setSelectedMessage(null)}>
-                <div className="modal-card msg-recipients-modal" onClick={e => e.stopPropagation()}>
-                  <div className="modal-header">
-                    <h3>Delivery Status</h3>
-                    <button className="modal-close-x" onClick={() => setSelectedMessage(null)}>✕</button>
-                  </div>
-                  <div className="modal-body">
-                    <div className="msg-recipients-summary">
-                      <span className="msg-recipients-count">{msgRecipients.length} recipients</span>
-                      <span className="msg-recipients-sent">{msgRecipients.filter(r => r.status === 'sent').length} delivered</span>
-                      <span className="msg-recipients-failed">{msgRecipients.filter(r => r.status === 'failed').length} failed</span>
+                      <p style={{ margin: '0 0 10px', fontSize: '0.84rem', color: '#475569', lineHeight: 1.45 }}>{msg.body}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: '0.75rem', color: '#64748b', borderTop: '1px solid #edf2f7', paddingTop: 8 }}>
+                        <span>Total: <strong style={{ color: '#0f172a' }}>{msg.total_recipients || 0}</strong></span>
+                        <span>Delivered: <strong style={{ color: '#059669' }}>{msg.sent_count || 0}</strong></span>
+                        {msg.failed_count > 0 && <span>Failed: <strong style={{ color: '#ef4444' }}>{msg.failed_count}</strong></span>}
+                      </div>
                     </div>
-                    <div className="msg-recipients-list">
-                      {msgRecipients.map(rec => (
-                        <div key={rec.id} className={`msg-recipient-row status-${rec.status}`}>
-                          <span className="msg-recipient-name">{rec.resident_name || 'Unknown'}</span>
-                          <span className="msg-recipient-phone">{rec.phone_number}</span>
-                          <span className={`msg-recipient-badge ${rec.status}`}>{rec.status}</span>
-                          {rec.error_message && <span className="msg-recipient-error" title={rec.error_message}>⚠️</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              </div>,
-              document.body
-            )}
+              )}
+
+              {/* Recipients Detail Modal */}
+              {selectedMessage && createPortal(
+                <div className="modal-overlay" onClick={() => setSelectedMessage(null)}>
+                  <div className="modal-card msg-recipients-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 540, borderRadius: 12 }}>
+                    <div className="modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Delivery Status</h3>
+                      <button className="modal-close-x" onClick={() => setSelectedMessage(null)} style={{ background: 'none', border: 'none', fontSize: '1.1rem', cursor: 'pointer', color: '#64748b' }}>✕</button>
+                    </div>
+                    <div className="modal-body" style={{ padding: '16px 20px' }}>
+                      <div className="msg-recipients-summary" style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+                        <span className="msg-recipients-count" style={{ padding: '4px 10px', background: '#f1f5f9', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600 }}>{msgRecipients.length} recipients</span>
+                        <span className="msg-recipients-sent" style={{ padding: '4px 10px', background: '#ecfdf5', color: '#065f46', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600 }}>{msgRecipients.filter(r => r.status === 'sent').length} delivered</span>
+                        <span className="msg-recipients-failed" style={{ padding: '4px 10px', background: '#fef2f2', color: '#991b1b', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600 }}>{msgRecipients.filter(r => r.status === 'failed').length} failed</span>
+                      </div>
+                      <div className="msg-recipients-list" style={{ maxHeight: 320, overflowY: 'auto' }}>
+                        {msgRecipients.map(rec => (
+                          <div key={rec.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderBottom: '1px solid #f1f5f9', fontSize: '0.82rem' }}>
+                            <span style={{ fontWeight: 600, color: '#0f172a' }}>{rec.resident_name || 'Unknown'}</span>
+                            <span style={{ color: '#64748b', fontFamily: 'monospace' }}>{rec.phone_number}</span>
+                            <span style={{ fontSize: '0.72rem', padding: '2px 6px', borderRadius: 4, background: rec.status === 'sent' ? '#ecfdf5' : '#fee2e2', color: rec.status === 'sent' ? '#065f46' : '#991b1b' }}>{rec.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>,
+                document.body
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -6539,22 +6969,126 @@ export default function AdminPage() {
             </div>
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="pagination-row" style={{ marginTop: 14 }}>
-                <span className="pagination-info">Page {logsPage} of {totalPages} · {logsTotal} total</span>
-                <div className="pagination-controls">
-                  <button className="pagination-btn" onClick={() => goToPage(logsPage - 1)} disabled={logsPage <= 1}>Prev</button>
-                  {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
-                    const p = i + 1;
+              <div className="residents-pagination" style={{ marginTop: 14 }}>
+                <span className="pagination-info">Page <strong>{logsPage}</strong> of <strong>{totalPages}</strong> · <strong>{logsTotal}</strong> total</span>
+                <div className="pagination-buttons">
+                  <button
+                    className="page-btn page-btn-nav"
+                    onClick={() => goToPage(1)}
+                    disabled={logsPage <= 1}
+                    title="First Page (1)"
+                  >
+                    <ChevronsLeft size={14} />
+                  </button>
+                  <button
+                    className="page-btn page-btn-nav"
+                    onClick={() => goToPage(logsPage - 1)}
+                    disabled={logsPage <= 1}
+                    title="Previous Page"
+                  >
+                    <ChevronLeft size={14} /> <span>Prev</span>
+                  </button>
+                  {getPaginationItems(logsPage, totalPages).map((item, idx) => {
+                    if (item === '...') {
+                      return <span key={`dots-${idx}`} className="pagination-ellipsis">…</span>;
+                    }
                     return (
-                      <button key={p} className={`pagination-btn ${p === logsPage ? 'active' : ''}`} onClick={() => goToPage(p)}>{p}</button>
+                      <button
+                        key={item}
+                        className={`page-btn ${item === logsPage ? 'page-btn-active' : ''}`}
+                        onClick={() => goToPage(item)}
+                        title={`Page ${item}`}
+                      >
+                        {item}
+                      </button>
                     );
                   })}
-                  <button className="pagination-btn" onClick={() => goToPage(logsPage + 1)} disabled={logsPage >= totalPages}>Next</button>
+                  <button
+                    className="page-btn page-btn-nav"
+                    onClick={() => goToPage(logsPage + 1)}
+                    disabled={logsPage >= totalPages}
+                    title="Next Page"
+                  >
+                    <span>Next</span> <ChevronRight size={14} />
+                  </button>
+                  <button
+                    className="page-btn page-btn-nav"
+                    onClick={() => goToPage(totalPages)}
+                    disabled={logsPage >= totalPages}
+                    title={`Last Page (${totalPages})`}
+                  >
+                    <ChevronsRight size={14} />
+                  </button>
                 </div>
               </div>
             )}
           </>
         )}
+      </div>
+    );
+  };
+
+  const renderOrganizations = () => {
+    return (
+      <div className="admin-panel">
+        <div className="panel-header">
+          <h3><Building size={22} /> Organizations</h3>
+          <button className="btn btn-sm btn-primary" onClick={() => setShowCreateOrgModal(true)}>+ Create Organization</button>
+        </div>
+        <div className="members-table-wrap" style={{ marginTop: 20 }}>
+          {organizationsLoading ? (
+            <div className="table-loading">Loading organizations...</div>
+          ) : organizations.length === 0 ? (
+            <div className="table-empty">No organizations found. Click "Create Organization" to add one.</div>
+          ) : (
+            <div className="table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '40%' }}>Organization Name</th>
+                    <th style={{ width: '20%', textAlign: 'center' }}>Members</th>
+                    <th style={{ width: '40%', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {organizations.map(org => {
+                    const memberCount = allRegs.filter(r => r.organization === org.name).length;
+                    return (
+                      <tr 
+                        key={org.id}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          setShowOrgDetailsModal(org.name);
+                        }}
+                      >
+                        <td><strong style={{ color: '#0f172a', fontSize: '1rem' }}>{org.name}</strong></td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="status-badge status-approved" style={{ fontSize: '0.8rem' }}>{memberCount} member{memberCount !== 1 ? 's' : ''}</span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button className="btn btn-sm btn-primary" style={{ marginRight: 8 }} onClick={(e) => {
+                            e.stopPropagation();
+                            setShowAddOrgMemberModal(org.name);
+                            setOrgMemberSearch('');
+                          }}><UserPlus size={14} style={{ marginRight: 4 }} /> Add Member</button>
+                          <button className="btn btn-sm btn-secondary" style={{ marginRight: 8, padding: '6px 8px' }} onClick={(e) => {
+                            e.stopPropagation();
+                            setShowEditOrgModal(org);
+                            setEditOrgName(org.name);
+                          }}><Edit size={14} /></button>
+                          <button className="btn btn-sm btn-danger" style={{ padding: '6px 8px' }} onClick={(e) => {
+                            e.stopPropagation();
+                            setShowDeleteOrgModal(org);
+                          }}><Trash size={14} /></button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -7041,59 +7575,143 @@ export default function AdminPage() {
     // ─── Select Event Screen ───
     if (scannerMode === 'select' || !selectedEvent) {
       return (
-        <div className="admin-panel">
-          <div className="panel-header">
-            <h3><ScanLine size={22} /> Event Scanner</h3>
-            <span className="panel-badge">Distribution Verification</span>
+        <div className="admin-panel event-select-panel">
+          <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h3 style={{ margin: 0 }}><ScanLine size={22} /> Event Scanner</h3>
+                <span className="panel-badge">Distribution Verification</span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'var(--muted, #64748b)' }}>
+                Select an active event to scan QR codes and verify resident eligibility.
+              </p>
+            </div>
+            <button
+              className="btn btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, padding: '9px 16px', borderRadius: 10 }}
+              onClick={() => { setShowCreateEvent(true); fetchBarangays(); }}
+            >
+              <Plus size={18} /> Create New Event
+            </button>
           </div>
 
-          <div className="event-scanner-intro">
-            <ShieldCheck size={48} />
-            <h4>Select an Active Event to Begin Scanning</h4>
-            <p>Scan EM Card QR codes to verify resident eligibility and prevent duplicate distribution.</p>
+          <div className="event-scanner-hero">
+            <div className="esh-left">
+              <div className="esh-icon">
+                <ShieldCheck size={24} />
+              </div>
+              <div className="esh-text">
+                <h4>Select an Active Event to Begin Scanning</h4>
+                <p>Verify resident EM Card QR codes, enforce barangay restrictions, and prevent duplicate distribution in real-time.</p>
+              </div>
+            </div>
+            <div className="esh-stats">
+              <div className="esh-stat-chip">
+                <span className="esh-stat-val">{events.length}</span>
+                <span className="esh-stat-lbl">Active Event{events.length === 1 ? '' : 's'}</span>
+              </div>
+            </div>
           </div>
 
           {eventsLoading ? (
             <div className="table-loading">Loading events...</div>
           ) : events.length === 0 ? (
-            <div className="table-empty">
-              <p>No active events found. Create one to start scanning.</p>
+            <div className="table-empty" style={{ padding: '48px 24px', textAlign: 'center' }}>
+              <div style={{ width: 56, height: 56, borderRadius: 14, background: '#f0fdf4', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                <Calendar size={28} />
+              </div>
+              <h4 style={{ margin: '0 0 8px', color: '#1e293b', fontWeight: 700 }}>No active events found</h4>
+              <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '0.88rem' }}>Create your first distribution event to start scanning EM Cards.</p>
+              <button
+                className="btn btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={() => { setShowCreateEvent(true); fetchBarangays(); }}
+              >
+                <Plus size={16} /> Create First Event
+              </button>
             </div>
           ) : (
             <div className="event-list-grid">
               {events.map(evt => (
                 <div key={evt.id} className="event-card">
-                  <div className="event-card-header">
-                    <div className="event-card-icon"><Calendar size={24} /></div>
-                    <div className="event-card-badges">
-                      {evt.household_mode && <span className="event-badge-hh"><Home size={14} /> HH Mode</span>}
-                      {evt.selected_barangays && evt.selected_barangays.length > 0 && <span className="event-badge-restricted"><MapPin size={14} /> {evt.selected_barangays.length} Brgy</span>}
+                  <div>
+                    <div className="event-card-header">
+                      <div className="event-card-icon"><Calendar size={20} /></div>
+                      <div className="event-card-badges">
+                        {evt.household_mode && (
+                          <span className="event-badge-hh" title="One aid per household">
+                            <Home size={11} /> HH Mode
+                          </span>
+                        )}
+                        {evt.selected_barangays && evt.selected_barangays.length > 0 ? (
+                          <span className="event-badge-restricted" title={`${evt.selected_barangays.length} barangays allowed`}>
+                            <MapPin size={11} /> {evt.selected_barangays.length} Brgy
+                          </span>
+                        ) : (
+                          <span className="event-badge-all" title="Available to all barangays">
+                            <CheckCircle size={11} /> All Barangays
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="event-card-body" style={{ marginTop: 12 }}>
+                      <h5>{evt.event_name}</h5>
+                      <div className="event-card-details">
+                        <span className="event-detail">
+                          <MapPin size={14} /> <span>{evt.location || 'No location set'}</span>
+                        </span>
+                        <span className="event-detail">
+                          <Clock size={14} /> <span>{evt.event_date ? new Date(evt.event_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'No date set'}</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="event-card-body">
-                    <h5>{evt.event_name}</h5>
-                    <div className="event-card-details">
-                      <span className="event-detail"><MapPin size={16} /> {evt.location || 'No location'}</span>
-                      <span className="event-detail"><Clock size={16} /> {evt.event_date ? new Date(evt.event_date).toLocaleDateString() : 'No date'}</span>
-                    </div>
-                  </div>
+
                   <div className="event-card-actions">
-                    <button className="btn btn-sm btn-primary" onClick={() => { setSelectedEvent(evt); setScannerMode('scan'); localScanCountRef.current = 0; recentScanCacheRef.current.clear(); fetchEventScans(evt.id); }}><Zap size={16} /> Select</button>
-                    <button className="btn btn-sm btn-outline" onClick={() => openEventRecords(evt)}><FileText size={16} /> Records</button>
-                    <button className="btn btn-sm btn-edit" onClick={() => openEditScanEvent(evt)}><Pencil size={14} /> Edit</button>
-                    <button className="btn btn-sm btn-danger" onClick={() => openDeleteScanEventModal(evt)}><Trash2 size={14} /> Delete</button>
+                    <button
+                      className="btn-event-launch"
+                      onClick={() => {
+                        setSelectedEvent(evt);
+                        setScannerMode('scan');
+                        localScanCountRef.current = 0;
+                        recentScanCacheRef.current.clear();
+                        fetchEventScans(evt.id);
+                      }}
+                    >
+                      <Zap size={16} /> Start Scanning
+                    </button>
+                    <div className="event-card-sub-actions">
+                      <button
+                        className="btn-event-sub btn-event-records"
+                        onClick={() => openEventRecords(evt)}
+                        title="View event scan logs & stats"
+                      >
+                        <FileText size={13} /> Records
+                      </button>
+                      <button
+                        className="btn-event-sub btn-event-edit"
+                        onClick={() => openEditScanEvent(evt)}
+                        title="Edit event details"
+                      >
+                        <Pencil size={13} /> Edit
+                      </button>
+                      <button
+                        className="btn-event-sub btn-event-delete"
+                        onClick={() => openDeleteScanEventModal(evt)}
+                        title="Delete this event"
+                      >
+                        <Trash2 size={13} /> Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
 
-          <div className="event-create-section">
-            <button className="btn btn-outline" onClick={() => { setShowCreateEvent(true); fetchBarangays(); }}><Plus size={18} /> Create New Event</button>
-          </div>
-
           {/* CREATE/EDIT EVENT MODAL */}
-          {showCreateEvent && (
+          {showCreateEvent && typeof document !== 'undefined' && createPortal(
             <div className="modal-overlay" onClick={() => { setShowCreateEvent(false); setEditingScanEvent(null); setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] }); }}>
               <div className="modal-card event-form-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
@@ -7134,7 +7752,7 @@ export default function AdminPage() {
                         {newEventForm.selected_barangays.length === allBarangays.length && allBarangays.length > 0 ? 'Deselect All' : 'Select All'}
                       </button>
                     </div>
-                    <div className="event-barangay-grid" style={{ maxHeight: 200, overflowY: 'auto', padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                    <div className="event-barangay-grid" style={{ maxHeight: 240, overflowY: 'auto', padding: '4px 0', marginTop: 8 }}>
                       {allBarangays.length === 0 ? (
                         <p className="event-barangay-loading">Loading barangays...</p>
                       ) : (
@@ -7174,14 +7792,14 @@ export default function AdminPage() {
                     </label>
                   </div>
                   
-                  <div className="modal-footer" style={{ marginTop: 20 }}>
+                  <div className="modal-footer">
                     <button type="button" className="btn btn-modal-secondary" onClick={() => { setShowCreateEvent(false); setEditingScanEvent(null); setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] }); }}>Cancel</button>
                     <button type="submit" className="btn btn-modal-primary">{editingScanEvent ? 'Save Changes' : 'Create Event'}</button>
                   </div>
                 </form>
               </div>
             </div>
-          )}
+          , document.body)}
         </div>
       );
     }
@@ -7868,9 +8486,13 @@ export default function AdminPage() {
             </div>
           </div>
           {userRole !== 'staff' && (
-            <button className="sidebar-logout" onClick={() => setShowCreateAccount(true)}><span>👤</span> Create Account</button>
+            <button className="sidebar-logout" onClick={() => setShowCreateAccount(true)}>
+              <User size={15} /><span>Create Account</span>
+            </button>
           )}
-          <button className="sidebar-logout" onClick={handleLogout}><span>⎋</span> Logout</button>
+          <button className="sidebar-logout" onClick={handleLogout}>
+            <LogOut size={15} /><span>Logout</span>
+          </button>
         </div>
       </aside>
 
@@ -7881,6 +8503,13 @@ export default function AdminPage() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
           <div className="admin-topbar-title">{navItems.find(n => n.id === activeTab)?.label}</div>
+
+          {/* Global Search */}
+          <div className="topbar-search">
+            <Search size={14} />
+            <input type="text" placeholder="Search members, registrations..." readOnly />
+          </div>
+
           <div className="admin-topbar-right">
             <span className="topbar-date">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
 
@@ -7998,11 +8627,11 @@ export default function AdminPage() {
             </div>
 
             <div className="topbar-user">
+              <div className="topbar-user-avatar">{(username || 'A').charAt(0).toUpperCase()}</div>
               <div className="topbar-user-info">
                 <span className="topbar-user-name">{username || 'Admin'}</span>
                 <span className="topbar-user-role" style={{ textTransform: 'capitalize' }}>{userRole}</span>
               </div>
-              <div className="topbar-user-avatar">{(username || 'A').charAt(0).toUpperCase()}</div>
             </div>
           </div>
         </header>
@@ -8012,6 +8641,7 @@ export default function AdminPage() {
           {activeTab === 'registrations' && renderRegistrations()}
           {activeTab === 'registerMember' && <RegisterForm embedded={true} />}
           {activeTab === 'members' && renderMembers()}
+          {activeTab === 'organizations' && renderOrganizations()}
           {activeTab === 'eventScanner' && renderEventScanner()}
           {activeTab === 'events' && renderUpcomingEvents()}
           {activeTab === 'network' && renderNetwork()}
@@ -8757,6 +9387,13 @@ export default function AdminPage() {
                           </select>
                         </div>
                         <div className="member-edit-field">
+                          <label>Organization</label>
+                          <select value={editMemberForm.organization || ''} onChange={e => setEditMemberForm(f => ({ ...f, organization: e.target.value }))}>
+                            <option value="">No Organization</option>
+                            {organizations.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="member-edit-field">
                           <label>Gender</label>
                           <select value={editMemberForm.gender || ''} onChange={e => setEditMemberForm(f => ({ ...f, gender: e.target.value }))}>
                             <option value="">Select Gender...</option>
@@ -9304,6 +9941,238 @@ export default function AdminPage() {
           </div>
         );
       })()}
+
+      {/* ADD MEMBER TO ORG MODAL */}
+      {showAddOrgMemberModal && typeof document !== 'undefined' && createPortal(
+        <div className="modal-overlay" onClick={() => { setShowAddOrgMemberModal(null); setOrgMemberSearch(''); }}>
+          <div className="modal-card" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0 }}>Add Member to {showAddOrgMemberModal}</h3>
+              <button className="modal-close-x" onClick={() => { setShowAddOrgMemberModal(null); setOrgMemberSearch(''); }}><X size={20} /></button>
+            </div>
+            <div className="modal-form" style={{ padding: '20px 24px', flex: 1, overflowY: 'auto' }}>
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: 8, display: 'block' }}>Search Existing Member</label>
+                <div className="search-bar" style={{ marginBottom: 12 }}>
+                  <Search size={18} />
+                  <input type="text" placeholder="Search by name..." value={orgMemberSearch} onChange={e => setOrgMemberSearch(e.target.value)} autoFocus style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none' }} />
+                </div>
+              </div>
+              <div className="org-member-search-results" style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                {orgMemberSearch.length < 2 ? (
+                  <p style={{ color: '#64748b', fontSize: '0.9rem', textAlign: 'center', padding: '30px 0', margin: 0 }}>Type at least 2 characters to search...</p>
+                ) : (
+                  (() => {
+                    const q = orgMemberSearch.toLowerCase();
+                    const results = allRegs.filter(r => 
+                      ((r.first_name || '') + ' ' + (r.last_name || '')).toLowerCase().includes(q) &&
+                      r.organization !== showAddOrgMemberModal
+                    ).slice(0, 20);
+                    
+                    if (results.length === 0) return <p style={{ color: '#64748b', fontSize: '0.9rem', textAlign: 'center', padding: '30px 0', margin: 0 }}>No available members found.</p>;
+                    
+                    return results.map(reg => (
+                      <div key={reg.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                        <div>
+                          <strong style={{ display: 'block', color: '#1e293b', fontSize: '0.95rem' }}>{`${reg.last_name || ''}, ${reg.first_name || ''}`}</strong>
+                          <span style={{ color: '#64748b', fontSize: '0.8rem' }}>{reg.barangay || 'No Barangay'} {reg.organization ? `(Currently: ${reg.organization})` : ''}</span>
+                        </div>
+                        <button className="btn btn-sm btn-primary" onClick={async () => {
+                          try {
+                            const { error } = await supabase.from('registrations').update({ organization: showAddOrgMemberModal }).eq('id', reg.id);
+                            if (error) throw error;
+                            showToast('Member assigned to organization', 'success');
+                            fetchAllRegistrations(); // refresh
+                            setOrgMemberSearch('');
+                            setShowAddOrgMemberModal(null);
+                          } catch (err) {
+                            showToast('Failed to assign member', 'error');
+                          }
+                        }}>Add</button>
+                      </div>
+                    ));
+                  })()
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-modal-secondary" onClick={() => { setShowAddOrgMemberModal(null); setOrgMemberSearch(''); }}>Close</button>
+            </div>
+          </div>
+        </div>, document.body
+      )}
+
+      {/* ORG DETAILS MODAL */}
+      {showOrgDetailsModal && typeof document !== 'undefined' && createPortal(
+        <div className="modal-overlay" onClick={() => setShowOrgDetailsModal(null)}>
+          <div className="modal-card modal-lg" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0 }}>{showOrgDetailsModal} Members</h3>
+              <button className="modal-close-x" onClick={() => setShowOrgDetailsModal(null)}><X size={20} /></button>
+            </div>
+            <div className="modal-form" style={{ padding: '0', flex: 1, overflowY: 'auto', maxHeight: '60vh' }}>
+              {(() => {
+                const orgMembers = allRegs.filter(r => r.organization === showOrgDetailsModal);
+                if (orgMembers.length === 0) {
+                  return <div className="table-empty" style={{ margin: 20 }}>No members in this organization yet.</div>;
+                }
+                return (
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Barangay</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orgMembers.map(reg => (
+                        <tr key={reg.id}>
+                          <td><strong>{`${reg.last_name || ''}, ${reg.first_name || ''}`}</strong></td>
+                          <td>{reg.barangay}</td>
+                          <td>
+                            <span className={`status-badge status-${reg.status.toLowerCase()}`}>{reg.status}</span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button className="btn btn-sm btn-danger" onClick={async () => {
+                              try {
+                                const { error } = await supabase.from('registrations').update({ organization: null }).eq('id', reg.id);
+                                if (error) throw error;
+                                showToast('Member removed from organization', 'success');
+                                fetchAllRegistrations();
+                              } catch(err) {
+                                showToast('Failed to remove member', 'error');
+                              }
+                            }}>Remove</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-modal-secondary" onClick={() => setShowOrgDetailsModal(null)}>Close</button>
+              <button className="btn btn-modal-primary" onClick={() => {
+                setShowAddOrgMemberModal(showOrgDetailsModal);
+                setOrgMemberSearch('');
+                setShowOrgDetailsModal(null);
+              }}>+ Add Member</button>
+            </div>
+          </div>
+        </div>, document.body
+      )}
+
+      {/* CREATE ORG MODAL */}
+      {showCreateOrgModal && typeof document !== 'undefined' && createPortal(
+        <div className="modal-overlay" onClick={() => setShowCreateOrgModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0 }}>Create Organization</h3>
+              <button className="modal-close-x" onClick={() => setShowCreateOrgModal(false)}><X size={20} /></button>
+            </div>
+            <div className="modal-form" style={{ padding: '20px 24px' }}>
+              <div className="form-group">
+                <label>Organization Name</label>
+                <input type="text" value={createOrgName} onChange={e => setCreateOrgName(e.target.value)} placeholder="e.g. Red Cross" autoFocus />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-modal-secondary" onClick={() => setShowCreateOrgModal(false)}>Cancel</button>
+              <button className="btn btn-modal-primary" disabled={!createOrgName.trim()} onClick={async () => {
+                try {
+                  const { error } = await supabase.from('organizations').insert([{ name: createOrgName.trim() }]);
+                  if (error) throw error;
+                  showToast('Organization created', 'success');
+                  fetchOrganizations();
+                  setShowCreateOrgModal(false);
+                  setCreateOrgName('');
+                } catch(err) {
+                  showToast(err.message || 'Failed to create', 'error');
+                }
+              }}>Create</button>
+            </div>
+          </div>
+        </div>, document.body
+      )}
+
+      {/* EDIT ORG MODAL */}
+      {showEditOrgModal && typeof document !== 'undefined' && createPortal(
+        <div className="modal-overlay" onClick={() => setShowEditOrgModal(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0 }}>Edit Organization</h3>
+              <button className="modal-close-x" onClick={() => setShowEditOrgModal(null)}><X size={20} /></button>
+            </div>
+            <div className="modal-form" style={{ padding: '20px 24px' }}>
+              <div className="form-group">
+                <label>Organization Name</label>
+                <input type="text" value={editOrgName} onChange={e => setEditOrgName(e.target.value)} autoFocus />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-modal-secondary" onClick={() => setShowEditOrgModal(null)}>Cancel</button>
+              <button className="btn btn-modal-primary" disabled={!editOrgName.trim()} onClick={async () => {
+                try {
+                  const newName = editOrgName.trim();
+                  if (newName === showEditOrgModal.name) {
+                    setShowEditOrgModal(null);
+                    return;
+                  }
+                  const { error } = await supabase.from('organizations').update({ name: newName }).eq('id', showEditOrgModal.id);
+                  if (error) throw error;
+                  // Cascade update to registrations
+                  await supabase.from('registrations').update({ organization: newName }).eq('organization', showEditOrgModal.name);
+                  showToast('Organization renamed successfully', 'success');
+                  fetchOrganizations();
+                  fetchAllRegistrations(); // refresh members
+                  setShowEditOrgModal(null);
+                } catch(err) {
+                  showToast(err.message || 'Failed to rename', 'error');
+                }
+              }}>Save Changes</button>
+            </div>
+          </div>
+        </div>, document.body
+      )}
+
+      {/* DELETE ORG MODAL */}
+      {showDeleteOrgModal && typeof document !== 'undefined' && createPortal(
+        <div className="modal-overlay" onClick={() => setShowDeleteOrgModal(null)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, color: '#dc2626' }}>Delete Organization</h3>
+              <button className="modal-close-x" onClick={() => setShowDeleteOrgModal(null)}><X size={20} /></button>
+            </div>
+            <div className="modal-form" style={{ padding: '20px 24px' }}>
+              <p style={{ margin: 0, color: '#475569', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                Are you sure you want to delete <strong>{showDeleteOrgModal.name}</strong>?
+                <br /><br />
+                This will also remove the organization tag from all assigned members. This action cannot be undone.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-modal-secondary" onClick={() => setShowDeleteOrgModal(null)}>Cancel</button>
+              <button className="btn btn-modal-danger" style={{ background: '#dc2626', color: '#fff' }} onClick={async () => {
+                try {
+                  const { error } = await supabase.from('organizations').delete().eq('id', showDeleteOrgModal.id);
+                  if (error) throw error;
+                  // Cascade remove from registrations
+                  await supabase.from('registrations').update({ organization: null }).eq('organization', showDeleteOrgModal.name);
+                  showToast('Organization deleted', 'success');
+                  fetchOrganizations();
+                  fetchAllRegistrations(); // refresh members
+                  setShowDeleteOrgModal(null);
+                } catch(err) {
+                  showToast(err.message || 'Failed to delete', 'error');
+                }
+              }}>Delete</button>
+            </div>
+          </div>
+        </div>, document.body
+      )}
 
       {/* CREATE ACCOUNT MODAL */}
       {showCreateAccount && (
