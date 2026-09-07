@@ -26,16 +26,81 @@ import {
 // Subdivision puroks that use Lot/Block/Phase instead of House Number
 const SUBDIVISION_PUROKS = ['North Ville 6', 'Balagtas Heights', 'Milaflor Subdivision', 'Divine Grace Village', 'Sta. Cruz Village', 'Mariano Village', 'Zone 1 St. Francis Subdivision', 'Zone 1 Sta. Elene Subdivision', 'Zone 5 Villa Juliana Subdivision', 'Zone 4 Virgen Milagrosa Homes', 'Jomaville Subdivision', 'Cresta Verde', 'Villa Castro', 'Divine Grace II', 'Villa Victoria St.', 'Villa Lourdes', 'Ma. Magdalena Subdivision', 'Ma. Corazon Subdivision', 'RMB Subdivision', 'Jordan Valley Subdivision'];
 
-// 8 Official Rainbow Distribution Categories
+// 8 Official Government Aid & Distribution Programs
 const DISTRIBUTION_CATEGORIES = [
-  { id: 'groceries', name: 'Groceries', color: '#ef4444', icon: 'ShoppingBag' },
-  { id: 'food_packs', name: 'Food Packs', color: '#f97316', icon: 'Package' },
-  { id: 'cash_assistance', name: 'Cash Assistance', color: '#eab308', icon: 'Coins' },
-  { id: 'your_em', name: 'yourEM', color: '#10b981', isYourEM: true, icon: 'Sparkles' },
-  { id: 'medicines', name: 'Medicines', color: '#06b6d4', icon: 'Pill' },
-  { id: 'medical_assistance', name: 'Medical Assistance', color: '#3b82f6', icon: 'HeartPulse' },
-  { id: 'electric_bill', name: 'Electric Bill Assistance', color: '#6366f1', icon: 'Zap' },
-  { id: 'water_bill', name: 'Water Bill Assistance', color: '#a855f7', icon: 'Droplets' },
+  { 
+    id: 'groceries', 
+    code: 'PRG-01',
+    name: 'Groceries & Staple Food', 
+    agency: 'Food Security & Relief',
+    desc: 'Rice packs, basic canned goods, and essential pantry staples for low-income households.',
+    color: '#059669', 
+    icon: 'ShoppingBag' 
+  },
+  { 
+    id: 'food_packs', 
+    code: 'PRG-02',
+    name: 'Emergency Relief Food Packs', 
+    agency: 'Disaster Risk Reduction',
+    desc: 'Standardized emergency nutritional rations for disaster response and immediate relief.',
+    color: '#0d9488', 
+    icon: 'Package' 
+  },
+  { 
+    id: 'cash_assistance', 
+    code: 'PRG-03',
+    name: 'Financial Assistance (AICS)', 
+    agency: 'Social Welfare & Development',
+    desc: 'Direct emergency cash subsidy for individuals and families in crisis situations.',
+    color: '#d97706', 
+    icon: 'Coins' 
+  },
+  { 
+    id: 'your_em', 
+    code: 'PRG-04',
+    name: 'yourEM Welfare Privileges', 
+    agency: "Mayor's Executive Office",
+    desc: 'Flagship municipal digital entitlement card benefits and municipal privileges.',
+    color: '#0284c7', 
+    isYourEM: true, 
+    icon: 'Sparkles' 
+  },
+  { 
+    id: 'medicines', 
+    code: 'PRG-05',
+    name: 'Prescription Medicines', 
+    agency: 'City Health Office',
+    desc: 'Maintenance drugs, antibiotics, vitamins, and pharmaceutical welfare assistance.',
+    color: '#0891b2', 
+    icon: 'Pill' 
+  },
+  { 
+    id: 'medical_assistance', 
+    code: 'PRG-06',
+    name: 'Hospital & Medical Aid', 
+    agency: 'Public Health Care Services',
+    desc: 'Hospitalization bill guarantee, laboratory diagnostics, and dialysis assistance.',
+    color: '#2563eb', 
+    icon: 'HeartPulse' 
+  },
+  { 
+    id: 'electric_bill', 
+    code: 'PRG-07',
+    name: 'Electric Utility Subsidy', 
+    agency: 'Public Utilities Bureau',
+    desc: 'Lifeline electricity consumption grant and power bill settlement assistance.',
+    color: '#4f46e5', 
+    icon: 'Zap' 
+  },
+  { 
+    id: 'water_bill', 
+    code: 'PRG-08',
+    name: 'Water Utility Subsidy', 
+    agency: 'Public Utilities Bureau',
+    desc: 'Potable water supply billing assistance and basic utilities relief subsidy.',
+    color: '#7c3aed', 
+    icon: 'Droplets' 
+  },
 ];
 
 function getCategoryIcon(iconName, size = 18) {
@@ -10662,21 +10727,28 @@ export default function AdminPage() {
 
     // ─── STEP 1: CATEGORY SELECTION SCREEN ───
     if (distScannerStep === 'select') {
+      const totalVerifiedClaims = Object.values(distStats).reduce((a, b) => a + b, 0);
+
       return (
         <div className="admin-panel dist-select-panel">
-          {/* Clean Header */}
+          {/* Official Government Registry Header */}
           <div className="panel-header dist-panel-header">
             <div className="dist-header-title-wrap">
               <div className="dist-header-icon-box">
-                <Gift size={20} />
+                <Gift size={22} />
               </div>
               <div className="dist-header-text">
+                <div className="dist-header-badge-row">
+                  <span className="dist-gov-seal-badge">
+                    <ShieldCheck size={12} /> OFFICIAL CITIZEN AID &amp; SOCIAL SERVICES REGISTRY
+                  </span>
+                </div>
                 <div className="dist-header-title-row">
-                  <h3>Aid &amp; Benefits Distribution</h3>
-                  <span className="panel-badge">8 Categories</span>
+                  <h3>Beneficiary Aid &amp; Welfare Distribution Dispatch</h3>
+                  <span className="panel-badge dist-programs-count-badge">8 Active Programs</span>
                 </div>
                 <p className="dist-header-sub">
-                  Select an aid program below to launch the camera scanner and record verified distributions.
+                  Secure biometric and QR verification system for municipal assistance programs, emergency relief, and verified resident claims.
                 </p>
               </div>
             </div>
@@ -10684,59 +10756,97 @@ export default function AdminPage() {
             <div className="dist-header-actions">
               <button 
                 type="button" 
-                className="btn btn-sm btn-outline-emerald"
+                className="btn btn-sm btn-outline-emerald dist-header-btn"
                 onClick={() => fetchDistributionRecords(distFilterCategory)}
                 disabled={distRecordsLoading}
                 title="Refresh distribution logs"
               >
-                <RotateCw size={13} className={distRecordsLoading ? 'spin' : ''} /> Refresh
+                <RotateCw size={13} className={distRecordsLoading ? 'spin' : ''} /> Refresh Logs
               </button>
               <button 
                 type="button" 
-                className="btn btn-sm btn-outline-emerald"
+                className="btn btn-sm btn-outline-emerald dist-header-btn"
                 onClick={exportDistributionCSV}
                 disabled={distRecentRecords.length === 0}
-                title="Export distribution records to Excel"
+                title="Export official distribution records to Excel"
               >
-                <Download size={13} /> Export Logs
+                <Download size={13} /> Export Audit Log
               </button>
             </div>
           </div>
 
-          {/* Hero / Quick Policy Bar */}
+          {/* Executive KPI Summary Ribbon */}
+          <div className="dist-kpi-ribbon">
+            <div className="dist-kpi-card">
+              <span className="dist-kpi-label">Active Welfare Programs</span>
+              <div className="dist-kpi-value-row">
+                <span className="dist-kpi-value">8</span>
+                <span className="dist-kpi-subtext">Municipal Tracks</span>
+              </div>
+            </div>
+            <div className="dist-kpi-card">
+              <span className="dist-kpi-label">Total Verified Disbursals</span>
+              <div className="dist-kpi-value-row">
+                <span className="dist-kpi-value dist-kpi-emerald">{totalVerifiedClaims.toLocaleString()}</span>
+                <span className="dist-kpi-subtext">Recorded Claims</span>
+              </div>
+            </div>
+            <div className="dist-kpi-card">
+              <span className="dist-kpi-label">Anti-Duplicate Engine</span>
+              <div className="dist-kpi-value-row">
+                <span className={`dist-kpi-value ${!distAllowDuplicates ? 'dist-kpi-strict' : 'dist-kpi-allow'}`}>
+                  {!distAllowDuplicates ? 'Strict (1-Claim)' : 'Multi-Claim'}
+                </span>
+                <span className="dist-kpi-subtext">{!distAllowDuplicates ? 'Fraud Prevention Active' : 'Unrestricted Mode'}</span>
+              </div>
+            </div>
+            <div className="dist-kpi-card">
+              <span className="dist-kpi-label">System Readiness</span>
+              <div className="dist-kpi-value-row">
+                <span className="dist-kpi-value dist-kpi-ready">
+                  <span className="dist-kpi-pulse-dot"></span> Ready
+                </span>
+                <span className="dist-kpi-subtext">Biometric / QR Engine</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Anti-Fraud Policy & Governance Toolbar */}
           <div className="dist-select-hero">
             <div className="dist-select-hero-left">
               <div className="dist-select-hero-icon">
-                <ShieldCheck size={22} />
+                <ShieldCheck size={24} />
               </div>
               <div className="dist-select-hero-text">
-                <h4>Select a Category to Start Scanning</h4>
-                <p>Tap any category to open the scanner. You can enforce 1-per-resident strict policy or allow recurring claims.</p>
+                <h4>Beneficiary Fraud &amp; Duplicate Prevention Engine</h4>
+                <p>Enforces real-time resident registry validation. Strict mode prevents duplicate claim collection across all distribution operators.</p>
               </div>
             </div>
 
             <div className="dist-select-hero-policy">
-              <span className="dist-policy-sublabel">Duplicate Policy:</span>
+              <span className="dist-policy-sublabel">Enforcement Policy:</span>
               <div className="dist-toggle-btn-group">
                 <button
                   type="button"
                   className={`dist-policy-btn ${!distAllowDuplicates ? 'active-strict' : ''}`}
                   onClick={() => setDistAllowDuplicates(false)}
+                  title="Enforce strict 1-per-resident policy"
                 >
-                  <Lock size={12} /> Strict (1-Per-Resident)
+                  <Lock size={13} /> Strict (1-Per-Resident)
                 </button>
                 <button
                   type="button"
                   className={`dist-policy-btn ${distAllowDuplicates ? 'active-allow' : ''}`}
                   onClick={() => setDistAllowDuplicates(true)}
+                  title="Allow multiple claims per resident"
                 >
-                  <Check size={12} /> Allow Multiple Claims
+                  <Check size={13} /> Allow Multiple Claims
                 </button>
               </div>
             </div>
           </div>
 
-          {/* 8 Category Selection Cards Grid */}
+          {/* 8 Official Government Program Cards Grid */}
           <div className="dist-select-grid">
             {DISTRIBUTION_CATEGORIES.map(cat => {
               const count = distStats[cat.id] || 0;
@@ -10758,28 +10868,42 @@ export default function AdminPage() {
                     }
                   }}
                 >
+                  {/* Top Bar: Code, Status & Claim Counter */}
                   <div className="dist-select-card-top">
-                    <div className="dist-select-card-icon" style={{ color: cat.color, background: `${cat.color}15` }}>
-                      {getCategoryIcon(cat.icon, 22)}
+                    <div className="dist-card-badge-group">
+                      <span className="dist-prog-code">{cat.code || 'PRG'}</span>
+                      <span className="dist-prog-status">
+                        <span className="dist-status-dot"></span> Active
+                      </span>
                     </div>
                     <span className="dist-select-count-pill" style={{ color: cat.color, borderColor: `${cat.color}35`, background: `${cat.color}10` }}>
-                      {count} {count === 1 ? 'Claim' : 'Claims'}
+                      {count.toLocaleString()} {count === 1 ? 'Claim' : 'Claims'}
                     </span>
                   </div>
 
+                  {/* Body: Icon, Agency & Title & Mandate Description */}
                   <div className="dist-select-card-body">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <h4 className="dist-select-card-title">{cat.name}</h4>
-                      {cat.isYourEM && (
-                        <span className="dist-cat-reserved-tag">Reserved</span>
-                      )}
+                    <div className="dist-card-header-cluster">
+                      <div className="dist-select-card-icon" style={{ color: cat.color, background: `${cat.color}14` }}>
+                        {getCategoryIcon(cat.icon, 20)}
+                      </div>
+                      <div className="dist-card-title-group">
+                        <span className="dist-prog-agency">{cat.agency || 'MUNICIPAL WELFARE'}</span>
+                        <h4 className="dist-select-card-title">{cat.name}</h4>
+                      </div>
                     </div>
+                    {cat.isYourEM && (
+                      <span className="dist-cat-reserved-tag">Mayor&apos;s Special Welfare</span>
+                    )}
+                    <p className="dist-card-desc">{cat.desc}</p>
                   </div>
 
+                  {/* Footer: Official Action Button */}
                   <div className="dist-select-card-footer">
-                    <span className="dist-select-action-btn">
-                      Open Scanner <ArrowRight size={14} />
-                    </span>
+                    <button type="button" className="dist-select-action-btn">
+                      <span>Launch Scanner</span>
+                      <ArrowRight size={14} />
+                    </button>
                   </div>
                 </div>
               );
@@ -10794,53 +10918,46 @@ export default function AdminPage() {
       <div className="admin-panel dist-scanner-panel">
         {/* Dedicated Scanner Header with Back Navigation */}
         <div className="panel-header dist-panel-header">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div className="dist-scanner-topbar">
+            <div className="dist-scanner-nav-cluster">
               <button
                 type="button"
-                className="btn btn-sm btn-secondary"
+                className="btn btn-sm btn-secondary dist-back-btn"
                 onClick={() => {
                   stopDistScanner();
                   setDistScannerStep('select');
                   setDistScanResult(null);
                 }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
               >
-                <ArrowLeft size={14} /> Back to Categories
+                <ArrowLeft size={14} /> Return to Programs
               </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="dist-scanner-active-program-info">
+                <span className="dist-active-prog-code">{activeCat.code || 'PRG'}</span>
                 <span 
                   className="dist-active-cat-pill"
                   style={{
                     background: `${activeCat.color}15`,
                     color: activeCat.color,
                     border: `1px solid ${activeCat.color}40`,
-                    padding: '4px 12px',
-                    borderRadius: 20,
-                    fontSize: '0.85rem',
-                    fontWeight: 800,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
                   }}
                 >
                   {getCategoryIcon(activeCat.icon, 15)} {activeCat.name}
                 </span>
-                {activeCat.isYourEM && <span className="dist-cat-reserved-tag">Reserved</span>}
+                {activeCat.isYourEM && <span className="dist-cat-reserved-tag">Reserved Welfare</span>}
               </div>
             </div>
 
             {/* Quick Policy Toggle in Scanner Topbar */}
             <div className="dist-duplicate-toggle-box" style={{ margin: 0 }}>
-              <span className="dist-toggle-label" style={{ fontSize: '0.78rem' }}>Policy:</span>
+              <span className="dist-toggle-label" style={{ fontSize: '0.78rem' }}>Enforcement Policy:</span>
               <div className="dist-toggle-btn-group">
                 <button
                   type="button"
                   className={`dist-policy-btn ${!distAllowDuplicates ? 'active-strict' : ''}`}
                   onClick={() => setDistAllowDuplicates(false)}
-                  title="Strict 1-per-resident."
+                  title="Strict 1-per-resident policy."
                 >
-                  <Lock size={12} /> Strict
+                  <Lock size={12} /> Strict (1-Per-Resident)
                 </button>
                 <button
                   type="button"

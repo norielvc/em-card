@@ -22551,7 +22551,7 @@ html, body {
 }
 
 /* ==========================================================================
-   8-CATEGORY AID & BENEFITS DISTRIBUTION STYLES (Clean Project Theme)
+   OFFICIAL GOVERNMENT AID & WELFARE DISTRIBUTION SYSTEM STYLES
    ========================================================================== */
 
 /* Distribution Panels */
@@ -22559,7 +22559,7 @@ html, body {
 .dist-select-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   background: #ffffff;
   width: 100%;
   max-width: 100%;
@@ -22572,8 +22572,8 @@ html, body {
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
-  padding-bottom: 14px;
+  gap: 14px;
+  padding-bottom: 16px;
   border-bottom: 1px solid #e2e8f0;
   width: 100%;
   box-sizing: border-box;
@@ -22581,22 +22581,23 @@ html, body {
 
 .dist-header-title-wrap {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 14px;
   flex: 1;
   min-width: 0;
 }
 
 .dist-header-icon-box {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: #ecfdf5;
-  color: #059669;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
 }
 
 .dist-header-text {
@@ -22604,47 +22605,187 @@ html, body {
   min-width: 0;
 }
 
-.dist-header-title-row {
+.dist-header-badge-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 4px;
+}
+
+.dist-gov-seal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.dist-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .dist-header-title-row h3 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.22rem;
   font-weight: 800;
   color: #0f172a;
-  line-height: 1.3;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.dist-programs-count-badge {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1 !important;
+  font-weight: 700 !important;
+  font-size: 0.74rem !important;
 }
 
 .dist-header-sub {
-  margin: 3px 0 0;
-  font-size: 0.8rem;
+  margin: 4px 0 0;
+  font-size: 0.82rem;
   color: #64748b;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .dist-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.dist-active-cat-pill {
+.dist-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  border-radius: 8px;
+}
+
+/* Executive KPI Summary Ribbon */
+.dist-kpi-ribbon {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dist-kpi-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   transition: all 0.2s ease;
 }
 
-/* Step 1: Category Selection Hero Bar */
+.dist-kpi-card:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.dist-kpi-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.dist-kpi-value-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dist-kpi-value {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.dist-kpi-emerald {
+  color: #059669;
+}
+
+.dist-kpi-strict {
+  color: #059669;
+  font-size: 1.05rem;
+}
+
+.dist-kpi-allow {
+  color: #d97706;
+  font-size: 1.05rem;
+}
+
+.dist-kpi-ready {
+  color: #059669;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.1rem;
+}
+
+.dist-kpi-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  display: inline-block;
+  animation: distPulse 2s infinite;
+}
+
+@keyframes distPulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.dist-kpi-subtext {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* Anti-Fraud Governance Hero Bar */
 .dist-select-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 16px;
   padding: 14px 18px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
+  border-left: 4px solid #059669;
   border-radius: 12px;
   flex-wrap: wrap;
 }
@@ -22652,17 +22793,18 @@ html, body {
 .dist-select-hero-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex: 1;
-  min-width: 240px;
+  min-width: 260px;
 }
 
 .dist-select-hero-icon {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 10px;
   background: #ecfdf5;
   color: #059669;
+  border: 1px solid #a7f3d0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -22680,23 +22822,25 @@ html, body {
   margin: 0;
   font-size: 0.78rem;
   color: #64748b;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .dist-select-hero-policy {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .dist-policy-sublabel {
   font-size: 0.78rem;
-  font-weight: 700;
-  color: #475569;
+  font-weight: 800;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-/* Step 1: 8 Category Selection Cards Grid */
+/* Step 1: 8 Official Government Program Cards Grid */
 .dist-select-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -22712,35 +22856,36 @@ html, body {
   gap: 12px;
   padding: 16px;
   background: #ffffff;
-  border: 1.5px solid #e2e8f0;
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
   cursor: pointer;
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
   user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .dist-select-card::before {
   content: '';
   position: absolute;
-  left: 0;
   top: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--cat-color);
-  opacity: 0.7;
+  left: 0;
+  right: 0;
+  height: 3.5px;
+  background: var(--cat-color, #059669);
+  opacity: 0.85;
   transition: all 0.2s ease;
 }
 
 .dist-select-card:hover {
   transform: translateY(-2px);
-  border-color: var(--cat-color);
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--cat-color);
 }
 
 .dist-select-card:hover::before {
-  width: 6px;
+  height: 5px;
   opacity: 1;
 }
 
@@ -22749,21 +22894,49 @@ html, body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  padding-bottom: 2px;
 }
 
-.dist-select-card-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+.dist-card-badge-group {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  gap: 6px;
+}
+
+.dist-prog-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.dist-prog-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.dist-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10b981;
 }
 
 .dist-select-count-pill {
   font-size: 0.74rem;
-  font-weight: 700;
+  font-weight: 800;
   padding: 3px 8px;
   border-radius: 20px;
   border: 1px solid;
@@ -22771,130 +22944,163 @@ html, body {
 
 .dist-select-card-body {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dist-card-header-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dist-select-card-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.dist-card-title-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.dist-prog-agency {
+  display: block;
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin-bottom: 2px;
 }
 
 .dist-select-card-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.96rem;
   font-weight: 800;
   color: #0f172a;
   line-height: 1.25;
 }
 
+.dist-card-desc {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  color: #64748b;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .dist-select-card-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding-top: 6px;
+  justify-content: stretch;
+  padding-top: 8px;
   border-top: 1px solid #f1f5f9;
 }
 
 .dist-select-action-btn {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--cat-color, #059669);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: gap 0.2s ease;
-}
-
-.dist-select-card:hover .dist-select-action-btn {
-  gap: 7px;
-}
-
-/* Step 2: Dedicated Scanner Mode Styles */
-.dist-category-card {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #ffffff;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  position: relative;
-  overflow: hidden;
-  user-select: none;
-  min-height: 44px;
-  box-sizing: border-box;
-}
-
-.dist-category-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3.5px;
-  background: var(--cat-color);
-  opacity: 0.5;
-  transition: all 0.2s ease;
-}
-
-.dist-category-card:hover {
-  transform: translateY(-1px);
-  border-color: var(--cat-color);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-}
-
-.dist-category-card.selected {
-  background: #ffffff;
-  border-color: var(--cat-color);
-  box-shadow: 0 0 0 1.5px var(--cat-color), 0 4px 14px rgba(0, 0, 0, 0.06);
-}
-
-.dist-cat-icon-wrap {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
+  padding: 7px 12px;
   background: #f8fafc;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.dist-cat-text {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: 1;
-  min-width: 0;
+.dist-select-card:hover .dist-select-action-btn {
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
 }
 
-.dist-cat-name {
-  font-size: 0.84rem;
+.dist-select-card:hover .dist-select-action-btn svg {
+  transform: translateX(3px);
+}
+
+.dist-select-action-btn svg {
+  transition: transform 0.2s ease;
+}
+
+/* Step 2: Dedicated Scanner Topbar */
+.dist-scanner-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.dist-scanner-nav-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dist-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.dist-scanner-active-program-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dist-active-prog-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.dist-active-cat-pill {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .dist-cat-reserved-tag {
-  font-size: 0.58rem;
+  font-size: 0.62rem;
   font-weight: 800;
   text-transform: uppercase;
-  background: #059669;
+  background: #0284c7;
   color: #ffffff;
-  padding: 1px 4px;
+  padding: 2px 6px;
   border-radius: 4px;
   letter-spacing: 0.03em;
-}
-
-.dist-cat-count-badge {
-  font-size: 0.74rem;
-  font-weight: 700;
-  color: #475569;
-  background: #f1f5f9;
-  padding: 2px 7px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
 }
 
 /* Policy & Duplicate Control Toolbar */
@@ -22922,12 +23128,13 @@ html, body {
 .dist-toggle-label {
   font-size: 0.82rem;
   color: #475569;
+  font-weight: 700;
 }
 
 .dist-toggle-btn-group {
   display: inline-flex;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   padding: 2px;
   border-radius: 8px;
   gap: 2px;
@@ -22936,10 +23143,10 @@ html, body {
 .dist-policy-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
+  gap: 6px;
+  padding: 6px 12px;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 700;
   border: none;
   background: transparent;
   color: #64748b;
@@ -22951,13 +23158,13 @@ html, body {
 .dist-policy-btn.active-strict {
   background: #059669;
   color: #ffffff;
-  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.2);
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.25);
 }
 
 .dist-policy-btn.active-allow {
   background: #059669;
   color: #ffffff;
-  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.2);
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.25);
 }
 
 /* Mode Switcher Tabs inside Distribution Scanner */
@@ -22974,9 +23181,9 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 11px;
-  font-size: 0.78rem;
-  font-weight: 600;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
   border: none;
   background: transparent;
   color: #64748b;
@@ -22988,7 +23195,7 @@ html, body {
 .dist-mode-toggle button.active {
   background: #059669;
   color: #ffffff;
-  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.2);
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.25);
 }
 
 .dist-mode-toggle button:hover:not(.active) {
@@ -22998,7 +23205,7 @@ html, body {
 
 /* Result Modal Categories Grid */
 .dist-result-categories-section {
-  padding: 12px 18px;
+  padding: 14px 18px;
   background: #f8fafc;
   border-top: 1px solid #f1f5f9;
 }
@@ -23006,10 +23213,10 @@ html, body {
 .dist-result-section-label {
   display: block;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
-  color: #64748b;
-  letter-spacing: 0.03em;
+  color: #475569;
+  letter-spacing: 0.04em;
   margin-bottom: 8px;
 }
 
@@ -23023,7 +23230,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 8px;
+  padding: 6px 8px;
   border-radius: 8px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -23052,9 +23259,15 @@ html, body {
    MOBILE & RESPONSIVE RULES (Clean & Precise)
    ========================================================================== */
 
+@media (max-width: 1200px) {
+  .dist-kpi-ribbon {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 1024px) {
   .dist-select-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -23063,12 +23276,16 @@ html, body {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
+  .dist-kpi-ribbon {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
 }
 
 @media (max-width: 768px) {
   .dist-scanner-panel,
   .dist-select-panel {
-    gap: 10px !important;
+    gap: 12px !important;
     padding: 10px !important;
   }
 
@@ -23103,6 +23320,23 @@ html, body {
     justify-content: center !important;
     padding: 8px 10px !important;
     font-size: 0.78rem !important;
+  }
+
+  .dist-kpi-ribbon {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .dist-kpi-card {
+    padding: 8px 10px !important;
+  }
+
+  .dist-kpi-value {
+    font-size: 1.1rem !important;
+  }
+
+  .dist-kpi-subtext {
+    font-size: 0.68rem !important;
   }
 
   .dist-select-hero {
@@ -23147,7 +23381,15 @@ html, body {
   }
 
   .dist-select-card-title {
-    font-size: 0.85rem !important;
+    font-size: 0.84rem !important;
+  }
+
+  .dist-prog-agency {
+    font-size: 0.58rem !important;
+  }
+
+  .dist-card-desc {
+    display: none !important;
   }
 
   .dist-select-count-pill {
@@ -23159,45 +23401,44 @@ html, body {
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 8px !important;
-    padding: 8px !important;
+    padding: 8px 10px !important;
   }
 
   .dist-duplicate-toggle-box {
+    width: 100% !important;
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 5px !important;
-    width: 100% !important;
+    gap: 4px !important;
   }
 
   .dist-toggle-btn-group {
     width: 100% !important;
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-    gap: 2px !important;
-  }
-
-  .dist-policy-btn {
-    width: 100% !important;
-    justify-content: center !important;
-    padding: 7px 4px !important;
-    font-size: 0.72rem !important;
-    text-align: center !important;
-    white-space: nowrap !important;
   }
 
   .dist-mode-toggle {
     width: 100% !important;
     display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: 1fr 1fr !important;
     gap: 4px !important;
   }
 
   .dist-mode-toggle button {
-    width: 100% !important;
     justify-content: center !important;
-    padding: 8px 4px !important;
+    padding: 6px 4px !important;
     font-size: 0.74rem !important;
-    white-space: nowrap !important;
+  }
+
+  .dist-scanner-topbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .dist-scanner-nav-cluster {
+    width: 100% !important;
+    justify-content: space-between !important;
   }
 
   .dist-result-categories-grid {
@@ -23207,7 +23448,7 @@ html, body {
 
 @media (max-width: 480px) {
   .dist-select-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
+    grid-template-columns: 1fr 1fr !important;
     gap: 6px !important;
   }
 
@@ -23224,8 +23465,8 @@ html, body {
   }
 
   .dist-policy-btn {
-    font-size: 0.68rem !important;
-    padding: 6px 2px !important;
+    font-size: 0.72rem !important;
+    padding: 4px 6px !important;
   }
 
   .dist-mode-toggle button {
