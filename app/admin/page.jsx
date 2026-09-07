@@ -10662,43 +10662,39 @@ export default function AdminPage() {
     return (
       <div className="admin-panel dist-scanner-panel">
         {/* Clean Header */}
-        <div className="panel-header dist-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, paddingBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Gift size={20} />
+        <div className="panel-header dist-panel-header">
+          <div className="dist-header-title-wrap">
+            <div className="dist-header-icon-box">
+              <Gift size={20} />
+            </div>
+            <div className="dist-header-text">
+              <div className="dist-header-title-row">
+                <h3>Aid &amp; Benefits Distribution Scanner</h3>
+                <span 
+                  className="dist-active-cat-pill"
+                  style={{
+                    background: `${activeCat.color}15`,
+                    color: activeCat.color,
+                    border: `1px solid ${activeCat.color}40`,
+                    padding: '2px 8px',
+                    borderRadius: 20,
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  {getCategoryIcon(activeCat.icon, 13)} {activeCat.name}
+                </span>
               </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
-                    Aid &amp; Benefits Distribution Scanner
-                  </h3>
-                  <span 
-                    className="dist-active-cat-pill"
-                    style={{
-                      background: `${activeCat.color}15`,
-                      color: activeCat.color,
-                      border: `1px solid ${activeCat.color}40`,
-                      padding: '2px 8px',
-                      borderRadius: 20,
-                      fontSize: '0.78rem',
-                      fontWeight: 700,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
-                  >
-                    {getCategoryIcon(activeCat.icon, 13)} {activeCat.name}
-                  </span>
-                </div>
-                <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
-                  Select a category and scan citizen EM Cards to verify &amp; record official aid distribution.
-                </p>
-              </div>
+              <p className="dist-header-sub">
+                Select a category and scan citizen EM Cards to verify &amp; record official aid distribution.
+              </p>
             </div>
           </div>
 
-          <div className="event-scanner-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="dist-header-actions">
             <button 
               type="button" 
               className="btn btn-sm btn-outline-emerald"
