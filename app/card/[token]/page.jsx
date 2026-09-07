@@ -2,7 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Send, MessageSquare, CheckCircle, Home, ShieldCheck, Hash, MapPin, User } from 'lucide-react';
+import { 
+  Send, MessageSquare, CheckCircle, Home, ShieldCheck, Hash, MapPin, User,
+  ShoppingBag, Package, Coins, Sparkles, Pill, HeartPulse, Zap, Droplets, Gift, Clock
+} from 'lucide-react';
+
+// 8 Official Distribution Categories with Rainbow Color Code metadata
+const DISTRIBUTION_CATEGORIES = [
+  { id: 'groceries', name: 'Groceries', color: '#ef4444', icon: <ShoppingBag size={18} /> },
+  { id: 'food_packs', name: 'Food Packs', color: '#f97316', icon: <Package size={18} /> },
+  { id: 'cash_assistance', name: 'Cash Assistance', color: '#eab308', icon: <Coins size={18} /> },
+  { id: 'your_em', name: 'yourEM', color: '#10b981', isYourEM: true, icon: <Sparkles size={18} /> },
+  { id: 'medicines', name: 'Medicines', color: '#06b6d4', icon: <Pill size={18} /> },
+  { id: 'medical_assistance', name: 'Medical Assistance', color: '#3b82f6', icon: <HeartPulse size={18} /> },
+  { id: 'electric_bill', name: 'Electric Bill Assistance', color: '#6366f1', icon: <Zap size={18} /> },
+  { id: 'water_bill', name: 'Water Bill Assistance', color: '#a855f7', icon: <Droplets size={18} /> },
+];
 
 export default function CardDashboardPage() {
   const params = useParams();
@@ -52,6 +67,7 @@ export default function CardDashboardPage() {
         lastScanned: json.lastScanned,
         precinct: json.precinct || null,
         id: json.id,
+        aidDistributions: json.aidDistributions || [],
       });
     } catch {
       setError('Network error. Please try again.');
@@ -183,6 +199,73 @@ export default function CardDashboardPage() {
             </div>
           </div>
         )}
+
+        {/* 8-Category Aid & Benefits Rainbow Tracker */}
+        <div className="card-dash-section card-dash-aid-section">
+          <div className="card-dash-aid-header">
+            <div className="card-dash-aid-title-wrap">
+              <div className="card-dash-aid-icon-chip">
+                <Gift size={18} />
+              </div>
+              <div>
+                <h3>Official Aid &amp; Benefits Distribution Tracker</h3>
+                <span className="card-dash-aid-subtitle">Verified Citizen Assistance Records</span>
+              </div>
+            </div>
+            {(() => {
+              const claimedCount = DISTRIBUTION_CATEGORIES.filter(c => (data.aidDistributions || []).some(d => d.category === c.id)).length;
+              return (
+                <span className="card-dash-aid-count-badge">
+                  {claimedCount} of 8 Categories
+                </span>
+              );
+            })()}
+          </div>
+
+          <div className="card-dash-aid-grid">
+            {DISTRIBUTION_CATEGORIES.map(cat => {
+              const claims = (data.aidDistributions || []).filter(d => d.category === cat.id);
+              const isClaimed = claims.length > 0;
+              const latestClaim = isClaimed ? claims[0] : null;
+
+              return (
+                <div 
+                  key={cat.id} 
+                  className={`card-aid-badge-card ${isClaimed ? 'claimed' : 'unclaimed'} ${cat.isYourEM ? 'your-em-card' : ''}`}
+                  style={{
+                    '--cat-color': cat.color,
+                  }}
+                >
+                  <div className="card-aid-badge-top">
+                    <div className="card-aid-badge-icon" style={{ color: cat.color }}>
+                      {cat.icon}
+                    </div>
+                    {isClaimed ? (
+                      <span className="card-aid-status-pill claimed">
+                        ✓ Received {claims.length > 1 ? `(${claims.length}x)` : ''}
+                      </span>
+                    ) : (
+                      <span className="card-aid-status-pill unclaimed">
+                        Not Claimed
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="card-aid-badge-name">
+                    <strong>{cat.name}</strong>
+                  </div>
+
+                  {isClaimed && latestClaim && (
+                    <div className="card-aid-badge-meta">
+                      <Clock size={11} />
+                      <span>{new Date(latestClaim.distributed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Feedback / Suggestion Box - Tagalog */}
         <div className="card-dash-section card-dash-grievance">

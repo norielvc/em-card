@@ -77,6 +77,50 @@ export async function GET(request) {
       .map(([barangay, count]) => ({ barangay, count: Number(count) }))
       .sort((a, b) => b.count - a.count);
 
+    // 8-Category Aid Distributions Telemetry
+    let distributionStats = {
+      totalDistributions: 0,
+      uniqueBeneficiaries: 0,
+      categoryCounts: {
+        groceries: 0,
+        food_packs: 0,
+        cash_assistance: 0,
+        your_em: 0,
+        medicines: 0,
+        medical_assistance: 0,
+        electric_bill: 0,
+        water_bill: 0,
+      },
+      distributionsByBarangay: [],
+    };
+
+    try {
+      const { data: distRows } = await supabase
+        .from('aid_distributions')
+        .select('category, barangay, registration_id');
+
+      if (distRows && distRows.length > 0) {
+        distributionStats.totalDistributions = distRows.length;
+        const uniqueSet = new Set(distRows.map(d => d.registration_id));
+        distributionStats.uniqueBeneficiaries = uniqueSet.size;
+
+        const distBrgyMap = {};
+        distRows.forEach(d => {
+          if (distributionStats.categoryCounts[d.category] !== undefined) {
+            distributionStats.categoryCounts[d.category] += 1;
+          }
+          const brgy = (d.barangay || 'Unknown').trim();
+          distBrgyMap[brgy] = (distBrgyMap[brgy] || 0) + 1;
+        });
+
+        distributionStats.distributionsByBarangay = Object.entries(distBrgyMap)
+          .map(([barangay, count]) => ({ barangay, count: Number(count) }))
+          .sort((a, b) => b.count - a.count);
+      }
+    } catch {
+      // Safe fallback if table not yet populated
+    }
+
     return Response.json({
       totalResidents: residentsCount || 0,
       totalRegistrations: regCount || 0,
@@ -85,6 +129,7 @@ export async function GET(request) {
       votersByBarangay: votersByBarangay || [],
       regsByBarangay: regsByBarangay || [],
       aidByBarangay,
+      distributionStats,
     });
   } catch (err) {
     return Response.json({ error: 'Server error' }, { status: 500 });

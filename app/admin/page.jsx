@@ -18,12 +18,39 @@ import {
   Camera, RefreshCw as RotateCw, User, ArrowLeft, LayoutDashboard, ClipboardList, Network, Shield,
   ArrowRight, Ban, Building, Cake, CreditCard, Database, Folder, Globe, HardDrive, Hash,
   History, Inbox, Lock, Mail, Megaphone, Monitor, Phone, Plus, Server, ShieldAlert,
-  ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award, XCircle, Sparkles
+  ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award, XCircle, Sparkles,
+  ShoppingBag, Package, Coins, Pill, Droplets
 } from 'lucide-react';
 
 
 // Subdivision puroks that use Lot/Block/Phase instead of House Number
 const SUBDIVISION_PUROKS = ['North Ville 6', 'Balagtas Heights', 'Milaflor Subdivision', 'Divine Grace Village', 'Sta. Cruz Village', 'Mariano Village', 'Zone 1 St. Francis Subdivision', 'Zone 1 Sta. Elene Subdivision', 'Zone 5 Villa Juliana Subdivision', 'Zone 4 Virgen Milagrosa Homes', 'Jomaville Subdivision', 'Cresta Verde', 'Villa Castro', 'Divine Grace II', 'Villa Victoria St.', 'Villa Lourdes', 'Ma. Magdalena Subdivision', 'Ma. Corazon Subdivision', 'RMB Subdivision', 'Jordan Valley Subdivision'];
+
+// 8 Official Rainbow Distribution Categories
+const DISTRIBUTION_CATEGORIES = [
+  { id: 'groceries', name: 'Groceries', color: '#ef4444', icon: 'ShoppingBag' },
+  { id: 'food_packs', name: 'Food Packs', color: '#f97316', icon: 'Package' },
+  { id: 'cash_assistance', name: 'Cash Assistance', color: '#eab308', icon: 'Coins' },
+  { id: 'your_em', name: 'yourEM', color: '#10b981', isYourEM: true, icon: 'Sparkles' },
+  { id: 'medicines', name: 'Medicines', color: '#06b6d4', icon: 'Pill' },
+  { id: 'medical_assistance', name: 'Medical Assistance', color: '#3b82f6', icon: 'HeartPulse' },
+  { id: 'electric_bill', name: 'Electric Bill Assistance', color: '#6366f1', icon: 'Zap' },
+  { id: 'water_bill', name: 'Water Bill Assistance', color: '#a855f7', icon: 'Droplets' },
+];
+
+function getCategoryIcon(iconName, size = 18) {
+  switch (iconName) {
+    case 'ShoppingBag': return <ShoppingBag size={size} />;
+    case 'Package': return <Package size={size} />;
+    case 'Coins': return <Coins size={size} />;
+    case 'Sparkles': return <Sparkles size={size} />;
+    case 'Pill': return <Pill size={size} />;
+    case 'HeartPulse': return <HeartPulse size={size} />;
+    case 'Zap': return <Zap size={size} />;
+    case 'Droplets': return <Droplets size={size} />;
+    default: return <Gift size={size} />;
+  }
+}
 
 let _on429Handler = null;
 async function authFetch(url, options = {}) {
@@ -236,6 +263,8 @@ export default function AdminPage() {
   const [logsFilterAdmin, setLogsFilterAdmin] = useState('');
   const [logsStartDate, setLogsStartDate] = useState('');
   const [logsEndDate, setLogsEndDate] = useState('');
+  const [selectedLogDetail, setSelectedLogDetail] = useState(null);
+  const [logSearchQuery, setLogSearchQuery] = useState('');
 
   const fetchAdminLogs = async (page = 1) => {
     setLogsLoading(true);
@@ -257,6 +286,233 @@ export default function AdminPage() {
       // silent
     } finally {
       setLogsLoading(false);
+    }
+  };
+
+  const exportAdminLogsCSV = () => {
+    if (allLogs.length === 0) {
+      showToast('No logs available to export', 'error');
+      return;
+    }
+    try {
+      const rows = allLogs.map(l => ({
+        ID: l.id,
+        Timestamp: new Date(l.created_at).toLocaleString(),
+        Operator: l.admin_email,
+        Action: l.action_type,
+        Target_Table: l.target_table || '',
+        Target_ID: l.target_id || '',
+        Target_Name: l.target_name || '',
+        Details: typeof l.details === 'object' ? JSON.stringify(l.details) : String(l.details || ''),
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Admin_Audit_Logs');
+      XLSX.writeFile(wb, `EM-Card_Audit_Logs_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      showToast('Exported audit logs successfully', 'success');
+    } catch (e) {
+      showToast('Failed to export logs', 'error');
+    }
+  };
+
+  // ─── Distribution Aid Scanner (8 Categories & Rainbow Theme) ───
+  const [selectedDistCategory, setSelectedDistCategory] = useState('groceries');
+  const [distAllowDuplicates, setDistAllowDuplicates] = useState(false);
+  const [distScannerMode, setDistScannerMode] = useState('camera'); // 'camera' | 'capture' | 'manual' | 'traffic'
+  const [distScanResult, setDistScanResult] = useState(null);
+  const [distScanLoading, setDistScanLoading] = useState(false);
+  const [distScanToken, setDistScanToken] = useState('');
+  const [distCameraActive, setDistCameraActive] = useState(false);
+  const [distFocusPoint, setDistFocusPoint] = useState(null);
+  const [distRecentRecords, setDistRecentRecords] = useState([]);
+  const [distRecordsLoading, setDistRecordsLoading] = useState(false);
+  const [distStats, setDistStats] = useState({
+    groceries: 0,
+    food_packs: 0,
+    cash_assistance: 0,
+    your_em: 0,
+    medicines: 0,
+    medical_assistance: 0,
+    electric_bill: 0,
+    water_bill: 0,
+  });
+  const [distFilterCategory, setDistFilterCategory] = useState('');
+  const [distFilterBarangay, setDistFilterBarangay] = useState('');
+  const [distSearchQuery, setDistSearchQuery] = useState('');
+  const [memberAidHistory, setMemberAidHistory] = useState([]);
+  const [memberAidLoading, setMemberAidLoading] = useState(false);
+  const distScannerRef = useRef(null);
+  const distScanInProgressRef = useRef(false);
+  const distFileInputRef = useRef(null);
+
+  const fetchDistributionRecords = async (category = '') => {
+    setDistRecordsLoading(true);
+    try {
+      const url = category ? `/api/distribution-scan?category=${category}&limit=100` : '/api/distribution-scan?limit=100';
+      const res = await authFetch(url);
+      const json = await res.json();
+      if (json.records) setDistRecentRecords(json.records);
+      if (json.stats) setDistStats(json.stats);
+    } catch (err) {
+      // silent
+    } finally {
+      setDistRecordsLoading(false);
+    }
+  };
+
+  const fetchMemberAidHistory = async (regId) => {
+    if (!regId) return;
+    setMemberAidLoading(true);
+    try {
+      const res = await authFetch(`/api/distribution-scan?registrationId=${regId}&limit=50`);
+      const json = await res.json();
+      setMemberAidHistory(json.records || []);
+    } catch {
+      setMemberAidHistory([]);
+    } finally {
+      setMemberAidLoading(false);
+    }
+  };
+
+  const handleDistributionScan = async (scannedToken) => {
+    if (!scannedToken || !scannedToken.trim()) return;
+    setDistScanLoading(true);
+    setDistScanResult(null);
+
+    try {
+      const res = await authFetch('/api/distribution-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawToken: scannedToken,
+          category: selectedDistCategory,
+          allow_duplicates: distAllowDuplicates,
+          scanned_by: username || 'Admin',
+        }),
+      });
+
+      const json = await res.json();
+      setDistScanResult(json);
+
+      if (json.type === 'success') {
+        showToast(`Aid distributed: ${json.categoryName} to ${json.name}`, 'success');
+        fetchDistributionRecords(distFilterCategory);
+      } else if (json.type === 'duplicate') {
+        showToast(json.message || 'Already claimed in this category', 'error');
+      } else if (json.type === 'invalid' || json.type === 'error') {
+        showToast(json.message || 'Scan error', 'error');
+      }
+    } catch (err) {
+      setDistScanResult({
+        type: 'error',
+        message: err.message || 'Failed to communicate with distribution scanner API.',
+      });
+      showToast('Scan processing failed', 'error');
+    } finally {
+      setDistScanLoading(false);
+      distScanInProgressRef.current = false;
+      setDistScanToken('');
+    }
+  };
+
+  const stopDistScanner = async () => {
+    if (distScannerRef.current) {
+      try {
+        await distScannerRef.current.stop();
+      } catch (_) {}
+      distScannerRef.current = null;
+    }
+    setDistCameraActive(false);
+    distScanInProgressRef.current = false;
+  };
+
+  const startDistCamera = async () => {
+    if (distScannerRef.current) {
+      try { await distScannerRef.current.stop(); } catch (_) {}
+      distScannerRef.current = null;
+    }
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const qr = new Html5Qrcode('dist-scanner-camera');
+      distScannerRef.current = qr;
+
+      await qr.start(
+        { facingMode: 'environment' },
+        { fps: 30, aspectRatio: 1.0 },
+        (decodedText) => {
+          if (distScanInProgressRef.current) return;
+          distScanInProgressRef.current = true;
+          try { qr.stop(); } catch (_) {}
+          setDistCameraActive(false);
+          handleDistributionScan(decodedText);
+        },
+        () => {}
+      );
+
+      setDistCameraActive(true);
+    } catch (err) {
+      setDistCameraActive(false);
+    }
+  };
+
+  const handleDistTapFocus = async (e) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setDistFocusPoint({ x, y });
+
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    if (isIOS) {
+      try {
+        await stopDistScanner();
+        await new Promise(r => setTimeout(r, 150));
+        await startDistCamera();
+      } catch (_) {}
+    } else {
+      try {
+        const video = document.querySelector('#dist-scanner-camera video');
+        if (video && video.srcObject) {
+          const track = video.srcObject.getVideoTracks()[0];
+          const caps = track.getCapabilities && track.getCapabilities();
+          if (caps && caps.focusMode && caps.focusMode.includes('single-shot')) {
+            await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] });
+          }
+        }
+      } catch (_) {}
+    }
+    setTimeout(() => setDistFocusPoint(null), 1200);
+  };
+
+  const exportDistributionCSV = () => {
+    if (distRecentRecords.length === 0) {
+      showToast('No distribution records available to export', 'error');
+      return;
+    }
+    try {
+      const rows = distRecentRecords.map(r => {
+        const reg = r.registrations || {};
+        const p = reg.ValidResidents || {};
+        const name = `${p.first_name || reg.first_name || ''} ${p.last_name || reg.last_name || ''}`.trim();
+        return {
+          ID: r.id,
+          Timestamp: new Date(r.distributed_at).toLocaleString(),
+          Category: r.category_name || r.category,
+          Claim_Number: r.claim_number || 1,
+          Beneficiary_Name: name || 'Unknown',
+          Barangay: r.barangay || p.barangay || '',
+          EM_Card_No: reg.em_card_no || '',
+          Operator: r.scanned_by || '',
+          Notes: r.notes || '',
+        };
+      });
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Aid_Distributions');
+      XLSX.writeFile(wb, `EM-Card_Aid_Distributions_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      showToast('Exported distribution records successfully', 'success');
+    } catch (e) {
+      showToast('Failed to export distribution records', 'error');
     }
   };
 
@@ -355,6 +611,8 @@ export default function AdminPage() {
   const [selectedNetworkMember, setSelectedNetworkMember] = useState(null);
   const [expandedNodes, setExpandedNodes] = useState(new Set());
   const [networkViewMode, setNetworkViewMode] = useState(null); // 'all' | 'month' | 'week' | null
+  const [networkLevelFilter, setNetworkLevelFilter] = useState('all'); // 'all' | 'l1' | 'l2' | 'l3' | 'l4'
+  const [networkSortBy, setNetworkSortBy] = useState('total'); // 'total' | 'l1' | 'l2' | 'l3' | 'name'
   const [networkMonthFilter, setNetworkMonthFilter] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -428,6 +686,12 @@ export default function AdminPage() {
   const [editAccount, setEditAccount] = useState(null);
   const [editAccountForm, setEditAccountForm] = useState({ role: '', password: '', confirmPassword: '' });
   const [editAccountLoading, setEditAccountLoading] = useState(false);
+  const [accountSearch, setAccountSearch] = useState('');
+  const [accountRoleFilter, setAccountRoleFilter] = useState('all'); // 'all' | 'admin' | 'staff'
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(null);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  const [showModalPassword, setShowModalPassword] = useState(false);
+  const [showModalConfirmPassword, setShowModalConfirmPassword] = useState(false);
 
   const [scannerInputMode, setScannerInputMode] = useState('camera'); // 'camera' | 'capture' | 'manual'
   const [cameraActive, setCameraActive] = useState(false);
@@ -595,8 +859,9 @@ export default function AdminPage() {
       fetchGrievances();
       fetchAllRegistrations();
       fetchOrganizations();
+      if (userRole === 'admin') fetchAccounts();
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, userRole]);
 
   // Fetch data for restored activeTab after login/refresh
   useEffect(() => {
@@ -608,6 +873,7 @@ export default function AdminPage() {
     if (activeTab === 'residents') fetchAllResidents(residentsPage, residentSearch, resFilterBarangay, resFilterPrecinct, resFilterStatus);
     if (activeTab === 'eventScanner') fetchEvents();
     if (activeTab === 'events') fetchUpcomingEvents();
+    if (activeTab === 'accounts') fetchAccounts();
     if (activeTab === 'adminLogs') { fetchAdminLogs(); if (accounts.length === 0) fetchAccounts(); }
   }, [isLoggedIn, activeTab]);
 
@@ -962,6 +1228,33 @@ export default function AdminPage() {
       stopScanner();
     };
   }, [scannerInputMode, selectedEvent]);
+
+  useEffect(() => {
+    if (activeTab !== 'distributionScanner' || distScannerMode !== 'camera') {
+      stopDistScanner();
+      return;
+    }
+
+    startDistCamera();
+
+    return () => {
+      stopDistScanner();
+    };
+  }, [activeTab, distScannerMode, selectedDistCategory]);
+
+  useEffect(() => {
+    if (activeTab === 'distributionScanner') {
+      fetchDistributionRecords(distFilterCategory);
+    }
+  }, [activeTab, distFilterCategory]);
+
+  useEffect(() => {
+    if (selectedMember?.id) {
+      fetchMemberAidHistory(selectedMember.id);
+    } else {
+      setMemberAidHistory([]);
+    }
+  }, [selectedMember?.id]);
 
   const showToast = (message, type = 'success') => setToast({ message, type });
 
@@ -2357,9 +2650,16 @@ export default function AdminPage() {
     try {
       const res = await authFetch('/api/admin/users');
       const data = await res.json();
-      if (data.users) setAccounts(data.users);
-    } catch (e) { /* silent */ }
-    setAccountsLoading(false);
+      if (data.users) {
+        setAccounts(data.users);
+      } else if (data.error) {
+        console.error('Error fetching accounts:', data.error);
+      }
+    } catch (e) {
+      console.error('fetchAccounts error:', e);
+    } finally {
+      setAccountsLoading(false);
+    }
   };
 
   const handleUpdateAccount = async (e) => {
@@ -2389,6 +2689,30 @@ export default function AdminPage() {
       showToast(err.message || 'Network error', 'error');
     } finally {
       setEditAccountLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!showDeleteAccountModal) return;
+    setDeleteAccountLoading(true);
+    try {
+      const res = await authFetch('/api/admin/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: showDeleteAccountModal.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Account deleted successfully`, 'success');
+        setShowDeleteAccountModal(null);
+        fetchAccounts();
+      } else {
+        showToast(data.error || 'Failed to delete account', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Network error', 'error');
+    } finally {
+      setDeleteAccountLoading(false);
     }
   };
 
@@ -2813,6 +3137,7 @@ export default function AdminPage() {
     { id: 'registerMember', label: 'Register Member', icon: <UserPlus size={20} strokeWidth={1.8} /> },
     { id: 'members', label: 'Members', icon: <UserCheck size={20} strokeWidth={1.8} /> },
     { id: 'organizations', label: 'Organizations', icon: <Building size={20} strokeWidth={1.8} /> },
+    { id: 'distributionScanner', label: 'Aid Distribution', icon: <Gift size={20} strokeWidth={1.8} /> },
     { id: 'eventScanner', label: 'Event Scanner', icon: <ScanLine size={20} strokeWidth={1.8} /> },
     { id: 'events', label: 'Upcoming Events', icon: <Calendar size={20} strokeWidth={1.8} /> },
     { id: 'network', label: 'Network', icon: <Network size={20} strokeWidth={1.8} /> },
@@ -2822,8 +3147,8 @@ export default function AdminPage() {
     { id: 'system', label: 'System', icon: <Monitor size={20} strokeWidth={1.8} /> },
   ].filter(item => {
     if (userRole !== 'staff') return true;
-    // Staff sees: Event Scanner + Register Member (assist residents to register)
-    const staffTabs = new Set(['eventScanner', 'registerMember']);
+    // Staff sees: Aid Distribution + Event Scanner + Register Member
+    const staffTabs = new Set(['distributionScanner', 'eventScanner', 'registerMember']);
     return staffTabs.has(item.id);
   });
 
@@ -3252,6 +3577,7 @@ export default function AdminPage() {
         <div className="dashboard-tabs">
           {[
             { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={15} strokeWidth={1.8} /> },
+            { id: 'distributions', label: 'Aid Distribution', icon: <Gift size={15} strokeWidth={1.8} /> },
             { id: 'trends', label: 'Trends', icon: <TrendingUp size={15} strokeWidth={1.8} /> },
             { id: 'geography', label: 'Geography', icon: <MapPin size={15} strokeWidth={1.8} /> },
             { id: 'demographics', label: 'Demographics', icon: <PieChart size={15} strokeWidth={1.8} /> },
@@ -4449,6 +4775,130 @@ export default function AdminPage() {
         </>
       )}
 
+      {dashTab === 'distributions' && (() => {
+        const totalDist = Object.values(distStats).reduce((a, b) => a + b, 0);
+        const maxCatCount = Math.max(...Object.values(distStats), 1);
+
+        return (
+          <>
+            {/* KPI Stat Cards for Distributions */}
+            <div className="kpi-grid">
+              <div className="kpi-card">
+                <div className="kpi-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                  <Gift size={20} strokeWidth={1.5} />
+                </div>
+                <div className="kpi-body">
+                  <span className="kpi-label">Total Aid Distributed</span>
+                  <span className="kpi-value">{totalDist.toLocaleString()}</span>
+                  <span className="kpi-change up">Across 8 Categories</span>
+                </div>
+              </div>
+
+              <div className="kpi-card">
+                <div className="kpi-icon" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
+                  <Users size={20} strokeWidth={1.5} />
+                </div>
+                <div className="kpi-body">
+                  <span className="kpi-label">Active Categories</span>
+                  <span className="kpi-value">8 of 8</span>
+                  <span className="kpi-change up">Rainbow Program Active</span>
+                </div>
+              </div>
+
+              <div className="kpi-card">
+                <div className="kpi-icon" style={{ background: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }}>
+                  <Sparkles size={20} strokeWidth={1.5} />
+                </div>
+                <div className="kpi-body">
+                  <span className="kpi-label">yourEM Distribution</span>
+                  <span className="kpi-value">{(distStats.your_em || 0).toLocaleString()}</span>
+                  <span className="kpi-change up" style={{ color: '#059669' }}>Reserved Green Tier</span>
+                </div>
+              </div>
+
+              <div className="kpi-card">
+                <div className="kpi-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
+                  <ShoppingBag size={20} strokeWidth={1.5} />
+                </div>
+                <div className="kpi-body">
+                  <span className="kpi-label">Food &amp; Groceries</span>
+                  <span className="kpi-value">{((distStats.groceries || 0) + (distStats.food_packs || 0)).toLocaleString()}</span>
+                  <span className="kpi-change up">Packs Issued</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 8 Rainbow Categories Telemetry Grid */}
+            <div className="admin-panel" style={{ marginTop: 24 }}>
+              <div className="panel-header">
+                <div className="panel-header-left">
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Gift size={20} style={{ color: '#10b981' }} /> Official 8-Category Rainbow Aid Telemetry
+                  </h3>
+                  <span className="panel-subtitle">Real-time breakdown across all 8 assistance programs</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  onClick={() => setActiveTab('distributionScanner')}
+                >
+                  <ScanLine size={14} /> Open Distribution Scanner
+                </button>
+              </div>
+
+              <div className="dist-dashboard-cards-grid">
+                {DISTRIBUTION_CATEGORIES.map(cat => {
+                  const count = distStats[cat.id] || 0;
+                  const pct = totalDist > 0 ? Math.round((count / totalDist) * 100) : 0;
+                  const barWidth = Math.round((count / maxCatCount) * 100);
+
+                  return (
+                    <div 
+                      key={cat.id} 
+                      className={`dist-dash-cat-card ${cat.isYourEM ? 'your-em-dash-card' : ''}`}
+                      style={{ '--cat-color': cat.color }}
+                      onClick={() => {
+                        setSelectedDistCategory(cat.id);
+                        setActiveTab('distributionScanner');
+                      }}
+                    >
+                      <div className="dist-dash-cat-top">
+                        <div className="dist-dash-cat-icon" style={{ color: cat.color }}>
+                          {getCategoryIcon(cat.icon, 20)}
+                        </div>
+                        <div className="dist-dash-cat-stats">
+                          <span className="dist-dash-cat-count" style={{ color: cat.color }}>{count.toLocaleString()}</span>
+                          <span className="dist-dash-cat-pct">{pct}% of total</span>
+                        </div>
+                      </div>
+
+                      <div className="dist-dash-cat-info">
+                        <div className="dist-dash-cat-title-row">
+                          <strong className="dist-dash-cat-name">{cat.name}</strong>
+                          {cat.isYourEM && <span className="dist-cat-reserved-tag">Reserved</span>}
+                        </div>
+                        <span className="dist-dash-cat-tagalog">{cat.tagalogName}</span>
+                      </div>
+
+                      <div className="dist-dash-progress-track">
+                        <div 
+                          className="dist-dash-progress-fill"
+                          style={{ width: `${barWidth}%`, background: cat.color }}
+                        />
+                      </div>
+
+                      <div className="dist-dash-cat-action">
+                        <span>Click to scan {cat.name} →</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
   </>
   );
   };
@@ -5615,7 +6065,8 @@ export default function AdminPage() {
     const computeLeadersFromRegs = (regs) => {
       const map = new Map();
       regs.forEach(reg => {
-        const parentName = reg.referral_name || 'No Referral';
+        const parentName = (reg.referral_name || '').trim();
+        if (!parentName || parentName === 'No Referral') return;
         if (!map.has(parentName)) map.set(parentName, []);
         map.get(parentName).push(reg);
       });
@@ -5644,6 +6095,7 @@ export default function AdminPage() {
 
       return [...map.keys()]
         .map(name => ({ name, ...getCounts(name) }))
+        .filter(l => l.total > 0)
         .sort((a, b) => b.total - a.total);
     };
 
@@ -5666,9 +6118,69 @@ export default function AdminPage() {
       return d >= startOfWeek && d <= endOfWeek;
     });
 
+    // Helper to filter and rank leaders according to level filter and sort option
+    const filterAndSortLeaders = (leaders, applySearch = true) => {
+      return leaders.filter(leader => {
+        if (networkLevelFilter === 'l1' && leader.l1 <= 0) return false;
+        if (networkLevelFilter === 'l2' && leader.l2 <= 0) return false;
+        if (networkLevelFilter === 'l3' && leader.l3 <= 0) return false;
+        if (networkLevelFilter === 'l4' && leader.l4plus <= 0) return false;
+        if (applySearch && networkSearch.trim() && !leader.name.toLowerCase().includes(networkSearch.toLowerCase().trim())) return false;
+        return true;
+      }).sort((a, b) => {
+        if (networkSortBy === 'l1') return b.l1 - a.l1 || b.total - a.total;
+        if (networkSortBy === 'l2') return b.l2 - a.l2 || b.total - a.total;
+        if (networkSortBy === 'l3') return b.l3 - a.l3 || b.total - a.total;
+        if (networkSortBy === 'name') return a.name.localeCompare(b.name);
+        if (networkLevelFilter === 'l1') return b.l1 - a.l1 || b.total - a.total;
+        if (networkLevelFilter === 'l2') return b.l2 - a.l2 || b.total - a.total;
+        if (networkLevelFilter === 'l3') return b.l3 - a.l3 || b.total - a.total;
+        if (networkLevelFilter === 'l4') return b.l4plus - a.l4plus || b.total - a.total;
+        return b.total - a.total;
+      });
+    };
+
     const allTimeLeaders = computeLeadersFromRegs(approvedRegs);
     const monthLeaders = computeLeadersFromRegs(monthRegs);
     const weekLeaders = computeLeadersFromRegs(weekRegs);
+
+    // Filter and Sort Leaders for Tree & List Views
+    const filteredLeaders = filterAndSortLeaders(allTimeLeaders, true);
+    const rankedAllTimeLeaders = filterAndSortLeaders(allTimeLeaders, false);
+    const rankedMonthLeaders = filterAndSortLeaders(monthLeaders, false);
+    const rankedWeekLeaders = filterAndSortLeaders(weekLeaders, false);
+
+    // Global Aggregate Referral Level Totals
+    const totalReferrals = approvedRegs.filter(r => r.referral_name && r.referral_name !== 'No Referral').length;
+    const totalL1 = allTimeLeaders.reduce((acc, l) => acc + l.l1, 0);
+    const totalL2 = allTimeLeaders.reduce((acc, l) => acc + l.l2, 0);
+    const totalL3 = allTimeLeaders.reduce((acc, l) => acc + l.l3, 0);
+    const totalL4plus = allTimeLeaders.reduce((acc, l) => acc + l.l4plus, 0);
+    const countL1Leaders = allTimeLeaders.filter(l => l.l1 > 0).length;
+    const countL2Leaders = allTimeLeaders.filter(l => l.l2 > 0).length;
+    const countL3Leaders = allTimeLeaders.filter(l => l.l3 > 0).length;
+    const countL4Leaders = allTimeLeaders.filter(l => l.l4plus > 0).length;
+
+    // Helper to toggle level filter and sync sort option
+    const selectLevelFilter = (lvl) => {
+      if (networkLevelFilter === lvl) {
+        setNetworkLevelFilter('all');
+        setNetworkSortBy('total');
+      } else {
+        setNetworkLevelFilter(lvl);
+        if (lvl === 'l1') setNetworkSortBy('l1');
+        else if (lvl === 'l2') setNetworkSortBy('l2');
+        else if (lvl === 'l3') setNetworkSortBy('l3');
+        else if (lvl === 'l4') setNetworkSortBy('total');
+        else setNetworkSortBy('total');
+      }
+    };
+
+    const levelBadgeTitle = networkLevelFilter === 'l1' ? 'L1 Direct'
+      : networkLevelFilter === 'l2' ? 'L2 Secondary'
+      : networkLevelFilter === 'l3' ? 'L3 Tertiary'
+      : networkLevelFilter === 'l4' ? 'L4+ Deep'
+      : 'Overall';
 
     // Generate last 24 month options for dropdown
     const monthOptions = [];
@@ -5682,7 +6194,8 @@ export default function AdminPage() {
     // For the tree forest, use only approved members
     const allTimeMap = new Map();
     approvedRegs.forEach(reg => {
-      const parentName = reg.referral_name || 'No Referral';
+      const parentName = (reg.referral_name || '').trim();
+      if (!parentName || parentName === 'No Referral') return;
       if (!allTimeMap.has(parentName)) allTimeMap.set(parentName, []);
       allTimeMap.get(parentName).push(reg);
     });
@@ -5697,6 +6210,34 @@ export default function AdminPage() {
       });
     };
 
+    const expandAllTrees = () => {
+      const allKeys = new Set();
+      filteredLeaders.forEach(l => {
+        allKeys.add(`root:${l.name}`);
+        const ch1 = getChildren(l.name);
+        ch1.forEach(c1 => {
+          allKeys.add(c1.id);
+          const ch2 = getChildren(getResidentName(c1));
+          ch2.forEach(c2 => {
+            allKeys.add(c2.id);
+          });
+        });
+      });
+      setExpandedNodes(allKeys);
+    };
+
+    const collapseAllTrees = () => {
+      setExpandedNodes(new Set());
+    };
+
+    // Helper for initials avatar
+    const getInitials = (name) => {
+      if (!name) return 'NP';
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    };
+
     // Recursive tree node renderer
     const renderTreeNode = (reg, depth) => {
       const name = getResidentName(reg);
@@ -5705,28 +6246,51 @@ export default function AdminPage() {
       const nodeKey = reg.id;
       const isOpen = expandedNodes.has(nodeKey);
       const levelLabel = depth === 0 ? 'L1' : depth === 1 ? 'L2' : depth === 2 ? 'L3' : `L${depth + 1}`;
+      const levelClass = depth === 0 ? 'l1' : depth === 1 ? 'l2' : depth === 2 ? 'l3' : 'l4';
 
       return (
-        <div key={nodeKey} className="tree-branch" style={{ marginLeft: depth * 20 }}>
-          <div className={`tree-node ${hasChildren ? 'has-children' : ''}`} onClick={() => { if (hasChildren) toggleNode(nodeKey); else setSelectedRegDetail(reg); }}>
+        <div key={nodeKey} className="tree-branch" style={{ marginLeft: depth * 18 }}>
+          <div 
+            className={`tree-node ${hasChildren ? 'has-children' : ''} ${isOpen ? 'is-open' : ''}`} 
+            onClick={() => { if (hasChildren) toggleNode(nodeKey); else setSelectedRegDetail(reg); }}
+          >
             {hasChildren ? (
-              <span className={`tree-chevron ${isOpen ? 'open' : ''}`}>▸</span>
+              <span className={`tree-chevron ${isOpen ? 'open' : ''}`}>
+                <ChevronRight size={14} />
+              </span>
             ) : (
               <span className="tree-chevron-spacer" />
             )}
+
             {(reg.photo_url || reg.photo_base64) ? (
               <img src={reg.photo_url || reg.photo_base64} alt="" className="tree-node-photo" />
             ) : (
-              <div className="tree-node-placeholder" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>NP</div>
+              <div className="tree-node-avatar">{getInitials(name)}</div>
             )}
+
             <div className="tree-node-info">
-              <span className="tree-node-name">{name}</span>
-              <span className="tree-node-meta">{reg.barangay || '-'} · {reg.sector_category} · <span className="tree-level-tag">{levelLabel}</span></span>
+              <div className="tree-node-name-row">
+                <span className="tree-node-name">{name}</span>
+                <span className={`tree-level-tag ${levelClass}`}>{levelLabel}</span>
+              </div>
+              <span className="tree-node-meta">
+                {reg.barangay || 'Unknown Barangay'} · {reg.sector_category || 'General'}
+              </span>
             </div>
-            {hasChildren && <span className="tree-node-count">{children.length} downline</span>}
+
+            {hasChildren && (
+              <span className="tree-node-count" title={`${children.length} direct downline members`}>
+                <Users size={12} style={{ marginRight: 3 }} />
+                {children.length} {children.length === 1 ? 'downline' : 'downlines'}
+              </span>
+            )}
             <span className={`status-badge status-${(reg.status || 'pending').toLowerCase()}`}>{reg.status || 'Pending'}</span>
           </div>
-          {isOpen && children.map(child => renderTreeNode(child, depth + 1))}
+          {isOpen && (
+            <div className="tree-branch-children">
+              {children.map(child => renderTreeNode(child, depth + 1))}
+            </div>
+          )}
         </div>
       );
     };
@@ -5735,19 +6299,76 @@ export default function AdminPage() {
       const display = leaders.slice(0, limit);
       return (
         <div className="leader-mini-list">
-          {display.map((l, i) => (
-            <div key={l.name} className="leader-mini-row">
-              <span className="leader-mini-rank">{i + 1}</span>
-              <span className="leader-mini-name">{l.name}</span>
-              <span className="leader-mini-badges">
-                <span className="lm-badge l1">L1 {l.l1}</span>
-                {l.l2 > 0 && <span className="lm-badge l2">L2 {l.l2}</span>}
-                {l.l3 > 0 && <span className="lm-badge l3">L3 {l.l3}</span>}
-                {l.l4plus > 0 && <span className="lm-badge l4">L4+ {l.l4plus}</span>}
-                <span className="lm-badge total">{l.total}</span>
-              </span>
-            </div>
-          ))}
+          {display.map((l, i) => {
+            const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+            return (
+              <div 
+                key={l.name} 
+                className={`leader-mini-row ${rankClass}`} 
+                onClick={() => {
+                  const matchedMember = approvedRegs.find(r => getResidentName(r) === l.name);
+                  if (matchedMember) {
+                    setSelectedNetworkMember(matchedMember);
+                    setNetworkSearch(l.name);
+                  } else {
+                    setNetworkSearch(l.name);
+                  }
+                }} 
+                title="Click to view network hierarchy"
+              >
+                <div className={`leader-rank-badge ${rankClass}`}>
+                  {i === 0 ? <Award size={13} /> : i + 1}
+                </div>
+                <div className="leader-mini-avatar">{getInitials(l.name)}</div>
+                <div className="leader-mini-info">
+                  <span className="leader-mini-name">{l.name}</span>
+                </div>
+                <div className="leader-mini-badges">
+                  {networkLevelFilter === 'all' ? (
+                    <>
+                      <span className="lm-badge l1" title="Level 1 Direct">
+                        L1 <strong>{l.l1}</strong>
+                      </span>
+                      {l.l2 > 0 && (
+                        <span className="lm-badge l2" title="Level 2 Secondary">
+                          L2 <strong>{l.l2}</strong>
+                        </span>
+                      )}
+                      {l.l3 > 0 && (
+                        <span className="lm-badge l3" title="Level 3 Tertiary">
+                          L3 <strong>{l.l3}</strong>
+                        </span>
+                      )}
+                      {l.l4plus > 0 && (
+                        <span className="lm-badge l4" title="Level 4+ Deep">
+                          L4+ <strong>{l.l4plus}</strong>
+                        </span>
+                      )}
+                      <span className="lm-badge total" title="Total Downline">
+                        {l.total}
+                      </span>
+                    </>
+                  ) : networkLevelFilter === 'l1' ? (
+                    <span className="lm-badge l1 highlight" title="Level 1 Direct Recruits">
+                      L1 <strong>{l.l1}</strong>
+                    </span>
+                  ) : networkLevelFilter === 'l2' ? (
+                    <span className="lm-badge l2 highlight" title="Level 2 Secondary Recruits">
+                      L2 <strong>{l.l2}</strong>
+                    </span>
+                  ) : networkLevelFilter === 'l3' ? (
+                    <span className="lm-badge l3 highlight" title="Level 3 Tertiary Recruits">
+                      L3 <strong>{l.l3}</strong>
+                    </span>
+                  ) : networkLevelFilter === 'l4' ? (
+                    <span className="lm-badge l4 highlight" title="Level 4+ Deep Downlines">
+                      L4+ <strong>{l.l4plus}</strong>
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       );
     };
@@ -5755,51 +6376,224 @@ export default function AdminPage() {
     const renderExpandedList = (leaders, title) => (
       <div className="leader-expanded-panel">
         <div className="leader-expanded-header">
-          <h4>{title}</h4>
-          <button className="btn btn-sm btn-secondary" onClick={() => setNetworkViewMode(null)}>Close</button>
+          <div>
+            <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{title}</h4>
+            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Showing {leaders.length} total active leaders</span>
+          </div>
+          <button className="btn btn-sm btn-secondary" onClick={() => setNetworkViewMode(null)}>Close List</button>
         </div>
         {renderLeaderList(leaders, leaders.length)}
       </div>
     );
 
     return (
-      <div className="admin-panel">
-        {/* Header */}
-        <div className="panel-header" style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '16px', paddingBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.3px' }}>Referral Network</h3>
-              <p style={{ margin: '6px 0 0', color: '#64748b', fontSize: '0.875rem' }}>Track recruitment performance and organizational structure</p>
+      <div className="admin-panel network-page-container">
+        {/* Header Section */}
+        <div className="panel-header network-top-header">
+          <div className="network-header-left">
+            <div className="network-title-row">
+              <h3 className="network-page-title">Referral Network Hierarchy</h3>
+              <span className="network-status-chip">
+                <Network size={13} /> {allTimeLeaders.length} Active Trees · {totalReferrals} Members
+              </span>
             </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 20px', textAlign: 'center', minWidth: '90px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>{allTimeLeaders.length}</div>
-                <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, marginTop: '2px' }}>Leaders</div>
-              </div>
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 20px', textAlign: 'center', minWidth: '90px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <div style={{ fontSize: '1.3rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>{approvedRegs.length}</div>
-                <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', fontWeight: 600, marginTop: '2px' }}>Members</div>
-              </div>
-            </div>
+            <p className="network-page-subtitle">
+              Monitor multi-tier recruitment distribution (Direct L1, Secondary L2, Tertiary L3, Deep L4+) across community leaders.
+            </p>
+          </div>
+          <div className="network-header-actions">
+            <button 
+              type="button" 
+              className="btn btn-sm btn-outline-emerald" 
+              onClick={expandAllTrees}
+              title="Expand all tree branches"
+            >
+              Expand All
+            </button>
+            <button 
+              type="button" 
+              className="btn btn-sm btn-secondary" 
+              onClick={collapseAllTrees}
+              title="Collapse all tree branches"
+            >
+              Collapse All
+            </button>
           </div>
         </div>
 
-        {/* Leader Cards */}
+        {/* Global Level Metrics Ribbon */}
+        <div className="network-metrics-grid">
+          {/* Total Referrals Card */}
+          <div 
+            className={`network-metric-card total-card ${networkLevelFilter === 'all' ? 'active' : ''}`}
+            onClick={() => selectLevelFilter('all')}
+          >
+            <div className="network-metric-accent total" />
+            <div className="network-metric-card-top">
+              <span className="network-metric-label">All Referrals</span>
+              <div className="network-metric-icon total"><Users size={16} /></div>
+            </div>
+            <div className="network-metric-val">{totalReferrals}</div>
+            <div className="network-metric-sub">
+              <strong>{allTimeLeaders.length}</strong> active recruiters
+            </div>
+          </div>
+
+          {/* Level 1 (Direct) Card */}
+          <div 
+            className={`network-metric-card l1-card ${networkLevelFilter === 'l1' ? 'active' : ''}`}
+            onClick={() => selectLevelFilter('l1')}
+          >
+            <div className="network-metric-accent l1" />
+            <div className="network-metric-card-top">
+              <span className="network-metric-label">Level 1 (Direct)</span>
+              <div className="network-metric-icon l1"><UserCheck size={16} /></div>
+            </div>
+            <div className="network-metric-val l1-text">{totalL1}</div>
+            <div className="network-metric-sub">
+              <strong>{countL1Leaders}</strong> leaders with L1 direct
+            </div>
+          </div>
+
+          {/* Level 2 (Secondary) Card */}
+          <div 
+            className={`network-metric-card l2-card ${networkLevelFilter === 'l2' ? 'active' : ''}`}
+            onClick={() => selectLevelFilter('l2')}
+          >
+            <div className="network-metric-accent l2" />
+            <div className="network-metric-card-top">
+              <span className="network-metric-label">Level 2 (Secondary)</span>
+              <div className="network-metric-icon l2"><Network size={16} /></div>
+            </div>
+            <div className="network-metric-val l2-text">{totalL2}</div>
+            <div className="network-metric-sub">
+              <strong>{countL2Leaders}</strong> leaders with L2 downlines
+            </div>
+          </div>
+
+          {/* Level 3 (Tertiary) Card */}
+          <div 
+            className={`network-metric-card l3-card ${networkLevelFilter === 'l3' ? 'active' : ''}`}
+            onClick={() => selectLevelFilter('l3')}
+          >
+            <div className="network-metric-accent l3" />
+            <div className="network-metric-card-top">
+              <span className="network-metric-label">Level 3 (Tertiary)</span>
+              <div className="network-metric-icon l3"><Share2 size={16} /></div>
+            </div>
+            <div className="network-metric-val l3-text">{totalL3}</div>
+            <div className="network-metric-sub">
+              <strong>{countL3Leaders}</strong> leaders with L3 downlines
+            </div>
+          </div>
+
+          {/* Level 4+ (Deep) Card */}
+          {totalL4plus > 0 && (
+            <div 
+              className={`network-metric-card l4-card ${networkLevelFilter === 'l4' ? 'active' : ''}`}
+              onClick={() => selectLevelFilter('l4')}
+            >
+              <div className="network-metric-accent l4" />
+              <div className="network-metric-card-top">
+                <span className="network-metric-label">Level 4+ (Deep)</span>
+                <div className="network-metric-icon l4"><Sparkles size={16} /></div>
+              </div>
+              <div className="network-metric-val l4-text">{totalL4plus}</div>
+              <div className="network-metric-sub">
+                <strong>{countL4Leaders}</strong> deep tier leaders
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Level Filter & Sort Toolbar */}
+        <div className="network-controls-bar">
+          <div className="network-level-pills">
+            <button 
+              type="button"
+              className={`network-level-pill ${networkLevelFilter === 'all' ? 'active' : ''}`}
+              onClick={() => selectLevelFilter('all')}
+            >
+              <span>All Referrals</span>
+              <span className="count-tag">{totalReferrals}</span>
+            </button>
+            <button 
+              type="button"
+              className={`network-level-pill l1 ${networkLevelFilter === 'l1' ? 'active' : ''}`}
+              onClick={() => selectLevelFilter('l1')}
+            >
+              <span className="dot l1" />
+              <span>Level 1 Direct</span>
+              <span className="count-tag">{totalL1}</span>
+            </button>
+            <button 
+              type="button"
+              className={`network-level-pill l2 ${networkLevelFilter === 'l2' ? 'active' : ''}`}
+              onClick={() => selectLevelFilter('l2')}
+            >
+              <span className="dot l2" />
+              <span>Level 2 Secondary</span>
+              <span className="count-tag">{totalL2}</span>
+            </button>
+            <button 
+              type="button"
+              className={`network-level-pill l3 ${networkLevelFilter === 'l3' ? 'active' : ''}`}
+              onClick={() => selectLevelFilter('l3')}
+            >
+              <span className="dot l3" />
+              <span>Level 3 Tertiary</span>
+              <span className="count-tag">{totalL3}</span>
+            </button>
+            {totalL4plus > 0 && (
+              <button 
+                type="button"
+                className={`network-level-pill l4 ${networkLevelFilter === 'l4' ? 'active' : ''}`}
+                onClick={() => selectLevelFilter('l4')}
+              >
+                <span className="dot l4" />
+                <span>Level 4+ Deep</span>
+                <span className="count-tag">{totalL4plus}</span>
+              </button>
+            )}
+          </div>
+
+          <div className="network-sort-wrap">
+            <span className="network-sort-label">Sort By:</span>
+            <select 
+              value={networkSortBy} 
+              onChange={(e) => setNetworkSortBy(e.target.value)}
+              className="network-sort-select"
+            >
+              <option value="total">Total Referrals (High → Low)</option>
+              <option value="l1">Most Level 1 (Direct)</option>
+              <option value="l2">Most Level 2 (Secondary)</option>
+              <option value="l3">Most Level 3 (Tertiary)</option>
+              <option value="name">Leader Name (A → Z)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Leaderboards Row */}
         {networkViewMode === null ? (
           <div className="leader-cards-row">
             {/* All Time */}
             <div className="leader-card">
               <div className="leader-card-header">
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#0f172a' }}>All-Time Leaders</h4>
-                <span className="leader-card-sub" style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Top recruiters overall</span>
+                <div>
+                  <h4 className="leader-card-title">All-Time Leaders</h4>
+                  <span className="leader-card-sub">{levelBadgeTitle} ranking</span>
+                </div>
+                <span className="leader-count-chip">{rankedAllTimeLeaders.length}</span>
               </div>
-              {allTimeLeaders.length === 0 ? (
-                <div className="leader-card-empty">No leaders yet</div>
+              {rankedAllTimeLeaders.length === 0 ? (
+                <div className="leader-card-empty">No leaders with {levelBadgeTitle} referrals</div>
               ) : (
                 <>
-                  {renderLeaderList(allTimeLeaders, 10)}
-                  {allTimeLeaders.length > 10 && (
-                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('all')}>View All ({allTimeLeaders.length})</button>
+                  {renderLeaderList(rankedAllTimeLeaders, 8)}
+                  {rankedAllTimeLeaders.length > 8 && (
+                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('all')}>
+                      View All {rankedAllTimeLeaders.length} Leaders →
+                    </button>
                   )}
                 </>
               )}
@@ -5808,7 +6602,10 @@ export default function AdminPage() {
             {/* This Month */}
             <div className="leader-card">
               <div className="leader-card-header">
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#0f172a' }}>This Month</h4>
+                <div>
+                  <h4 className="leader-card-title">Monthly Recruits</h4>
+                  <span className="leader-card-sub">{levelBadgeTitle} monthly</span>
+                </div>
                 <select
                   className="leader-month-picker"
                   value={networkMonthFilter}
@@ -5819,13 +6616,15 @@ export default function AdminPage() {
                   ))}
                 </select>
               </div>
-              {monthLeaders.length === 0 ? (
-                <div className="leader-card-empty">No new recruits this month</div>
+              {rankedMonthLeaders.length === 0 ? (
+                <div className="leader-card-empty">No new recruits in this period</div>
               ) : (
                 <>
-                  {renderLeaderList(monthLeaders, 10)}
-                  {monthLeaders.length > 10 && (
-                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('month')}>View All ({monthLeaders.length})</button>
+                  {renderLeaderList(rankedMonthLeaders, 8)}
+                  {rankedMonthLeaders.length > 8 && (
+                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('month')}>
+                      View All {rankedMonthLeaders.length} Leaders →
+                    </button>
                   )}
                 </>
               )}
@@ -5834,16 +6633,23 @@ export default function AdminPage() {
             {/* This Week */}
             <div className="leader-card">
               <div className="leader-card-header">
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#0f172a' }}>This Week</h4>
-                <span className="leader-card-sub">{startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                <div>
+                  <h4 className="leader-card-title">Weekly Recruits</h4>
+                  <span className="leader-card-sub">
+                    {levelBadgeTitle} ({startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
+                  </span>
+                </div>
+                <span className="leader-count-chip">{rankedWeekLeaders.length}</span>
               </div>
-              {weekLeaders.length === 0 ? (
+              {rankedWeekLeaders.length === 0 ? (
                 <div className="leader-card-empty">No new recruits this week</div>
               ) : (
                 <>
-                  {renderLeaderList(weekLeaders, 10)}
-                  {weekLeaders.length > 10 && (
-                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('week')}>View All ({weekLeaders.length})</button>
+                  {renderLeaderList(rankedWeekLeaders, 8)}
+                  {rankedWeekLeaders.length > 8 && (
+                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('week')}>
+                      View All {rankedWeekLeaders.length} Leaders →
+                    </button>
                   )}
                 </>
               )}
@@ -5851,29 +6657,44 @@ export default function AdminPage() {
           </div>
         ) : (
           <>
-            {networkViewMode === 'all' && renderExpandedList(allTimeLeaders, 'All Time Leaders')}
-            {networkViewMode === 'month' && renderExpandedList(monthLeaders, `This Month Leaders — ${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`)}
-            {networkViewMode === 'week' && renderExpandedList(weekLeaders, `This Week Leaders — ${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)}
+            {networkViewMode === 'all' && renderExpandedList(rankedAllTimeLeaders, `All-Time Referral Leaders (${levelBadgeTitle})`)}
+            {networkViewMode === 'month' && renderExpandedList(rankedMonthLeaders, `Monthly Referral Leaders (${levelBadgeTitle}) — ${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`)}
+            {networkViewMode === 'week' && renderExpandedList(rankedWeekLeaders, `Weekly Referral Leaders (${levelBadgeTitle}) — ${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)}
           </>
         )}
 
-        {/* Search with dropdown */}
-        <div className="network-search-wrap">
-          <div className="network-search-dropdown">
+        {/* Search Bar with live dropdown */}
+        <div className="network-search-section">
+          <div className="network-search-input-wrap">
+            <Search size={17} className="ns-search-icon" />
             <input
               type="text"
-              placeholder="Search member name to see full network history..."
+              placeholder="Search member, leader, or phone number to inspect network path..."
               value={networkSearch}
               onChange={(e) => {
                 const q = e.target.value;
                 setNetworkSearch(q);
                 setSelectedNetworkMember(null);
                 if (q.trim().length < 2) { setNetworkSearchResults([]); return; }
-                const matches = approvedRegs.filter(r => getResidentName(r).toLowerCase().includes(q.toLowerCase()));
+                const matches = approvedRegs.filter(r => 
+                  getResidentName(r).toLowerCase().includes(q.toLowerCase()) ||
+                  (r.contact && r.contact.includes(q)) ||
+                  (r.barangay && r.barangay.toLowerCase().includes(q.toLowerCase()))
+                );
                 setNetworkSearchResults(matches.slice(0, 8));
               }}
               className="network-search-input"
             />
+            {networkSearch && (
+              <button 
+                type="button"
+                className="ns-clear-btn"
+                onClick={() => { setSelectedNetworkMember(null); setNetworkSearch(''); setNetworkSearchResults([]); }}
+              >
+                <X size={15} />
+              </button>
+            )}
+
             {networkSearchResults.length > 0 && (
               <div className="network-search-results">
                 {networkSearchResults.map(reg => {
@@ -5886,9 +6707,8 @@ export default function AdminPage() {
                         setSelectedNetworkMember(reg);
                         setNetworkSearch(name);
                         setNetworkSearchResults([]);
-                        // Auto-expand all nodes for this member's tree
+                        // Auto-expand path for this member
                         const newExpanded = new Set();
-                        // Build upline keys
                         let curr = reg;
                         while (curr) {
                           newExpanded.add(curr.id);
@@ -5901,17 +6721,20 @@ export default function AdminPage() {
                         setExpandedNodes(newExpanded);
                       }}
                     >
-                      <span className="nsr-name">{name}</span>
-                      <span className="nsr-meta">{reg.barangay || '-'} · {reg.sector_category || '-'} · {reg.contact || 'No phone'}</span>
+                      <div className="nsr-avatar">{getInitials(name)}</div>
+                      <div className="nsr-content">
+                        <span className="nsr-name">{name}</span>
+                        <span className="nsr-meta">{reg.barangay || 'Unknown Barangay'} · {reg.sector_category || 'General'} · {reg.contact || 'No Contact'}</span>
+                      </div>
+                      {reg.referral_name && (
+                        <span className="nsr-parent-tag">Ref: {reg.referral_name}</span>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
           </div>
-          {selectedNetworkMember && (
-            <button className="btn btn-sm btn-network-clear" onClick={() => { setSelectedNetworkMember(null); setNetworkSearch(''); }}>Clear</button>
-          )}
         </div>
 
         {/* Member Network History View */}
@@ -5933,89 +6756,123 @@ export default function AdminPage() {
             currReg = parent;
           }
 
-          // Build downline tree starting from selected member
+          // Downlines
           const renderDownline = (member, depth) => {
             const mName = getResidentName(member);
             const children = getChildren(mName);
             const hasChildren = children.length > 0;
             const nodeKey = member.id;
             const isOpen = expandedNodes.has(nodeKey);
-            const levelLabel = depth === 0 ? 'Direct' : `L${depth + 1}`;
+            const levelLabel = depth === 0 ? 'Direct (L1)' : `L${depth + 1}`;
+            const levelClass = depth === 0 ? 'l1' : depth === 1 ? 'l2' : depth === 2 ? 'l3' : 'l4';
             return (
-              <div key={nodeKey} className="tree-branch" style={{ marginLeft: depth * 20 }}>
-                <div className={`tree-node ${hasChildren ? 'has-children' : ''}`} onClick={() => { if (hasChildren) toggleNode(nodeKey); }}>
+              <div key={nodeKey} className="tree-branch" style={{ marginLeft: depth * 18 }}>
+                <div 
+                  className={`tree-node ${hasChildren ? 'has-children' : ''} ${isOpen ? 'is-open' : ''}`} 
+                  onClick={() => { if (hasChildren) toggleNode(nodeKey); else setSelectedRegDetail(member); }}
+                >
                   {hasChildren ? (
-                    <span className={`tree-chevron ${isOpen ? 'open' : ''}`}>▸</span>
+                    <span className={`tree-chevron ${isOpen ? 'open' : ''}`}>
+                      <ChevronRight size={14} />
+                    </span>
                   ) : (
                     <span className="tree-chevron-spacer" />
                   )}
                   {(member.photo_url || member.photo_base64) ? (
                     <img src={member.photo_url || member.photo_base64} alt="" className="tree-node-photo" />
                   ) : (
-                    <div className="tree-node-placeholder" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>NP</div>
+                    <div className="tree-node-avatar">{getInitials(mName)}</div>
                   )}
                   <div className="tree-node-info">
-                    <span className="tree-node-name">{mName}</span>
-                    <span className="tree-node-meta">{member.barangay || '-'} · {member.sector_category} · <span className="tree-level-tag">{levelLabel}</span></span>
+                    <div className="tree-node-name-row">
+                      <span className="tree-node-name">{mName}</span>
+                      <span className={`tree-level-tag ${levelClass}`}>{levelLabel}</span>
+                    </div>
+                    <span className="tree-node-meta">{member.barangay || '-'} · {member.sector_category}</span>
                   </div>
-                  {hasChildren && <span className="tree-node-count">{children.length} downline</span>}
+                  {hasChildren && (
+                    <span className="tree-node-count">
+                      <Users size={12} style={{ marginRight: 3 }} />
+                      {children.length} {children.length === 1 ? 'downline' : 'downlines'}
+                    </span>
+                  )}
                   <span className={`status-badge status-${(member.status || 'pending').toLowerCase()}`}>{member.status || 'Pending'}</span>
                 </div>
-                {isOpen && children.map(child => renderDownline(child, depth + 1))}
+                {isOpen && (
+                  <div className="tree-branch-children">
+                    {children.map(child => renderDownline(child, depth + 1))}
+                  </div>
+                )}
               </div>
             );
           };
 
           return (
             <div className="network-history-view">
-              {/* Upline */}
+              <div className="network-history-header">
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>Network Trace for {name}</h4>
+                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Full recruitment chain and active downline branch</span>
+                </div>
+                <button 
+                  type="button" 
+                  className="btn btn-sm btn-secondary" 
+                  onClick={() => { setSelectedNetworkMember(null); setNetworkSearch(''); }}
+                >
+                  Back to All Trees
+                </button>
+              </div>
+
+              {/* Upline Chain */}
               {upline.length > 0 && (
                 <div className="network-history-section">
-                  <h4 className="network-history-title" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Upline ({upline.length})</h4>
+                  <h5 className="network-history-title">Upline Recruitment Chain ({upline.length} levels up)</h5>
                   <div className="network-upline-chain">
                     {upline.map((ancestor, i) => (
-                      <div key={ancestor.id} className="network-upline-item" style={{ marginLeft: i * 20 }}>
-                        <span className="nu-connector">{i > 0 ? '└─ ' : ''}</span>
+                      <div key={ancestor.id} className="network-upline-item" style={{ marginLeft: i * 16 }}>
+                        <span className="nu-connector">{i > 0 ? '↳' : '•'}</span>
                         {(ancestor.photo_url || ancestor.photo_base64) ? (
                           <img src={ancestor.photo_url || ancestor.photo_base64} alt="" className="nu-photo" />
                         ) : (
-                          <div className="nu-photo-placeholder" style={{ fontSize: '0.7rem', color: '#94a3b8' }}>NP</div>
+                          <div className="nu-photo-avatar">{getInitials(getResidentName(ancestor))}</div>
                         )}
                         <div className="nu-info">
                           <span className="nu-name">{getResidentName(ancestor)}</span>
-                          <span className="nu-meta">{ancestor.barangay || '-'} · {ancestor.sector_category || '-'} · {ancestor.contact || '-'}</span>
+                          <span className="nu-meta">{ancestor.barangay || '-'} · {ancestor.sector_category || '-'}</span>
                         </div>
-                        <span className="nu-badge">L{i + 1} Up</span>
+                        <span className="nu-badge">L{upline.length - i} Up</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Selected Member (Center) */}
+              {/* Selected Member Card */}
               <div className="network-history-section highlight">
-                <h4 className="network-history-title" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Selected Member</h4>
+                <h5 className="network-history-title">Inspected Member Node</h5>
                 <div className="network-selected-card">
                   {(reg.photo_url || reg.photo_base64) ? (
                     <img src={reg.photo_url || reg.photo_base64} alt="" className="ns-photo" />
                   ) : (
-                    <div className="ns-photo-placeholder" style={{ fontSize: '0.75rem', color: '#94a3b8' }}>No Photo</div>
+                    <div className="ns-photo-avatar">{getInitials(name)}</div>
                   )}
                   <div className="ns-info">
                     <span className="ns-name">{name}</span>
-                    <span className="ns-meta">{reg.barangay || '-'} · {reg.sector_category || '-'} · {reg.contact || '-'}</span>
-                    {reg.referral_name && <span className="ns-referral">Referred by: {reg.referral_name}</span>}
+                    <span className="ns-meta">{reg.barangay || 'Unknown Barangay'} · {reg.sector_category || 'General'} · {reg.contact || 'No contact'}</span>
+                    {reg.referral_name && (
+                      <span className="ns-referral">Referred directly by: <strong>{reg.referral_name}</strong></span>
+                    )}
                   </div>
-                  <span className="ns-badge">Selected</span>
+                  <span className="ns-badge">Active Node</span>
                 </div>
               </div>
 
-              {/* Downline */}
+              {/* Downlines */}
               <div className="network-history-section">
-                <h4 className="network-history-title" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Downline</h4>
+                <h5 className="network-history-title">Direct & Downline Referrals ({getChildren(name).length} direct)</h5>
                 <div className="network-downline-tree">
                   {getChildren(name).length === 0 ? (
-                    <div className="leader-card-empty">No downline referrals</div>
+                    <div className="leader-card-empty">No downline referrals recorded under this member.</div>
                   ) : (
                     getChildren(name).map(child => renderDownline(child, 0))
                   )}
@@ -6025,37 +6882,168 @@ export default function AdminPage() {
           );
         })()}
 
-        {/* Recursive Tree Forest (default view when no member selected) */}
+        {/* Recursive Tree Forest (Default View) */}
         {!selectedNetworkMember && (
-          <div className="tree-forest">
-            {regsLoading ? <div className="table-loading">Loading...</div>
-              : approvedRegs.length === 0 ? <div className="table-empty">No approved members yet to build network.</div>
-                : allTimeLeaders.map(({ name, l1, l2, l3, l4plus, total }) => {
-                    const rootKey = `root:${name}`;
-                    const isOpen = expandedNodes.has(rootKey);
-                    const members = getChildren(name);
-                    return (
-                      <div key={name} className="tree-root">
-                        <div className="tree-root-header" onClick={() => toggleNode(rootKey)}>
-                          <span className={`tree-root-chevron ${isOpen ? 'open' : ''}`}>▸</span>
-                          <span className="tree-root-icon" style={{ color: '#3b82f6', fontSize: '0.8rem', fontWeight: 700 }}>ROOT</span>
-                          <span className="tree-root-name">{name}</span>
-                          <span className="tree-root-badges">
-                            <span className="level-badge l1">L1 {l1}</span>
-                            {l2 > 0 && <span className="level-badge l2">L2 {l2}</span>}
-                            {l3 > 0 && <span className="level-badge l3">L3 {l3}</span>}
-                            {l4plus > 0 && <span className="level-badge l4">L4+ {l4plus}</span>}
-                            <span className="level-badge total">Total {total}</span>
-                          </span>
+          <div className="network-forest-container">
+            <div className="network-tree-meta-bar">
+              <div className="ntm-left">
+                <span className="ntm-count">
+                  Showing <strong>{filteredLeaders.length}</strong> Leader {filteredLeaders.length === 1 ? 'Tree' : 'Trees'}
+                </span>
+                {networkLevelFilter !== 'all' && (
+                  <span className="ntm-filter-tag">
+                    Filtered by {networkLevelFilter.toUpperCase()}
+                  </span>
+                )}
+                {networkSearch.trim() && (
+                  <span className="ntm-search-tag">
+                    Query: "{networkSearch}"
+                  </span>
+                )}
+              </div>
+              <span className="ntm-sort-info">
+                Sorted by <strong>{networkSortBy.toUpperCase()}</strong>
+              </span>
+            </div>
+
+            <div className="tree-forest">
+              {regsLoading ? (
+                <div className="table-loading">Loading network trees...</div>
+              ) : filteredLeaders.length === 0 ? (
+                <div className="network-empty-state">
+                  <Network size={36} style={{ opacity: 0.4, marginBottom: 8 }} />
+                  <h5>No matching leader trees found</h5>
+                  <p>Try switching level filters or clearing the search query.</p>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-outline-emerald"
+                    onClick={() => { setNetworkLevelFilter('all'); setNetworkSearch(''); }}
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              ) : (
+                filteredLeaders.map(({ name, l1, l2, l3, l4plus, total }) => {
+                  const rootKey = `root:${name}`;
+                  const isOpen = expandedNodes.has(rootKey);
+                  const members = getChildren(name);
+                  const matchedMember = approvedRegs.find(r => getResidentName(r) === name);
+                  const barangay = matchedMember?.barangay || '';
+
+                  return (
+                    <div key={name} className={`tree-root-card ${isOpen ? 'is-open' : ''}`}>
+                      <div className="tree-root-card-header" onClick={() => toggleNode(rootKey)}>
+                        <div className="tree-root-left">
+                          <button 
+                            type="button" 
+                            className={`tree-root-chevron-btn ${isOpen ? 'open' : ''}`}
+                            aria-label="Toggle Tree"
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                          
+                          <div className="tree-root-avatar">
+                            {getInitials(name)}
+                          </div>
+
+                          <div className="tree-root-title-box">
+                            <div className="tree-root-name-row">
+                              <span className="tree-root-name">{name}</span>
+                              <span className="tree-root-tag">ROOT LEADER</span>
+                            </div>
+                            <span className="tree-root-sub">
+                              {barangay ? `${barangay} · ` : ''}
+                              {networkLevelFilter === 'all' ? (
+                                <><strong>{total}</strong> downlines across {1 + (l2 > 0 ? 1 : 0) + (l3 > 0 ? 1 : 0) + (l4plus > 0 ? 1 : 0)} recruitment tiers</>
+                              ) : networkLevelFilter === 'l1' ? (
+                                <><strong>{l1}</strong> direct Level 1 referrals</>
+                              ) : networkLevelFilter === 'l2' ? (
+                                <><strong>{l2}</strong> secondary Level 2 downlines</>
+                              ) : networkLevelFilter === 'l3' ? (
+                                <><strong>{l3}</strong> tertiary Level 3 downlines</>
+                              ) : (
+                                <><strong>{l4plus}</strong> deep downlines</>
+                              )}
+                            </span>
+                          </div>
                         </div>
-                        {isOpen && (
-                          <div className="tree-root-children">
+
+                        <div className="tree-root-badges">
+                          {networkLevelFilter === 'all' ? (
+                            <>
+                              <span className="level-badge l1" title="Level 1 Direct Recruits">
+                                L1 Direct <strong>{l1}</strong>
+                              </span>
+                              {l2 > 0 && (
+                                <span className="level-badge l2" title="Level 2 Secondary Recruits">
+                                  L2 Secondary <strong>{l2}</strong>
+                                </span>
+                              )}
+                              {l3 > 0 && (
+                                <span className="level-badge l3" title="Level 3 Tertiary Recruits">
+                                  L3 Tertiary <strong>{l3}</strong>
+                                </span>
+                              )}
+                              {l4plus > 0 && (
+                                <span className="level-badge l4" title="Level 4+ Deep Downlines">
+                                  L4+ Deep <strong>{l4plus}</strong>
+                                </span>
+                              )}
+                              <span className="level-badge total" title="Total Network Size">
+                                Total <strong>{total}</strong>
+                              </span>
+                            </>
+                          ) : networkLevelFilter === 'l1' ? (
+                            <span className="level-badge l1 active-level" title="Level 1 Direct Recruits">
+                              L1 Direct <strong>{l1}</strong>
+                            </span>
+                          ) : networkLevelFilter === 'l2' ? (
+                            <span className="level-badge l2 active-level" title="Level 2 Secondary Recruits">
+                              L2 Secondary <strong>{l2}</strong>
+                            </span>
+                          ) : networkLevelFilter === 'l3' ? (
+                            <span className="level-badge l3 active-level" title="Level 3 Tertiary Recruits">
+                              L3 Tertiary <strong>{l3}</strong>
+                            </span>
+                          ) : networkLevelFilter === 'l4' ? (
+                            <span className="level-badge l4 active-level" title="Level 4+ Deep Downlines">
+                              L4+ Deep <strong>{l4plus}</strong>
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {isOpen && (
+                        <div className="tree-root-children-wrap">
+                          <div className="tree-root-children-header">
+                            <span>
+                              {networkLevelFilter === 'l1' ? 'Direct Level 1 recruits' :
+                               networkLevelFilter === 'l2' ? 'Secondary Level 2 downlines' :
+                               networkLevelFilter === 'l3' ? 'Tertiary Level 3 downlines' :
+                               'Direct & Sub-tier branches'} under <strong>{name}</strong>
+                            </span>
+                            <button 
+                              type="button" 
+                              className="tree-inspect-link"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (matchedMember) setSelectedNetworkMember(matchedMember);
+                                else setNetworkSearch(name);
+                              }}
+                            >
+                              Inspect Full Tree Trace →
+                            </button>
+                          </div>
+                          <div className="tree-root-children-list">
                             {members.map(reg => renderTreeNode(reg, 0))}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -6898,79 +7886,536 @@ export default function AdminPage() {
     );
   };
 
-  const renderAccounts = () => (
-    <div className="admin-panel">
-      <div className="panel-header">
-        <h3><Shield size={22} /> Accounts Management</h3>
-        <button className="btn btn-sm btn-primary" onClick={() => setShowCreateAccount(true)}>+ Create Account</button>
-      </div>
+  const renderAccounts = () => {
+    // Accounts calculations
+    const adminCount = accounts.filter(a => a.role === 'admin').length;
+    const staffCount = accounts.filter(a => a.role === 'staff').length;
+    const activeRecentCount = accounts.filter(a => {
+      if (!a.last_sign_in_at) return false;
+      const d = new Date(a.last_sign_in_at);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return d >= sevenDaysAgo;
+    }).length;
 
-      {accountsLoading ? (
-        <div className="table-loading">Loading accounts...</div>
-      ) : accounts.length === 0 ? (
-        <div className="table-empty">
-          <p>No accounts found.</p>
-          <button className="btn btn-primary" onClick={() => setShowCreateAccount(true)}>Create First Account</button>
-        </div>
-      ) : (
-        <div className="table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr><th>Email</th><th>Role</th><th>Created</th><th>Last Sign In</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-              {accounts.map(acc => (
-                <tr key={acc.id}>
-                  <td>{acc.email}</td>
-                  <td><span className={`role-badge role-${acc.role}`}>{acc.role}</span></td>
-                  <td>{acc.created_at ? new Date(acc.created_at).toLocaleDateString() : '—'}</td>
-                  <td>{acc.last_sign_in_at ? new Date(acc.last_sign_in_at).toLocaleString() : 'Never'}</td>
-                  <td>
-                    <button className="btn btn-xs btn-outline" onClick={() => { setEditAccount(acc); setEditAccountForm({ role: acc.role, password: '', confirmPassword: '' }); }}>Edit</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+    const filteredAccounts = accounts.filter(a => {
+      if (accountRoleFilter === 'admin' && a.role !== 'admin') return false;
+      if (accountRoleFilter === 'staff' && a.role !== 'staff') return false;
+      if (accountSearch.trim()) {
+        const q = accountSearch.toLowerCase().trim();
+        if (!a.email.toLowerCase().includes(q) && !(a.role || '').toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
 
-      {/* Edit Account Modal */}
-      {editAccount && (
-        <div className="modal-overlay" onClick={() => setEditAccount(null)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Edit Account — {editAccount.email}</h3>
-              <button className="modal-close-x" onClick={() => setEditAccount(null)}>✕</button>
+    const getInitials = (str) => {
+      if (!str) return 'U';
+      const clean = str.replace(/[^a-zA-Z0-9]/g, ' ').trim();
+      const parts = clean.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return clean.slice(0, 2).toUpperCase() || 'U';
+    };
+
+    const formatLastActive = (dateStr) => {
+      if (!dateStr) return { label: 'Never logged in', isRecent: false };
+      const d = new Date(dateStr);
+      const now = new Date();
+      const diffHrs = Math.floor((now - d) / (1000 * 60 * 60));
+      if (diffHrs < 1) return { label: 'Just now', isRecent: true };
+      if (diffHrs < 24) return { label: `${diffHrs}h ago`, isRecent: true };
+      const diffDays = Math.floor(diffHrs / 24);
+      if (diffDays === 1) return { label: 'Yesterday', isRecent: true };
+      if (diffDays < 7) return { label: `${diffDays}d ago`, isRecent: true };
+      return { 
+        label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' · ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+        isRecent: false 
+      };
+    };
+
+    return (
+      <div className="admin-panel accounts-page-container">
+        {/* Header */}
+        <div className="panel-header accounts-top-header">
+          <div className="accounts-header-left">
+            <div className="accounts-title-row">
+              <h3 className="accounts-page-title">Accounts & Access Control</h3>
+              <span className="accounts-status-chip">
+                <ShieldCheck size={13} /> {accounts.length} Total Users · {adminCount} Admins
+              </span>
             </div>
-            <form onSubmit={handleUpdateAccount} className="modal-form">
-              <div className="form-group">
-                <label>Role</label>
-                <select value={editAccountForm.role} onChange={e => setEditAccountForm(f => ({ ...f, role: e.target.value }))}>
-                  <option value="admin">Admin</option>
-                  <option value="staff">Staff</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>New Password (leave blank to keep current)</label>
-                <input type="password" value={editAccountForm.password} onChange={e => setEditAccountForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 6 characters" />
-              </div>
-              <div className="form-group">
-                <label>Confirm New Password</label>
-                <input type="password" value={editAccountForm.confirmPassword} onChange={e => setEditAccountForm(f => ({ ...f, confirmPassword: e.target.value }))} placeholder="Repeat new password" />
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-modal-secondary" onClick={() => setEditAccount(null)}>Cancel</button>
-                <button type="submit" className="btn btn-modal-primary" disabled={editAccountLoading}>
-                  {editAccountLoading ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
+            <p className="accounts-page-subtitle">
+              Manage system access, assign administrative or staff privileges, and audit user logins.
+            </p>
+          </div>
+          <div className="accounts-header-actions">
+            <button 
+              type="button" 
+              className="btn btn-sm btn-outline-emerald"
+              onClick={fetchAccounts}
+              disabled={accountsLoading}
+              title="Refresh Accounts List"
+            >
+              <RotateCw size={13} className={accountsLoading ? 'spin' : ''} /> Refresh
+            </button>
+            <button 
+              type="button" 
+              className="btn btn-sm btn-primary btn-create-acc"
+              onClick={() => setShowCreateAccount(true)}
+            >
+              <UserPlus size={15} /> Create Account
+            </button>
           </div>
         </div>
-      )}
-    </div>
-  );
+
+        {/* Top Metric KPI Cards */}
+        <div className="accounts-metrics-grid">
+          {/* Total Accounts */}
+          <div 
+            className={`accounts-metric-card ${accountRoleFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setAccountRoleFilter('all')}
+          >
+            <div className="accounts-metric-accent total" />
+            <div className="accounts-metric-card-top">
+              <span className="accounts-metric-label">Total Accounts</span>
+              <div className="accounts-metric-icon total"><Users size={16} /></div>
+            </div>
+            <div className="accounts-metric-val">{accounts.length}</div>
+            <div className="accounts-metric-sub">
+              <strong>{accounts.length}</strong> registered system users
+            </div>
+          </div>
+
+          {/* Administrators */}
+          <div 
+            className={`accounts-metric-card admin-card ${accountRoleFilter === 'admin' ? 'active' : ''}`}
+            onClick={() => setAccountRoleFilter(accountRoleFilter === 'admin' ? 'all' : 'admin')}
+          >
+            <div className="accounts-metric-accent admin" />
+            <div className="accounts-metric-card-top">
+              <span className="accounts-metric-label">Administrators</span>
+              <div className="accounts-metric-icon admin"><ShieldCheck size={16} /></div>
+            </div>
+            <div className="accounts-metric-val admin-text">{adminCount}</div>
+            <div className="accounts-metric-sub">
+              Full administrative & security access
+            </div>
+          </div>
+
+          {/* Staff Operators */}
+          <div 
+            className={`accounts-metric-card staff-card ${accountRoleFilter === 'staff' ? 'active' : ''}`}
+            onClick={() => setAccountRoleFilter(accountRoleFilter === 'staff' ? 'all' : 'staff')}
+          >
+            <div className="accounts-metric-accent staff" />
+            <div className="accounts-metric-card-top">
+              <span className="accounts-metric-label">Staff Operators</span>
+              <div className="accounts-metric-icon staff"><UserCheck size={16} /></div>
+            </div>
+            <div className="accounts-metric-val staff-text">{staffCount}</div>
+            <div className="accounts-metric-sub">
+              Registration, event scanning & inquiries
+            </div>
+          </div>
+
+          {/* Active Sessions */}
+          <div className="accounts-metric-card active-session-card">
+            <div className="accounts-metric-accent active-session" />
+            <div className="accounts-metric-card-top">
+              <span className="accounts-metric-label">Active This Week</span>
+              <div className="accounts-metric-icon active-session"><Activity size={16} /></div>
+            </div>
+            <div className="accounts-metric-val active-text">{activeRecentCount}</div>
+            <div className="accounts-metric-sub">
+              <strong>{activeRecentCount}</strong> signed in within 7 days
+            </div>
+          </div>
+        </div>
+
+        {/* Toolbar & Filters */}
+        <div className="accounts-controls-bar">
+          <div className="accounts-role-pills">
+            <button 
+              type="button" 
+              className={`accounts-pill ${accountRoleFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setAccountRoleFilter('all')}
+            >
+              <span>All Accounts</span>
+              <span className="count-tag">{accounts.length}</span>
+            </button>
+            <button 
+              type="button" 
+              className={`accounts-pill admin ${accountRoleFilter === 'admin' ? 'active' : ''}`}
+              onClick={() => setAccountRoleFilter('admin')}
+            >
+              <span className="dot admin" />
+              <span>Administrators</span>
+              <span className="count-tag">{adminCount}</span>
+            </button>
+            <button 
+              type="button" 
+              className={`accounts-pill staff ${accountRoleFilter === 'staff' ? 'active' : ''}`}
+              onClick={() => setAccountRoleFilter('staff')}
+            >
+              <span className="dot staff" />
+              <span>Staff</span>
+              <span className="count-tag">{staffCount}</span>
+            </button>
+          </div>
+
+          <div className="accounts-search-wrap">
+            <Search size={15} className="acc-search-icon" />
+            <input 
+              type="text" 
+              placeholder="Search by email address or role..." 
+              value={accountSearch}
+              onChange={e => setAccountSearch(e.target.value)}
+              className="accounts-search-input"
+            />
+            {accountSearch && (
+              <button 
+                type="button" 
+                className="acc-clear-btn" 
+                onClick={() => setAccountSearch('')}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Accounts Table Container */}
+        <div className="accounts-table-card">
+          {accountsLoading ? (
+            <div className="table-loading" style={{ padding: 40, textAlign: 'center' }}>
+              <RotateCw size={24} className="spin" style={{ marginBottom: 8, color: '#047857' }} />
+              <div>Loading accounts and permission records...</div>
+            </div>
+          ) : filteredAccounts.length === 0 ? (
+            <div className="accounts-empty-state">
+              <Shield size={36} style={{ opacity: 0.4, marginBottom: 8 }} />
+              <h5>No matching accounts found</h5>
+              <p>Try clearing your search query or switching role filters.</p>
+              {accountSearch && (
+                <button 
+                  type="button" 
+                  className="btn btn-sm btn-outline-emerald"
+                  onClick={() => { setAccountSearch(''); setAccountRoleFilter('all'); }}
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="table-wrap accounts-table-wrap">
+              <table className="admin-table accounts-table">
+                <thead>
+                  <tr>
+                    <th>Account User</th>
+                    <th>Role & Permission</th>
+                    <th>Created On</th>
+                    <th>Last Sign In</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAccounts.map(acc => {
+                    const isCurrent = acc.email === username;
+                    const initials = getInitials(acc.email.split('@')[0]);
+                    const lastActive = formatLastActive(acc.last_sign_in_at);
+                    const isAdmin = acc.role === 'admin';
+
+                    return (
+                      <tr 
+                        key={acc.id} 
+                        className={`acc-clickable-row ${isCurrent ? 'current-user-row' : ''}`}
+                        onClick={() => {
+                          setEditAccount(acc);
+                          setEditAccountForm({ role: acc.role || 'staff', password: '', confirmPassword: '' });
+                          setShowModalPassword(false);
+                          setShowModalConfirmPassword(false);
+                        }}
+                        title="Click to view details or edit permissions"
+                      >
+                        {/* Account User Info */}
+                        <td>
+                          <div className="acc-user-cell">
+                            <div className={`acc-user-avatar ${isAdmin ? 'admin' : 'staff'}`}>
+                              {initials}
+                            </div>
+                            <div className="acc-user-info">
+                              <div className="acc-email-row">
+                                <span className="acc-user-email">{acc.email}</span>
+                                {isCurrent && (
+                                  <span className="current-user-tag">
+                                    <Check size={11} /> You (Active Session)
+                                  </span>
+                                )}
+                              </div>
+                              <span className="acc-user-id">ID: {acc.id.slice(0, 8)}...{acc.id.slice(-4)}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Role */}
+                        <td>
+                          <span className={`acc-role-pill ${isAdmin ? 'admin' : 'staff'}`}>
+                            {isAdmin ? <ShieldCheck size={13} /> : <User size={13} />}
+                            <span>{isAdmin ? 'Administrator' : 'Staff Operator'}</span>
+                          </span>
+                        </td>
+
+                        {/* Created Date */}
+                        <td>
+                          <div className="acc-date-cell">
+                            <Calendar size={13} style={{ color: '#94a3b8' }} />
+                            <span>{acc.created_at ? new Date(acc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</span>
+                          </div>
+                        </td>
+
+                        {/* Last Sign In */}
+                        <td>
+                          <div className="acc-last-active-cell">
+                            <span className={`active-indicator-dot ${lastActive.isRecent ? 'recent' : 'inactive'}`} />
+                            <div className="acc-active-text">
+                              <span className="acc-active-label">{lastActive.label}</span>
+                              {acc.last_sign_in_at && lastActive.isRecent && (
+                                <span className="acc-active-sub">
+                                  {new Date(acc.last_sign_in_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Actions */}
+                        <td style={{ textAlign: 'right' }}>
+                          <div className="acc-actions-wrap" onClick={e => e.stopPropagation()}>
+                            <button 
+                              type="button" 
+                              className="btn btn-acc-edit"
+                              onClick={() => {
+                                setEditAccount(acc);
+                                setEditAccountForm({ role: acc.role || 'staff', password: '', confirmPassword: '' });
+                                setShowModalPassword(false);
+                                setShowModalConfirmPassword(false);
+                              }}
+                              title="Edit permissions or reset password"
+                            >
+                              <Edit3 size={13} /> Edit
+                            </button>
+                            {!isCurrent && (
+                              <button 
+                                type="button" 
+                                className="btn btn-acc-delete"
+                                onClick={() => setShowDeleteAccountModal(acc)}
+                                title="Delete user account"
+                              >
+                                <Trash2 size={15} strokeWidth={2.2} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Edit Account Modal (Portalled directly to document.body) */}
+        {editAccount && typeof document !== 'undefined' && createPortal(
+          <div className="modal-overlay" onClick={() => setEditAccount(null)}>
+            <div className="modal-card acc-modal-dialog" onClick={e => e.stopPropagation()}>
+              <div className="modal-header acc-modal-head">
+                <div className="acc-modal-title-wrap">
+                  <div className="acc-modal-icon-chip">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <h3 className="acc-modal-title">Edit User Permissions</h3>
+                    <span className="acc-modal-subtitle">Configure system access role and security</span>
+                  </div>
+                </div>
+                <button type="button" className="modal-close-x" onClick={() => setEditAccount(null)}>✕</button>
+              </div>
+
+              {/* User Overview Box */}
+              <div className="acc-user-overview-box">
+                <div className={`acc-overview-avatar ${editAccount.role === 'admin' ? 'admin' : 'staff'}`}>
+                  {getInitials(editAccount.email.split('@')[0])}
+                </div>
+                <div className="acc-overview-info">
+                  <div className="acc-overview-email">{editAccount.email}</div>
+                  <div className="acc-overview-meta">
+                    <span>UUID: {editAccount.id}</span>
+                    {editAccount.created_at && (
+                      <span>· Created {new Date(editAccount.created_at).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdateAccount} className="modal-form acc-modal-body">
+                {/* Visual Role Selector */}
+                <div className="form-group">
+                  <label className="acc-field-label">Access Role</label>
+                  <div className="acc-role-cards-grid">
+                    <div 
+                      className={`acc-role-card ${editAccountForm.role === 'staff' ? 'selected' : ''}`}
+                      onClick={() => setEditAccountForm(f => ({ ...f, role: 'staff' }))}
+                    >
+                      <div className="acc-role-card-header">
+                        <User size={16} className="acc-role-icon staff" />
+                        <span className="acc-role-name">Staff Operator</span>
+                        <div className="acc-role-radio" />
+                      </div>
+                      <p className="acc-role-desc">
+                        Registration, event scanning, inquiries & general operations.
+                      </p>
+                    </div>
+
+                    <div 
+                      className={`acc-role-card ${editAccountForm.role === 'admin' ? 'selected' : ''}`}
+                      onClick={() => setEditAccountForm(f => ({ ...f, role: 'admin' }))}
+                    >
+                      <div className="acc-role-card-header">
+                        <ShieldCheck size={16} className="acc-role-icon admin" />
+                        <span className="acc-role-name">Administrator</span>
+                        <div className="acc-role-radio" />
+                      </div>
+                      <p className="acc-role-desc">
+                        Full access: user management, analytics, export & system settings.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Password Reset (Optional) */}
+                <div className="acc-password-section">
+                  <div className="acc-password-header">
+                    <Lock size={14} />
+                    <span>Reset Password (Optional)</span>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 10 }}>
+                    <label className="acc-field-label">New Password</label>
+                    <div className="acc-password-input-wrap">
+                      <input 
+                        type={showModalPassword ? 'text' : 'password'} 
+                        value={editAccountForm.password} 
+                        onChange={e => setEditAccountForm(f => ({ ...f, password: e.target.value }))} 
+                        placeholder="Leave blank to keep existing password" 
+                        className="acc-styled-input"
+                      />
+                      {editAccountForm.password && (
+                        <button 
+                          type="button" 
+                          className="acc-pwd-toggle" 
+                          onClick={() => setShowModalPassword(v => !v)}
+                          tabIndex={-1}
+                        >
+                          {showModalPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {editAccountForm.password && (
+                    <div className="form-group">
+                      <label className="acc-field-label">Confirm New Password</label>
+                      <div className="acc-password-input-wrap">
+                        <input 
+                          type={showModalConfirmPassword ? 'text' : 'password'} 
+                          value={editAccountForm.confirmPassword} 
+                          onChange={e => setEditAccountForm(f => ({ ...f, confirmPassword: e.target.value }))} 
+                          placeholder="Re-enter new password to confirm" 
+                          className="acc-styled-input"
+                        />
+                        {editAccountForm.confirmPassword && (
+                          <button 
+                            type="button" 
+                            className="acc-pwd-toggle" 
+                            onClick={() => setShowModalConfirmPassword(v => !v)}
+                            tabIndex={-1}
+                          >
+                            {showModalConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-footer acc-modal-footer">
+                  <button type="button" className="btn btn-modal-secondary" onClick={() => setEditAccount(null)}>Cancel</button>
+                  <button type="submit" className="btn btn-modal-primary" disabled={editAccountLoading}>
+                    {editAccountLoading ? 'Saving...' : 'Save Permissions'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Delete Account Modal (Portalled directly to document.body) */}
+        {showDeleteAccountModal && typeof document !== 'undefined' && createPortal(
+          <div className="modal-overlay" onClick={() => setShowDeleteAccountModal(null)}>
+            <div className="modal-card acc-modal-dialog acc-delete-dialog" onClick={e => e.stopPropagation()}>
+              <div className="modal-header acc-delete-head">
+                <div className="acc-modal-title-wrap">
+                  <div className="acc-modal-icon-chip danger">
+                    <Trash2 size={20} />
+                  </div>
+                  <div>
+                    <h3 className="acc-modal-title" style={{ color: '#dc2626' }}>Delete Account</h3>
+                    <span className="acc-modal-subtitle">Permanent access revocation</span>
+                  </div>
+                </div>
+                <button type="button" className="modal-close-x" onClick={() => setShowDeleteAccountModal(null)}>✕</button>
+              </div>
+
+              <div className="acc-delete-body">
+                <div className="acc-delete-warning-banner">
+                  <AlertTriangle size={18} className="acc-warning-icon" />
+                  <div>
+                    <strong>Warning: This action is permanent</strong>
+                    <p>All access permissions and credentials will be removed immediately.</p>
+                  </div>
+                </div>
+
+                <div className="acc-delete-user-card">
+                  <div className="acc-overview-avatar staff">
+                    {getInitials(showDeleteAccountModal.email.split('@')[0])}
+                  </div>
+                  <div>
+                    <div className="acc-delete-target-email">{showDeleteAccountModal.email}</div>
+                    <div className="acc-delete-target-role">Role: {showDeleteAccountModal.role || 'Staff'} · ID: {showDeleteAccountModal.id.slice(0, 12)}...</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer acc-modal-footer">
+                <button type="button" className="btn btn-modal-secondary" onClick={() => setShowDeleteAccountModal(null)}>Cancel</button>
+                <button 
+                  type="button" 
+                  className="btn btn-modal-danger btn-acc-delete-confirm" 
+                  onClick={handleDeleteAccount}
+                  disabled={deleteAccountLoading}
+                >
+                  <Trash2 size={14} /> {deleteAccountLoading ? 'Deleting User...' : 'Permanently Delete'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+      </div>
+    );
+  };
 
   const renderSystem = () => {
     const STORAGE_LIMIT = 100 * 1024 * 1024 * 1024;
@@ -7223,222 +8668,551 @@ export default function AdminPage() {
       fetchAdminLogs(newPage);
     };
 
-    const actionTypeLabel = (type) => {
-      const labels = {
-        login: 'Login',
-        logout: 'Logout',
-        add_resident: 'Add Resident',
-        edit_resident: 'Edit Resident',
-        delete_resident: 'Delete Resident',
-        approve_member: 'Approve Member',
-        reject_member: 'Reject Member',
-        edit_member: 'Edit Member',
-        delete_member: 'Delete Member',
-        add_event: 'Add Event',
-        edit_event: 'Edit Event',
-        delete_event: 'Delete Event',
-        scan_event: 'Scan Event',
-        bulk_upload: 'Bulk Upload',
-      };
-      return labels[type] || type;
+    // Analytics calculations from allLogs
+    const authLogsCount = allLogs.filter(l => l.action_type === 'login' || l.action_type === 'logout').length;
+    const mutationLogsCount = allLogs.filter(l => 
+      l.action_type.includes('delete') || 
+      l.action_type.includes('edit') || 
+      l.action_type.includes('add') || 
+      l.action_type.includes('approve') || 
+      l.action_type.includes('reject')
+    ).length;
+    const uniqueOperatorsCount = new Set(allLogs.map(l => l.admin_email).filter(Boolean)).size;
+
+    const actionBadgeInfo = (type) => {
+      const t = (type || '').toLowerCase();
+      if (t === 'login') return { label: 'Login', icon: <Lock size={12} />, className: 'log-badge-auth' };
+      if (t === 'logout') return { label: 'Logout', icon: <LogOut size={12} />, className: 'log-badge-neutral' };
+      if (t.includes('delete')) return { label: t.replace(/_/g, ' '), icon: <Trash2 size={12} />, className: 'log-badge-danger' };
+      if (t.includes('edit') || t.includes('update')) return { label: t.replace(/_/g, ' '), icon: <Edit3 size={12} />, className: 'log-badge-warning' };
+      if (t.includes('add') || t.includes('create') || t.includes('approve')) return { label: t.replace(/_/g, ' '), icon: <CheckCircle size={12} />, className: 'log-badge-success' };
+      if (t.includes('scan')) return { label: 'Scan Event', icon: <ScanLine size={12} />, className: 'log-badge-purple' };
+      if (t.includes('reject')) return { label: 'Rejected', icon: <XCircle size={12} />, className: 'log-badge-danger' };
+      return { label: t.replace(/_/g, ' ') || 'Action', icon: <Activity size={12} />, className: 'log-badge-neutral' };
     };
 
-    const actionTypeColor = (type) => {
-      if (type.includes('delete')) return '#ef4444';
-      if (type.includes('edit')) return '#f59e0b';
-      if (type.includes('add') || type.includes('approve')) return '#10b981';
-      if (type.includes('login') || type.includes('logout')) return '#3b82f6';
-      if (type.includes('scan')) return '#8b5cf6';
-      return '#64748b';
+    const getTargetTypeBadge = (log) => {
+      if (log.target_table === 'ValidResidents') return { label: 'Voter', color: 'blue' };
+      if (log.target_table === 'registrations') return { label: 'Member', color: 'emerald' };
+      if (log.target_table === 'upcoming_events') return { label: 'Event', color: 'purple' };
+      if (log.target_table === 'event_scans') return { label: 'Scan', color: 'indigo' };
+      if (log.target_table === 'admin_users') return { label: 'Account', color: 'amber' };
+      return null;
     };
+
+    const filteredDisplayLogs = allLogs.filter(log => {
+      if (!logSearchQuery.trim()) return true;
+      const q = logSearchQuery.toLowerCase().trim();
+      const matchEmail = (log.admin_email || '').toLowerCase().includes(q);
+      const matchAction = (log.action_type || '').toLowerCase().includes(q);
+      const matchTarget = (log.target_name || '').toLowerCase().includes(q);
+      const matchDetails = JSON.stringify(log.details || {}).toLowerCase().includes(q);
+      return matchEmail || matchAction || matchTarget || matchDetails;
+    });
 
     return (
-      <div className="admin-panel">
-        <div className="panel-header">
-          <h3><History size={22} /> Admin Activity Logs</h3>
-          <span className="panel-badge">{logsTotal} ENTRIES</span>
-        </div>
-
-        {/* Filters */}
-        <div className="residents-action-bar" style={{ marginBottom: 14 }}>
-          <div className="action-bar-left" style={{ flexWrap: 'wrap', gap: 8 }}>
-            <select
-              className="filter-select"
-              value={logsFilterType}
-              onChange={(e) => { setLogsFilterType(e.target.value); setLogsPage(1); fetchAdminLogs(1); }}
+      <div className="admin-panel accounts-page-container">
+        {/* Header Card */}
+        <div className="panel-header accounts-top-header">
+          <div className="accounts-header-left">
+            <div className="accounts-title-row">
+              <h3 className="accounts-page-title">System Audit & Activity Logs</h3>
+              <span className="accounts-status-chip">
+                <History size={13} /> {logsTotal.toLocaleString()} Total Log Entries
+              </span>
+            </div>
+            <p className="accounts-page-subtitle">
+              Comprehensive security trails, admin mutations, user logins and scan activities.
+            </p>
+          </div>
+          <div className="accounts-header-actions">
+            <button 
+              type="button" 
+              className="btn btn-sm btn-outline-emerald"
+              onClick={() => fetchAdminLogs(logsPage)}
+              disabled={logsLoading}
+              title="Refresh Audit Logs"
             >
-              <option value="">All Actions</option>
-              <option value="login">Login</option>
-              <option value="logout">Logout</option>
-              <option value="add_resident">Add Resident</option>
-              <option value="edit_resident">Edit Resident</option>
-              <option value="delete_resident">Delete Resident</option>
-              <option value="approve_member">Approve Member</option>
-              <option value="reject_member">Reject Member</option>
-              <option value="edit_member">Edit Member</option>
-              <option value="delete_member">Delete Member</option>
-              <option value="add_event">Add Event</option>
-              <option value="edit_event">Edit Event</option>
-              <option value="delete_event">Delete Event</option>
-              <option value="scan_event">Scan Event</option>
-              <option value="bulk_upload">Bulk Upload</option>
-            </select>
-            <select
-              className="filter-select"
-              value={logsFilterAdmin}
-              onChange={(e) => { setLogsFilterAdmin(e.target.value); setLogsPage(1); fetchAdminLogs(1); }}
-              style={{ minWidth: 180 }}
-            >
-              <option value="">All Users</option>
-              {accounts.map(acc => (
-                <option key={acc.id} value={acc.email}>{acc.email}</option>
-              ))}
-            </select>
-            <input
-              type="date"
-              className="filter-select"
-              value={logsStartDate}
-              onChange={(e) => { setLogsStartDate(e.target.value); setLogsPage(1); }}
-              placeholder="Start Date"
-            />
-            <input
-              type="date"
-              className="filter-select"
-              value={logsEndDate}
-              onChange={(e) => { setLogsEndDate(e.target.value); setLogsPage(1); }}
-              placeholder="End Date"
-            />
-            <button className="btn btn-action-outline" onClick={() => fetchAdminLogs(logsPage)}>
-              <Filter size={14} /> Apply Filters
+              <RotateCw size={13} className={logsLoading ? 'spin' : ''} /> Refresh
             </button>
-            <button className="btn btn-action-outline" onClick={() => {
-              setLogsFilterType(''); setLogsFilterAdmin(''); setLogsStartDate(''); setLogsEndDate(''); setLogsPage(1); fetchAdminLogs(1);
-            }}>
-              <X size={14} /> Clear
+            <button 
+              type="button" 
+              className="btn btn-sm btn-outline-emerald"
+              onClick={exportAdminLogsCSV}
+              disabled={allLogs.length === 0}
+              title="Export visible logs to Excel"
+            >
+              <Download size={13} /> Export Logs
             </button>
           </div>
         </div>
 
-        {logsLoading ? (
-          <div className="table-loading">Loading logs...</div>
-        ) : allLogs.length === 0 ? (
-          <div className="table-empty">No activity logs found.</div>
-        ) : (
-          <>
-            <div className="table-responsive">
-              <table className="admin-table">
+        {/* Top Metric Cards */}
+        <div className="accounts-metrics-grid">
+          <div className="accounts-metric-card">
+            <div className="accounts-metric-accent total" />
+            <div className="accounts-metric-card-top">
+              <span className="accounts-metric-label">Total Logs</span>
+              <div className="accounts-metric-icon total"><Database size={16} /></div>
+            </div>
+            <div className="accounts-metric-val">{logsTotal.toLocaleString()}</div>
+            <div className="accounts-metric-sub">Recorded system events</div>
+          </div>
+
+          <div className="accounts-metric-card">
+            <div className="accounts-metric-accent admin" />
+            <div className="accounts-metric-card-top">
+              <span className="accounts-metric-label">Auth & Logins</span>
+              <div className="accounts-metric-icon admin"><Lock size={16} /></div>
+            </div>
+            <div className="accounts-metric-val admin-text">{authLogsCount}</div>
+            <div className="accounts-metric-sub">Authentication events (page)</div>
+          </div>
+
+          <div className="accounts-metric-card">
+            <div className="accounts-metric-accent staff" />
+            <div className="accounts-metric-card-top">
+              <span className="accounts-metric-label">Data Mutations</span>
+              <div className="accounts-metric-icon staff"><Edit3 size={16} /></div>
+            </div>
+            <div className="accounts-metric-val staff-text">{mutationLogsCount}</div>
+            <div className="accounts-metric-sub">Records created, edited or deleted</div>
+          </div>
+
+          <div className="accounts-metric-card">
+            <div className="accounts-metric-accent active-session" />
+            <div className="accounts-metric-card-top">
+              <span className="accounts-metric-label">Active Operators</span>
+              <div className="accounts-metric-icon active-session"><Users size={16} /></div>
+            </div>
+            <div className="accounts-metric-val active-text">{uniqueOperatorsCount}</div>
+            <div className="accounts-metric-sub">Distinct admin & staff actors</div>
+          </div>
+        </div>
+
+        {/* Controls & Filters Bar */}
+        <div className="accounts-controls-bar">
+          <div className="logs-filters-wrap">
+            <select
+              className="logs-filter-select"
+              value={logsFilterType}
+              onChange={(e) => { setLogsFilterType(e.target.value); setLogsPage(1); fetchAdminLogs(1); }}
+            >
+              <option value="">All Action Types</option>
+              <optgroup label="Authentication">
+                <option value="login">Login</option>
+                <option value="logout">Logout</option>
+              </optgroup>
+              <optgroup label="Members & Registrations">
+                <option value="approve_member">Approve Member</option>
+                <option value="reject_member">Reject Member</option>
+                <option value="edit_member">Edit Member</option>
+                <option value="delete_member">Delete Member</option>
+                <option value="delete_registration">Delete Registration</option>
+              </optgroup>
+              <optgroup label="Voters & Residents">
+                <option value="add_resident">Add Resident</option>
+                <option value="edit_resident">Edit Resident</option>
+                <option value="delete_resident">Delete Resident</option>
+                <option value="bulk_upload">Bulk Upload</option>
+              </optgroup>
+              <optgroup label="Events & Scans">
+                <option value="scan_event">Scan Event</option>
+                <option value="add_event">Add Event</option>
+                <option value="edit_event">Edit Event</option>
+                <option value="delete_event">Delete Event</option>
+              </optgroup>
+            </select>
+
+            <select
+              className="logs-filter-select"
+              value={logsFilterAdmin}
+              onChange={(e) => { setLogsFilterAdmin(e.target.value); setLogsPage(1); fetchAdminLogs(1); }}
+            >
+              <option value="">All Operator Accounts</option>
+              {accounts.map(acc => (
+                <option key={acc.id} value={acc.email}>{acc.email}</option>
+              ))}
+            </select>
+
+            <div className="logs-date-filter-group">
+              <input
+                type="date"
+                className="logs-date-input"
+                value={logsStartDate}
+                onChange={(e) => { setLogsStartDate(e.target.value); setLogsPage(1); }}
+                title="Start Date"
+              />
+              <span className="logs-date-sep">to</span>
+              <input
+                type="date"
+                className="logs-date-input"
+                value={logsEndDate}
+                onChange={(e) => { setLogsEndDate(e.target.value); setLogsPage(1); }}
+                title="End Date"
+              />
+            </div>
+
+            <button 
+              type="button" 
+              className="btn btn-sm btn-outline-emerald"
+              onClick={() => fetchAdminLogs(1)}
+            >
+              <Filter size={13} /> Filter
+            </button>
+
+            {(logsFilterType || logsFilterAdmin || logsStartDate || logsEndDate) && (
+              <button 
+                type="button" 
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => {
+                  setLogsFilterType('');
+                  setLogsFilterAdmin('');
+                  setLogsStartDate('');
+                  setLogsEndDate('');
+                  setLogsPage(1);
+                  fetchAdminLogs(1);
+                }}
+              >
+                <X size={13} /> Reset
+              </button>
+            )}
+          </div>
+
+          <div className="accounts-search-wrap" style={{ maxWidth: 300 }}>
+            <Search size={14} className="acc-search-icon" />
+            <input 
+              type="text" 
+              placeholder="Search in visible logs..." 
+              value={logSearchQuery}
+              onChange={e => setLogSearchQuery(e.target.value)}
+              className="accounts-search-input"
+            />
+            {logSearchQuery && (
+              <button 
+                type="button" 
+                className="acc-clear-btn" 
+                onClick={() => setLogSearchQuery('')}
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Logs Table Container */}
+        <div className="accounts-table-card">
+          {logsLoading ? (
+            <div className="table-loading" style={{ padding: 40, textAlign: 'center' }}>
+              <RotateCw size={24} className="spin" style={{ marginBottom: 8, color: '#047857' }} />
+              <div>Loading audit trail entries...</div>
+            </div>
+          ) : filteredDisplayLogs.length === 0 ? (
+            <div className="accounts-empty-state">
+              <History size={36} style={{ opacity: 0.4, marginBottom: 8 }} />
+              <h5>No audit logs found</h5>
+              <p>No activity records match your current filter criteria.</p>
+              {(logsFilterType || logsFilterAdmin || logsStartDate || logsEndDate || logSearchQuery) && (
+                <button 
+                  type="button" 
+                  className="btn btn-sm btn-outline-emerald"
+                  onClick={() => {
+                    setLogsFilterType('');
+                    setLogsFilterAdmin('');
+                    setLogsStartDate('');
+                    setLogsEndDate('');
+                    setLogSearchQuery('');
+                    setLogsPage(1);
+                    fetchAdminLogs(1);
+                  }}
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="table-wrap accounts-table-wrap">
+              <table className="admin-table accounts-table">
                 <thead>
                   <tr>
-                    <th>Time</th>
-                    <th>Admin</th>
+                    <th>Timestamp</th>
+                    <th>Operator</th>
                     <th>Action</th>
-                    <th>Target</th>
-                    <th>Details</th>
+                    <th>Target Entity</th>
+                    <th>Details & Payload</th>
+                    <th style={{ textAlign: 'right' }}>Inspect</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allLogs.map((log) => (
-                    <tr key={log.id}>
-                      <td style={{ whiteSpace: 'nowrap', fontSize: '0.8rem', color: '#64748b' }}>
-                        {new Date(log.created_at).toLocaleString()}
-                      </td>
-                      <td>
-                        <span style={{ fontWeight: 600, fontSize: '0.82rem' }}>{log.admin_email}</span>
-                      </td>
-                      <td>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '3px 10px',
-                          borderRadius: 20,
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          background: `${actionTypeColor(log.action_type)}15`,
-                          color: actionTypeColor(log.action_type),
-                        }}>
-                          {actionTypeLabel(log.action_type)}
-                        </span>
-                      </td>
-                      <td>
-                        {log.target_name ? (
-                          <span style={{ fontSize: '0.82rem' }}>{log.target_name}</span>
-                        ) : log.target_id ? (
-                          <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{log.target_id.slice(0, 8)}...</span>
-                        ) : (
-                          <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>—</span>
-                        )}
-                      </td>
-                      <td style={{ maxWidth: 300 }}>
-                        {log.details && Object.keys(log.details).length > 0 ? (
-                          <pre style={{ fontSize: '0.72rem', margin: 0, background: '#f8fafc', padding: '4px 8px', borderRadius: 6, overflow: 'auto', maxHeight: 60 }}>
-                            {JSON.stringify(log.details, null, 2)}
-                          </pre>
-                        ) : (
-                          <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredDisplayLogs.map((log) => {
+                    const badge = actionBadgeInfo(log.action_type);
+                    const targetBadge = getTargetTypeBadge(log);
+                    const isSelf = log.admin_email === username;
+                    const logDate = new Date(log.created_at);
+
+                    return (
+                      <tr 
+                        key={log.id}
+                        className="acc-clickable-row"
+                        onClick={() => setSelectedLogDetail(log)}
+                        title="Click to inspect full audit event & payload"
+                      >
+                        {/* Timestamp */}
+                        <td>
+                          <div className="log-time-cell">
+                            <Calendar size={13} className="log-time-icon" />
+                            <div className="log-time-text">
+                              <span className="log-date-label">
+                                {logDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                              <span className="log-time-sub">
+                                {logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Operator */}
+                        <td>
+                          <div className="log-operator-cell">
+                            <div className="log-operator-avatar">
+                              {(log.admin_email || 'AD').split('@')[0].slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="log-operator-info">
+                              <span className="log-operator-email">{log.admin_email || 'System'}</span>
+                              {isSelf && (
+                                <span className="log-you-badge">You</span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Action */}
+                        <td>
+                          <span className={`log-badge ${badge.className}`}>
+                            {badge.icon}
+                            <span>{badge.label}</span>
+                          </span>
+                        </td>
+
+                        {/* Target */}
+                        <td>
+                          <div className="log-target-cell">
+                            {targetBadge && (
+                              <span className={`log-target-pill ${targetBadge.color}`}>
+                                {targetBadge.label}
+                              </span>
+                            )}
+                            <span className="log-target-name">
+                              {log.target_name || (log.target_id ? `ID: ${log.target_id.slice(0, 8)}...` : '— System')}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Details */}
+                        <td style={{ maxWidth: 280 }}>
+                          {log.details && Object.keys(log.details).length > 0 ? (
+                            <div className="log-details-preview">
+                              {log.details.email && (
+                                <span className="log-detail-chip">
+                                  ✉️ {log.details.email}
+                                </span>
+                              )}
+                              {log.details.location && (
+                                <span className="log-detail-chip">
+                                  📍 {log.details.location}
+                                </span>
+                              )}
+                              {log.details.date && (
+                                <span className="log-detail-chip">
+                                  📅 {log.details.date}
+                                </span>
+                              )}
+                              {!log.details.email && !log.details.location && !log.details.date && (
+                                <span className="log-detail-chip raw">
+                                  {Object.keys(log.details).length} parameters
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>— None</span>
+                          )}
+                        </td>
+
+                        {/* Inspect Button */}
+                        <td style={{ textAlign: 'right' }}>
+                          <div className="acc-actions-wrap" onClick={e => e.stopPropagation()}>
+                            <button 
+                              type="button" 
+                              className="btn btn-xs btn-acc-edit"
+                              onClick={() => setSelectedLogDetail(log)}
+                              title="View full audit trail details"
+                            >
+                              <Eye size={13} /> View
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="residents-pagination" style={{ marginTop: 14 }}>
-                <span className="pagination-info">Page <strong>{logsPage}</strong> of <strong>{totalPages}</strong> · <strong>{logsTotal}</strong> total</span>
-                <div className="pagination-buttons">
-                  <button
-                    className="page-btn page-btn-nav"
-                    onClick={() => goToPage(1)}
-                    disabled={logsPage <= 1}
-                    title="First Page (1)"
-                  >
-                    <ChevronsLeft size={14} />
-                  </button>
-                  <button
-                    className="page-btn page-btn-nav"
-                    onClick={() => goToPage(logsPage - 1)}
-                    disabled={logsPage <= 1}
-                    title="Previous Page"
-                  >
-                    <ChevronLeft size={14} /> <span>Prev</span>
-                  </button>
-                  {getPaginationItems(logsPage, totalPages).map((item, idx) => {
-                    if (item === '...') {
-                      return <span key={`dots-${idx}`} className="pagination-ellipsis">…</span>;
-                    }
-                    return (
-                      <button
-                        key={item}
-                        className={`page-btn ${item === logsPage ? 'page-btn-active' : ''}`}
-                        onClick={() => goToPage(item)}
-                        title={`Page ${item}`}
-                      >
-                        {item}
-                      </button>
-                    );
-                  })}
-                  <button
-                    className="page-btn page-btn-nav"
-                    onClick={() => goToPage(logsPage + 1)}
-                    disabled={logsPage >= totalPages}
-                    title="Next Page"
-                  >
-                    <span>Next</span> <ChevronRight size={14} />
-                  </button>
-                  <button
-                    className="page-btn page-btn-nav"
-                    onClick={() => goToPage(totalPages)}
-                    disabled={logsPage >= totalPages}
-                    title={`Last Page (${totalPages})`}
-                  >
-                    <ChevronsRight size={14} />
-                  </button>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="residents-pagination" style={{ padding: '16px 20px', borderTop: '1px solid #f1f5f9' }}>
+              <span className="pagination-info">
+                Page <strong>{logsPage}</strong> of <strong>{totalPages}</strong> · <strong>{logsTotal.toLocaleString()}</strong> total entries
+              </span>
+              <div className="pagination-buttons">
+                <button
+                  className="page-btn page-btn-nav"
+                  onClick={() => goToPage(1)}
+                  disabled={logsPage <= 1}
+                  title="First Page (1)"
+                >
+                  <ChevronsLeft size={14} />
+                </button>
+                <button
+                  className="page-btn page-btn-nav"
+                  onClick={() => goToPage(logsPage - 1)}
+                  disabled={logsPage <= 1}
+                  title="Previous Page"
+                >
+                  <ChevronLeft size={14} /> <span>Prev</span>
+                </button>
+                {getPaginationItems(logsPage, totalPages).map((item, idx) => {
+                  if (item === '...') {
+                    return <span key={`dots-${idx}`} className="pagination-ellipsis">…</span>;
+                  }
+                  return (
+                    <button
+                      key={item}
+                      className={`page-btn ${item === logsPage ? 'page-btn-active' : ''}`}
+                      onClick={() => goToPage(item)}
+                      title={`Page ${item}`}
+                    >
+                      {item}
+                    </button>
+                  );
+                })}
+                <button
+                  className="page-btn page-btn-nav"
+                  onClick={() => goToPage(logsPage + 1)}
+                  disabled={logsPage >= totalPages}
+                  title="Next Page"
+                >
+                  <span>Next</span> <ChevronRight size={14} />
+                </button>
+                <button
+                  className="page-btn page-btn-nav"
+                  onClick={() => goToPage(totalPages)}
+                  disabled={logsPage >= totalPages}
+                  title={`Last Page (${totalPages})`}
+                >
+                  <ChevronsRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Audit Log Inspector Modal */}
+        {selectedLogDetail && typeof document !== 'undefined' && createPortal(
+          <div className="modal-overlay" onClick={() => setSelectedLogDetail(null)}>
+            <div className="modal-card acc-modal-dialog" style={{ maxWidth: 540 }} onClick={e => e.stopPropagation()}>
+              <div className="modal-header acc-modal-head">
+                <div className="acc-modal-title-wrap">
+                  <div className="acc-modal-icon-chip">
+                    <History size={20} />
+                  </div>
+                  <div>
+                    <h3 className="acc-modal-title">Audit Log Event</h3>
+                    <span className="acc-modal-subtitle">Event ID: {selectedLogDetail.id}</span>
+                  </div>
+                </div>
+                <button type="button" className="modal-close-x" onClick={() => setSelectedLogDetail(null)}>✕</button>
+              </div>
+
+              <div className="acc-modal-body" style={{ padding: '20px 24px' }}>
+                <div className="log-modal-meta-grid">
+                  <div className="log-meta-item">
+                    <span className="log-meta-label">Timestamp</span>
+                    <strong className="log-meta-val">
+                      {new Date(selectedLogDetail.created_at).toLocaleString()}
+                    </strong>
+                  </div>
+
+                  <div className="log-meta-item">
+                    <span className="log-meta-label">Operator</span>
+                    <strong className="log-meta-val">{selectedLogDetail.admin_email || 'System'}</strong>
+                  </div>
+
+                  <div className="log-meta-item">
+                    <span className="log-meta-label">Action</span>
+                    <div>
+                      {(() => {
+                        const badge = actionBadgeInfo(selectedLogDetail.action_type);
+                        return (
+                          <span className={`log-badge ${badge.className}`}>
+                            {badge.icon} <span>{badge.label}</span>
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  <div className="log-meta-item">
+                    <span className="log-meta-label">Target Table</span>
+                    <strong className="log-meta-val">{selectedLogDetail.target_table || 'None'}</strong>
+                  </div>
+
+                  {selectedLogDetail.target_name && (
+                    <div className="log-meta-item full">
+                      <span className="log-meta-label">Target Entity</span>
+                      <strong className="log-meta-val highlight">{selectedLogDetail.target_name}</strong>
+                    </div>
+                  )}
+
+                  {selectedLogDetail.target_id && (
+                    <div className="log-meta-item full">
+                      <span className="log-meta-label">Target ID</span>
+                      <span className="log-meta-val code">{selectedLogDetail.target_id}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Payload Section */}
+                <div className="log-payload-section">
+                  <div className="log-payload-head">
+                    <span>Event Payload / Parameters</span>
+                    <button 
+                      type="button" 
+                      className="log-copy-payload-btn"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(JSON.stringify(selectedLogDetail.details || {}, null, 2));
+                        showToast('Payload copied to clipboard', 'success');
+                      }}
+                    >
+                      <Copy size={12} /> Copy JSON
+                    </button>
+                  </div>
+                  <pre className="log-payload-code">
+                    {JSON.stringify(selectedLogDetail.details || {}, null, 2)}
+                  </pre>
                 </div>
               </div>
-            )}
-          </>
+
+              <div className="modal-footer acc-modal-footer">
+                <button type="button" className="btn btn-modal-primary" onClick={() => setSelectedLogDetail(null)}>
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
         )}
       </div>
     );
@@ -8855,6 +10629,588 @@ export default function AdminPage() {
     );
   };
 
+  // ─── DISTRIBUTION AID SCANNER RENDERER ───
+  const renderDistributionScanner = () => {
+    const activeCat = DISTRIBUTION_CATEGORIES.find(c => c.id === selectedDistCategory) || DISTRIBUTION_CATEGORIES[0];
+
+    const filteredRecords = distRecentRecords.filter(r => {
+      const reg = r.registrations || {};
+      const p = reg.ValidResidents || {};
+      const name = `${p.first_name || reg.first_name || ''} ${p.last_name || reg.last_name || ''}`.toLowerCase();
+      const brgy = (r.barangay || p.barangay || '').toLowerCase();
+      const emCard = (reg.em_card_no || '').toLowerCase();
+      const cat = (r.category || '').toLowerCase();
+
+      if (distFilterCategory && r.category !== distFilterCategory) return false;
+      if (distFilterBarangay && !brgy.includes(distFilterBarangay.toLowerCase())) return false;
+      if (distSearchQuery) {
+        const q = distSearchQuery.toLowerCase();
+        return name.includes(q) || brgy.includes(q) || emCard.includes(q) || cat.includes(q);
+      }
+      return true;
+    });
+
+    const resetDistScanState = () => {
+      setDistScanResult(null);
+      setDistScanToken('');
+      distScanInProgressRef.current = false;
+      if (distScannerMode === 'camera') {
+        startDistCamera();
+      }
+    };
+
+    return (
+      <div className="admin-panel dist-scanner-panel">
+        {/* Clean Header */}
+        <div className="panel-header dist-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, paddingBottom: 16, borderBottom: '1px solid #e2e8f0' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Gift size={20} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
+                    Aid &amp; Benefits Distribution Scanner
+                  </h3>
+                  <span 
+                    className="dist-active-cat-pill"
+                    style={{
+                      background: `${activeCat.color}15`,
+                      color: activeCat.color,
+                      border: `1px solid ${activeCat.color}40`,
+                      padding: '2px 8px',
+                      borderRadius: 20,
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    {getCategoryIcon(activeCat.icon, 13)} {activeCat.name}
+                  </span>
+                </div>
+                <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+                  Select a category and scan citizen EM Cards to verify &amp; record official aid distribution.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="event-scanner-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button 
+              type="button" 
+              className="btn btn-sm btn-outline-emerald"
+              onClick={() => fetchDistributionRecords(distFilterCategory)}
+              disabled={distRecordsLoading}
+              title="Refresh distribution logs"
+            >
+              <RotateCw size={13} className={distRecordsLoading ? 'spin' : ''} /> Refresh
+            </button>
+            <button 
+              type="button" 
+              className="btn btn-sm btn-outline-emerald"
+              onClick={exportDistributionCSV}
+              disabled={distRecentRecords.length === 0}
+              title="Export distribution records to Excel"
+            >
+              <Download size={13} /> Export Logs
+            </button>
+          </div>
+        </div>
+
+        {/* 8 Category Selector Grid */}
+        <div className="dist-categories-grid">
+          {DISTRIBUTION_CATEGORIES.map(cat => {
+            const isSelected = selectedDistCategory === cat.id;
+            const count = distStats[cat.id] || 0;
+
+            return (
+              <div
+                key={cat.id}
+                className={`dist-category-card ${isSelected ? 'selected' : ''}`}
+                style={{
+                  '--cat-color': cat.color,
+                }}
+                onClick={() => {
+                  setSelectedDistCategory(cat.id);
+                  if (distScannerMode === 'camera') {
+                    startDistCamera();
+                  }
+                }}
+              >
+                <div className="dist-cat-icon-wrap" style={{ color: cat.color }}>
+                  {getCategoryIcon(cat.icon, 18)}
+                </div>
+                <div className="dist-cat-text">
+                  <span className="dist-cat-name">{cat.name}</span>
+                  {cat.isYourEM && (
+                    <span className="dist-cat-reserved-tag">Reserved</span>
+                  )}
+                </div>
+                <div className="dist-cat-count-badge">
+                  {count}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Policy & Mode Toolbar */}
+        <div className="dist-policy-toolbar">
+          {/* Duplicate Prevention Policy Switch */}
+          <div className="dist-duplicate-toggle-box">
+            <span className="dist-toggle-label">
+              <strong>Duplicate Policy:</strong>
+            </span>
+            <div className="dist-toggle-btn-group">
+              <button
+                type="button"
+                className={`dist-policy-btn ${!distAllowDuplicates ? 'active-strict' : ''}`}
+                onClick={() => setDistAllowDuplicates(false)}
+                title="Strict 1-per-resident. Blocks second scans for the same category."
+              >
+                <Lock size={12} /> Strict (1-Per-Resident)
+              </button>
+              <button
+                type="button"
+                className={`dist-policy-btn ${distAllowDuplicates ? 'active-allow' : ''}`}
+                onClick={() => setDistAllowDuplicates(true)}
+                title="Allow multiple claims / repeat distributions."
+              >
+                <Check size={12} /> Allow Multiple Claims
+              </button>
+            </div>
+          </div>
+
+          {/* Scanner Mode Tabs */}
+          <div className="scanner-mode-toggle dist-mode-toggle">
+            <button
+              type="button"
+              className={distScannerMode === 'camera' ? 'active' : ''}
+              onClick={() => { setDistScannerMode('camera'); resetDistScanState(); }}
+            >
+              <Camera size={14} /> Live Camera
+            </button>
+            <button
+              type="button"
+              className={distScannerMode === 'capture' ? 'active' : ''}
+              onClick={() => { setDistScannerMode('capture'); stopDistScanner(); }}
+            >
+              <Upload size={14} /> Photo Capture
+            </button>
+            <button
+              type="button"
+              className={distScannerMode === 'manual' ? 'active' : ''}
+              onClick={() => { setDistScannerMode('manual'); stopDistScanner(); }}
+            >
+              <ScanLine size={14} /> Manual Entry
+            </button>
+            <button
+              type="button"
+              className={distScannerMode === 'traffic' ? 'active' : ''}
+              onClick={() => { setDistScannerMode('traffic'); stopDistScanner(); fetchDistributionRecords(distFilterCategory); }}
+            >
+              <Activity size={14} /> Live Feed &amp; History
+            </button>
+          </div>
+        </div>
+
+        {/* ─── Result Modal (for manual/capture and camera overlay) ─── */}
+        {distScanResult && (
+          <div className="modal-overlay scan-result-overlay" onClick={resetDistScanState}>
+            <div className={`modal-card scan-result-modal scan-result-${distScanResult.type}`} style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
+              {/* SUCCESS MODAL */}
+              {distScanResult.type === 'success' && (
+                <>
+                  <div 
+                    className="scan-result-badge success" 
+                    style={{ background: distScanResult.categoryColor || '#10b981' }}
+                  >
+                    <CheckCircle size={28} /> AID DISTRIBUTED — {distScanResult.categoryName?.toUpperCase()}
+                  </div>
+
+                  <div className="scan-result-profile">
+                    <div className="scan-result-photo">
+                      {distScanResult.photo ? <img src={distScanResult.photo} alt="" /> : <User size={54} />}
+                    </div>
+                    <div className="scan-result-info">
+                      <h2>{distScanResult.name}</h2>
+                      <div className="scan-result-meta-grid">
+                        <span><MapPin size={14} /> {distScanResult.barangay}</span>
+                        <span><Home size={14} /> {distScanResult.houseNo}</span>
+                        <span><MapPin size={14} /> Purok {distScanResult.purok}</span>
+                        <span><Phone size={14} /> {distScanResult.contact}</span>
+                        <span><CreditCard size={14} /> {distScanResult.emCardNo}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 8-Category Status Grid for this citizen */}
+                  <div className="dist-result-categories-section">
+                    <span className="dist-result-section-label">Citizen&apos;s Benefit Claim Status:</span>
+                    <div className="dist-result-categories-grid">
+                      {DISTRIBUTION_CATEGORIES.map(cat => {
+                        const isClaimed = (distScanResult.allDistributions || []).some(d => d.category === cat.id);
+                        return (
+                          <div 
+                            key={cat.id} 
+                            className={`dist-result-cat-chip ${isClaimed ? 'claimed' : 'unclaimed'} ${cat.isYourEM ? 'your-em-chip' : ''}`}
+                            style={{
+                              borderColor: isClaimed ? cat.color : undefined,
+                              background: isClaimed ? `${cat.color}15` : undefined,
+                              color: isClaimed ? cat.color : undefined,
+                            }}
+                          >
+                            <span className="dist-chip-icon">{getCategoryIcon(cat.icon, 13)}</span>
+                            <span className="dist-chip-name">{cat.name}</span>
+                            <span className="dist-chip-status">{isClaimed ? '✓' : '○'}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="scan-result-footer" style={{ borderTop: '1px solid #e2e8f0', paddingTop: 14 }}>
+                    <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                      Claim #{distScanResult.claimNumber || 1} recorded successfully
+                    </span>
+                    <button className="btn btn-primary" onClick={resetDistScanState}>
+                      Scan Next Citizen
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* DUPLICATE MODAL */}
+              {distScanResult.type === 'duplicate' && (
+                <>
+                  <div className="scan-result-badge duplicate">
+                    <AlertTriangle size={28} /> ALREADY CLAIMED — STOP DISTRIBUTION
+                  </div>
+
+                  <div className="scan-result-profile">
+                    <div className="scan-result-photo">
+                      {distScanResult.photo ? <img src={distScanResult.photo} alt="" /> : <User size={54} />}
+                    </div>
+                    <div className="scan-result-info">
+                      <h2>{distScanResult.name}</h2>
+                      <div className="scan-result-meta-grid">
+                        <span><MapPin size={14} /> {distScanResult.barangay}</span>
+                        <span><Home size={14} /> {distScanResult.houseNo}</span>
+                        <span><MapPin size={14} /> Purok {distScanResult.purok}</span>
+                        <span><Phone size={14} /> {distScanResult.contact}</span>
+                        <span><CreditCard size={14} /> {distScanResult.emCardNo}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="scan-result-footer duplicate-footer">
+                    <div className="duplicate-warning">
+                      <strong><AlertTriangle size={14} /> PREVIOUSLY CLAIMED FOR {distScanResult.categoryName?.toUpperCase()}</strong>
+                      <p>Claimed on <strong>{new Date(distScanResult.scannedAt).toLocaleDateString()}</strong> at <strong>{new Date(distScanResult.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></p>
+                      {distScanResult.scannedBy && <p>Operator: <strong>{distScanResult.scannedBy}</strong></p>}
+                      <p className="duplicate-stop"><Ban size={14} /> DO NOT DISTRIBUTE — This resident already claimed this assistance in strict mode.</p>
+                    </div>
+                    <button className="btn btn-danger" onClick={resetDistScanState}>
+                      Acknowledge &amp; Scan Next
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* INVALID / ERROR MODAL */}
+              {(distScanResult.type === 'invalid' || distScanResult.type === 'error') && (
+                <>
+                  <div className="scan-result-badge invalid">
+                    <X size={28} /> {distScanResult.type === 'invalid' ? 'INVALID QR CARD' : 'SCAN ERROR'}
+                  </div>
+                  <p className="scan-error-message">{distScanResult.message}</p>
+                  {distScanResult.rawText && (
+                    <code style={{ fontSize: '0.75rem', background: '#f3f4f6', padding: '4px 8px', borderRadius: 4, marginTop: 8, display: 'block', wordBreak: 'break-all' }}>
+                      Decoded: {distScanResult.rawText}
+                    </code>
+                  )}
+                  <div style={{ textAlign: 'center', marginTop: 16 }}>
+                    <button className="btn btn-secondary" onClick={resetDistScanState}>Try Again</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Scan Input Modes */}
+        <div className="scan-input-panel">
+
+          {/* 1. LIVE CAMERA MODE */}
+          {distScannerMode === 'camera' && (
+            <>
+              <div className="camera-scanner-container camera-fullscreen" onClick={handleDistTapFocus}>
+                <div id="dist-scanner-camera" className="camera-fullscreen-video"></div>
+                {distFocusPoint && (
+                  <div
+                    className="camera-focus-reticle"
+                    style={{ left: distFocusPoint.x, top: distFocusPoint.y }}
+                  />
+                )}
+                {distScanLoading && (
+                  <div className="scan-spinner-overlay">
+                    <div className="scan-spinner">Verifying EM Card for {activeCat.name}...</div>
+                  </div>
+                )}
+              </div>
+              <p className="camera-hint camera-fullscreen-hint">
+                Scanning for <strong style={{ color: activeCat.color }}>{activeCat.name}</strong> · Point camera at the resident&apos;s EM Card QR code
+              </p>
+            </>
+          )}
+
+          {/* 2. PHOTO CAPTURE MODE */}
+          {distScannerMode === 'capture' && (
+            <>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                ref={distFileInputRef}
+                style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+
+                  setDistScanResult(null);
+                  setDistScanLoading(true);
+
+                  try {
+                    const { data: decodedText, debug } = await detectQRSimple(file);
+                    if (decodedText) {
+                      if (distScanInProgressRef.current) {
+                        setDistScanResult({ type: 'invalid', message: 'A scan is already in progress. Please wait.' });
+                      } else {
+                        await handleDistributionScan(decodedText);
+                      }
+                    } else {
+                      setDistScanResult({
+                        type: 'invalid',
+                        message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.',
+                        rawText: debug,
+                      });
+                    }
+                  } catch (err) {
+                    setDistScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please try again or use Manual entry.' });
+                  } finally {
+                    setDistScanLoading(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <div className="camera-scanner-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '40px 20px' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: `${activeCat.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: activeCat.color }}>
+                  {getCategoryIcon(activeCat.icon, 32)}
+                </div>
+                <h4 style={{ margin: 0 }}>Capture QR for {activeCat.name}</h4>
+                <p style={{ textAlign: 'center', margin: 0, color: 'var(--muted)', maxWidth: 360 }}>
+                  Take a photo of the citizen&apos;s EM Card with your phone camera or select an image file to distribute <strong>{activeCat.name}</strong>.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ padding: '14px 32px', fontSize: '1.05rem', background: activeCat.color, borderColor: activeCat.color }}
+                  onClick={() => distFileInputRef.current?.click()}
+                >
+                  <Camera size={20} style={{ marginRight: 8 }} /> Capture QR Photo
+                </button>
+              </div>
+              {distScanLoading && (
+                <div className="scan-spinner" style={{ marginTop: 16 }}>Analyzing QR photo...</div>
+              )}
+            </>
+          )}
+
+          {/* 3. MANUAL TOKEN ENTRY MODE */}
+          {distScannerMode === 'manual' && (
+            <>
+              <div className="scan-input-icon" style={{ color: activeCat.color }}>
+                {getCategoryIcon(activeCat.icon, 40)}
+              </div>
+              <h4>Manual QR Token Entry</h4>
+              <p>Type or paste the QR token from the EM Card for <strong>{activeCat.name}</strong></p>
+              <form onSubmit={e => { e.preventDefault(); handleDistributionScan(distScanToken); }} style={{ width: '100%', maxWidth: 440 }}>
+                <input
+                  type="text"
+                  value={distScanToken}
+                  onChange={e => setDistScanToken(e.target.value)}
+                  placeholder="Enter QR token (e.g., EM-...)"
+                  className="scan-token-input"
+                  autoFocus
+                  autoComplete="off"
+                />
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ marginTop: 12, width: '100%', background: activeCat.color, borderColor: activeCat.color }}
+                  disabled={distScanLoading || !distScanToken.trim()}
+                >
+                  {distScanLoading ? 'Verifying...' : `Verify & Distribute ${activeCat.name}`}
+                </button>
+              </form>
+              {distScanLoading && <div className="scan-spinner" style={{ marginTop: 12 }}>Processing distribution...</div>}
+            </>
+          )}
+
+          {/* 4. LIVE FEED & HISTORY MODE */}
+          {distScannerMode === 'traffic' && (
+            <div className="live-traffic-container" style={{ width: '100%', padding: '20px 0', background: 'transparent' }}>
+              <div className="live-traffic-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottom: '1px solid #f1f5f9', paddingBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="live-indicator-pulse" style={{ display: 'inline-block', width: 10, height: 10, background: '#10b981', borderRadius: '50%', boxShadow: '0 0 0 0 rgba(16, 185, 129, 0.7)', animation: 'pulse-live 1.5s infinite' }} />
+                  <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#1e293b' }}>
+                    LIVE AID DISTRIBUTION FEED
+                  </h4>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: '0.82rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Clock size={13} /> {filteredRecords.length} recorded entries
+                  </span>
+                </div>
+              </div>
+
+              {/* Filters for Distribution Records */}
+              <div className="dist-history-filter-bar" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+                <select
+                  value={distFilterCategory}
+                  onChange={e => setDistFilterCategory(e.target.value)}
+                  className="logs-filter-select"
+                  style={{ minWidth: 180 }}
+                >
+                  <option value="">All Categories (8)</option>
+                  {DISTRIBUTION_CATEGORIES.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={distFilterBarangay}
+                  onChange={e => setDistFilterBarangay(e.target.value)}
+                  className="logs-filter-select"
+                  style={{ minWidth: 180 }}
+                >
+                  <option value="">All Barangays</option>
+                  {allBarangays.map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+
+                <div className="accounts-search-wrap" style={{ flex: 1, minWidth: 220 }}>
+                  <Search size={14} className="acc-search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search by citizen name, EM card, or barangay..."
+                    value={distSearchQuery}
+                    onChange={e => setDistSearchQuery(e.target.value)}
+                    className="accounts-search-input"
+                  />
+                  {distSearchQuery && (
+                    <button type="button" className="acc-clear-btn" onClick={() => setDistSearchQuery('')}>
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Records Table */}
+              <div className="table-wrap accounts-table-wrap">
+                <table className="admin-table accounts-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Timestamp</th>
+                      <th>Category</th>
+                      <th>Claim</th>
+                      <th>Beneficiary Citizen</th>
+                      <th>Barangay</th>
+                      <th>EM Card No.</th>
+                      <th>Operator</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRecords.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>
+                          No aid distribution records found matching your filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRecords.map((r, idx) => {
+                        const reg = r.registrations || {};
+                        const p = reg.ValidResidents || {};
+                        const name = `${p.first_name || reg.first_name || ''} ${p.last_name || reg.last_name || ''}`.trim() || 'Beneficiary';
+                        const catMeta = DISTRIBUTION_CATEGORIES.find(c => c.id === r.category) || { name: r.category_name || r.category, color: '#10b981', icon: 'Gift' };
+
+                        return (
+                          <tr key={r.id || idx}>
+                            <td style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{idx + 1}</td>
+                            <td>
+                              <div className="log-time-cell">
+                                <Calendar size={13} className="log-time-icon" />
+                                <div className="log-time-text">
+                                  <span className="log-date-label">
+                                    {new Date(r.distributed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  </span>
+                                  <span className="log-time-sub">
+                                    {new Date(r.distributed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span 
+                                className="dist-table-cat-pill"
+                                style={{
+                                  background: `${catMeta.color}15`,
+                                  color: catMeta.color,
+                                  border: `1px solid ${catMeta.color}35`,
+                                  padding: '3px 8px',
+                                  borderRadius: 12,
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                }}
+                              >
+                                {getCategoryIcon(catMeta.icon, 12)} {catMeta.name}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="dist-claim-badge">
+                                #{r.claim_number || 1}
+                              </span>
+                            </td>
+                            <td>
+                              <strong style={{ color: '#0f172a' }}>{name}</strong>
+                            </td>
+                            <td>{r.barangay || p.barangay || '—'}</td>
+                            <td><code>{reg.em_card_no || '—'}</code></td>
+                            <td>
+                              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{r.scanned_by || 'Staff'}</span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="admin-dashboard">
       {/* Toast Notification */}
@@ -9058,6 +11414,7 @@ export default function AdminPage() {
           {activeTab === 'registerMember' && <RegisterForm embedded={true} />}
           {activeTab === 'members' && renderMembers()}
           {activeTab === 'organizations' && renderOrganizations()}
+          {activeTab === 'distributionScanner' && renderDistributionScanner()}
           {activeTab === 'eventScanner' && renderEventScanner()}
           {activeTab === 'events' && renderUpcomingEvents()}
           {activeTab === 'network' && renderNetwork()}
@@ -10399,7 +12756,61 @@ export default function AdminPage() {
                             )}
                           </div>
 
-                          {/* 5. Scan History & Attendance Audit Log */}
+                          {/* 5. Official Aid & Benefits Distribution Tracker (8 Rainbow Categories) */}
+                          <div className="gov-card-section gov-history-section dist-member-modal-section">
+                            <div className="gov-section-header">
+                              <div className="gov-section-icon" style={{ background: '#ecfdf5', color: '#059669' }}><Gift size={15} /></div>
+                              <div>
+                                <h4 className="gov-section-title">Official Aid &amp; Benefits Distribution Tracker</h4>
+                                <span className="gov-section-sub">8 Rainbow categories entitlement &amp; claimed status</span>
+                              </div>
+                            </div>
+
+                            {memberAidLoading ? (
+                              <div className="gov-scan-status"><RotateCw className="spin" size={16} /> Loading aid distribution history...</div>
+                            ) : (
+                              <div className="dist-member-modal-grid">
+                                {DISTRIBUTION_CATEGORIES.map(cat => {
+                                  const claims = memberAidHistory.filter(d => d.category === cat.id);
+                                  const isClaimed = claims.length > 0;
+                                  const latestClaim = isClaimed ? claims[0] : null;
+
+                                  return (
+                                    <div 
+                                      key={cat.id} 
+                                      className={`dist-member-cat-card ${isClaimed ? 'claimed' : 'unclaimed'} ${cat.isYourEM ? 'your-em-card' : ''}`}
+                                      style={{
+                                        '--cat-color': cat.color,
+                                      }}
+                                    >
+                                      <div className="dist-member-cat-top">
+                                        <div className="dist-member-cat-icon" style={{ color: cat.color }}>
+                                          {getCategoryIcon(cat.icon, 16)}
+                                        </div>
+                                        {isClaimed ? (
+                                          <span className="dist-member-cat-pill claimed">
+                                            ✓ Received {claims.length > 1 ? `(${claims.length}x)` : ''}
+                                          </span>
+                                        ) : (
+                                          <span className="dist-member-cat-pill unclaimed">
+                                            ○ Not claimed
+                                          </span>
+                                        )}
+                                      </div>
+                                      <strong className="dist-member-cat-name">{cat.name}</strong>
+                                      {isClaimed && latestClaim && (
+                                        <span className="dist-member-cat-date">
+                                          {new Date(latestClaim.distributed_at).toLocaleDateString()}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 6. Scan History & Attendance Audit Log */}
                           <div className="gov-card-section gov-history-section">
                             <div className="gov-section-header">
                               <div className="gov-section-icon"><History size={15} /></div>
@@ -10778,42 +13189,131 @@ export default function AdminPage() {
       )}
 
       {/* CREATE ACCOUNT MODAL */}
-      {showCreateAccount && (
+      {showCreateAccount && typeof document !== 'undefined' && createPortal(
         <div className="modal-overlay" onClick={() => setShowCreateAccount(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>👤 Create Admin Account</h3>
-              <button className="modal-close-x" onClick={() => setShowCreateAccount(false)}>✕</button>
+          <div className="modal-card acc-modal-dialog" onClick={e => e.stopPropagation()}>
+            <div className="modal-header acc-modal-head">
+              <div className="acc-modal-title-wrap">
+                <div className="acc-modal-icon-chip">
+                  <UserPlus size={20} />
+                </div>
+                <div>
+                  <h3 className="acc-modal-title">Create System Account</h3>
+                  <span className="acc-modal-subtitle">Provision user credentials & access privileges</span>
+                </div>
+              </div>
+              <button type="button" className="modal-close-x" onClick={() => setShowCreateAccount(false)}>✕</button>
             </div>
-            <form onSubmit={handleCreateAccount} className="modal-form">
-              <div className="form-group">
-                <label>Email Address</label>
-                <input type="email" required value={createAccountForm.email} onChange={e => setCreateAccountForm(f => ({ ...f, email: e.target.value }))} placeholder="admin@example.com" />
+
+            <form onSubmit={handleCreateAccount} className="modal-form acc-modal-body">
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label className="acc-field-label">Email Address</label>
+                <div className="acc-input-icon-wrap">
+                  <Mail size={15} className="acc-input-icon" />
+                  <input 
+                    type="email" 
+                    required 
+                    value={createAccountForm.email} 
+                    onChange={e => setCreateAccountForm(f => ({ ...f, email: e.target.value }))} 
+                    placeholder="e.g. staff01@em-card.com" 
+                    className="acc-styled-input with-icon"
+                    autoFocus
+                  />
+                </div>
               </div>
-              <div className="form-group">
-                <label>Role</label>
-                <select value={createAccountForm.role} onChange={e => setCreateAccountForm(f => ({ ...f, role: e.target.value }))}>
-                  <option value="admin">Admin</option>
-                  <option value="staff">Staff</option>
-                </select>
+
+              {/* Visual Role Selector */}
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label className="acc-field-label">Assign Role & Access Level</label>
+                <div className="acc-role-cards-grid">
+                  <div 
+                    className={`acc-role-card ${createAccountForm.role === 'staff' ? 'selected' : ''}`}
+                    onClick={() => setCreateAccountForm(f => ({ ...f, role: 'staff' }))}
+                  >
+                    <div className="acc-role-card-header">
+                      <User size={16} className="acc-role-icon staff" />
+                      <span className="acc-role-name">Staff Operator</span>
+                      <div className="acc-role-radio" />
+                    </div>
+                    <p className="acc-role-desc">
+                      Registration, event scanning & inquiries.
+                    </p>
+                  </div>
+
+                  <div 
+                    className={`acc-role-card ${createAccountForm.role === 'admin' ? 'selected' : ''}`}
+                    onClick={() => setCreateAccountForm(f => ({ ...f, role: 'admin' }))}
+                  >
+                    <div className="acc-role-card-header">
+                      <ShieldCheck size={16} className="acc-role-icon admin" />
+                      <span className="acc-role-name">Administrator</span>
+                      <div className="acc-role-radio" />
+                    </div>
+                    <p className="acc-role-desc">
+                      Full access, analytics, user controls & exports.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="form-group">
-                <label>Password</label>
-                <input type="password" required value={createAccountForm.password} onChange={e => setCreateAccountForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 6 characters" />
+
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label className="acc-field-label">Password</label>
+                <div className="acc-password-input-wrap">
+                  <input 
+                    type={showModalPassword ? 'text' : 'password'} 
+                    required 
+                    value={createAccountForm.password} 
+                    onChange={e => setCreateAccountForm(f => ({ ...f, password: e.target.value }))} 
+                    placeholder="Minimum 6 characters" 
+                    className="acc-styled-input"
+                  />
+                  {createAccountForm.password && (
+                    <button 
+                      type="button" 
+                      className="acc-pwd-toggle" 
+                      onClick={() => setShowModalPassword(v => !v)}
+                      tabIndex={-1}
+                    >
+                      {showModalPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="form-group">
-                <label>Confirm Password</label>
-                <input type="password" required value={createAccountForm.confirmPassword} onChange={e => setCreateAccountForm(f => ({ ...f, confirmPassword: e.target.value }))} placeholder="Repeat password" />
+
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label className="acc-field-label">Confirm Password</label>
+                <div className="acc-password-input-wrap">
+                  <input 
+                    type={showModalConfirmPassword ? 'text' : 'password'} 
+                    required 
+                    value={createAccountForm.confirmPassword} 
+                    onChange={e => setCreateAccountForm(f => ({ ...f, confirmPassword: e.target.value }))} 
+                    placeholder="Repeat password" 
+                    className="acc-styled-input"
+                  />
+                  {createAccountForm.confirmPassword && (
+                    <button 
+                      type="button" 
+                      className="acc-pwd-toggle" 
+                      onClick={() => setShowModalConfirmPassword(v => !v)}
+                      tabIndex={-1}
+                    >
+                      {showModalConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="modal-footer">
+
+              <div className="modal-footer acc-modal-footer">
                 <button type="button" className="btn btn-modal-secondary" onClick={() => setShowCreateAccount(false)}>Cancel</button>
                 <button type="submit" className="btn btn-modal-primary" disabled={createAccountLoading}>
-                  {createAccountLoading ? 'Creating...' : 'Create Account'}
+                  <UserPlus size={15} /> {createAccountLoading ? 'Creating Account...' : 'Create Account'}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ID Print Scanner Modal — camera + manual scanner */}

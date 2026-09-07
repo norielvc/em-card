@@ -83,3 +83,24 @@ export async function PUT(req) {
     return Response.json({ error: 'Failed to update user' }, { status: 500 });
   }
 }
+
+export async function DELETE(req) {
+  try {
+    const user = await requireAuth(req);
+    const forbidden = requireAdmin(user);
+    if (forbidden) return forbidden;
+    const { id } = await req.json();
+    if (!id) return Response.json({ error: 'User ID required' }, { status: 400 });
+    if (id === user.id) {
+      return Response.json({ error: 'Cannot delete your own account' }, { status: 400 });
+    }
+
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (error) throw error;
+
+    return Response.json({ success: true });
+  } catch (err) {
+    return Response.json({ error: 'Failed to delete user' }, { status: 500 });
+  }
+}
+

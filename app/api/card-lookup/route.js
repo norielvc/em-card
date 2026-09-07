@@ -37,6 +37,19 @@ export async function GET(request) {
     const person = reg.ValidResidents || {};
     const fullName = `${person.first_name || ''} ${person.middle_name ? person.middle_name + ' ' : ''}${person.last_name || ''}${person.suffix ? ' ' + person.suffix : ''}`.trim();
 
+    // Fetch aid distributions received by this member
+    let aidDistributions = [];
+    try {
+      const { data: distData } = await supabaseAdmin
+        .from('aid_distributions')
+        .select('id, category, category_name, distributed_at, claim_number, scanned_by')
+        .eq('registration_id', reg.id)
+        .order('distributed_at', { ascending: false });
+      aidDistributions = distData || [];
+    } catch {
+      // Non-blocking if table not ready
+    }
+
     return Response.json({
       id: reg.id,
       name: fullName,
@@ -48,6 +61,7 @@ export async function GET(request) {
       scanCount: reg.scan_count || 0,
       lastScanned: reg.last_scanned_at,
       precinct: person.precinct || null,
+      aidDistributions,
     });
   } catch {
     return Response.json({ error: 'Server error' }, { status: 500 });
