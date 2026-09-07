@@ -22554,8 +22554,9 @@ html, body {
    8-CATEGORY AID & BENEFITS DISTRIBUTION STYLES (Clean Project Theme)
    ========================================================================== */
 
-/* Distribution Scanner Panel */
-.dist-scanner-panel {
+/* Distribution Panels */
+.dist-scanner-panel,
+.dist-select-panel {
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -22635,15 +22636,174 @@ html, body {
   transition: all 0.2s ease;
 }
 
-/* 8 Category Selector Grid */
-.dist-categories-grid {
+/* Step 1: Category Selection Hero Bar */
+.dist-select-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+
+.dist-select-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 240px;
+}
+
+.dist-select-hero-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dist-select-hero-text h4 {
+  margin: 0 0 2px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.dist-select-hero-text p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.dist-select-hero-policy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dist-policy-sublabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+/* Step 1: 8 Category Selection Cards Grid */
+.dist-select-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: 14px;
   width: 100%;
   box-sizing: border-box;
 }
 
+.dist-select-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+.dist-select-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--cat-color);
+  opacity: 0.7;
+  transition: all 0.2s ease;
+}
+
+.dist-select-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--cat-color);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.08);
+}
+
+.dist-select-card:hover::before {
+  width: 6px;
+  opacity: 1;
+}
+
+.dist-select-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dist-select-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dist-select-count-pill {
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1px solid;
+}
+
+.dist-select-card-body {
+  flex: 1;
+}
+
+.dist-select-card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.dist-select-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.dist-select-action-btn {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--cat-color, #059669);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: gap 0.2s ease;
+}
+
+.dist-select-card:hover .dist-select-action-btn {
+  gap: 7px;
+}
+
+/* Step 2: Dedicated Scanner Mode Styles */
 .dist-category-card {
   display: flex;
   align-items: center;
@@ -22680,20 +22840,10 @@ html, body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.dist-category-card:hover::before {
-  opacity: 1;
-  width: 4.5px;
-}
-
 .dist-category-card.selected {
   background: #ffffff;
   border-color: var(--cat-color);
   box-shadow: 0 0 0 1.5px var(--cat-color), 0 4px 14px rgba(0, 0, 0, 0.06);
-}
-
-.dist-category-card.selected::before {
-  opacity: 1;
-  width: 5px;
 }
 
 .dist-cat-icon-wrap {
@@ -22706,10 +22856,6 @@ html, body {
   justify-content: center;
   flex-shrink: 0;
   transition: all 0.2s ease;
-}
-
-.dist-category-card.selected .dist-cat-icon-wrap {
-  background: #f1f5f9;
 }
 
 .dist-cat-text {
@@ -22749,11 +22895,6 @@ html, body {
   border-radius: 6px;
   transition: all 0.2s ease;
   flex-shrink: 0;
-}
-
-.dist-category-card.selected .dist-cat-count-badge {
-  background: #0f172a;
-  color: #ffffff;
 }
 
 /* Policy & Duplicate Control Toolbar */
@@ -22912,19 +23053,21 @@ html, body {
    ========================================================================== */
 
 @media (max-width: 1024px) {
-  .dist-categories-grid {
+  .dist-select-grid {
     grid-template-columns: repeat(4, 1fr);
   }
 }
 
 @media (max-width: 860px) {
-  .dist-categories-grid {
+  .dist-select-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
 }
 
 @media (max-width: 768px) {
-  .dist-scanner-panel {
+  .dist-scanner-panel,
+  .dist-select-panel {
     gap: 10px !important;
     padding: 10px !important;
   }
@@ -22962,31 +23105,54 @@ html, body {
     font-size: 0.78rem !important;
   }
 
-  .dist-categories-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 6px !important;
+  .dist-select-hero {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 10px 12px !important;
+    gap: 10px !important;
   }
 
-  .dist-category-card {
-    padding: 6px 8px !important;
-    min-height: 40px !important;
-    gap: 6px !important;
+  .dist-select-hero-left {
+    min-width: 0 !important;
+  }
+
+  .dist-select-hero-policy {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .dist-select-hero-policy .dist-toggle-btn-group {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .dist-select-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .dist-select-card {
+    padding: 10px !important;
+    gap: 8px !important;
+    border-radius: 10px !important;
+  }
+
+  .dist-select-card-icon {
+    width: 32px !important;
+    height: 32px !important;
     border-radius: 8px !important;
   }
 
-  .dist-cat-icon-wrap {
-    width: 26px !important;
-    height: 26px !important;
-    border-radius: 6px !important;
+  .dist-select-card-title {
+    font-size: 0.85rem !important;
   }
 
-  .dist-cat-name {
-    font-size: 0.76rem !important;
-  }
-
-  .dist-cat-count-badge {
-    font-size: 0.7rem !important;
-    padding: 2px 5px !important;
+  .dist-select-count-pill {
+    font-size: 0.68rem !important;
+    padding: 2px 6px !important;
   }
 
   .dist-policy-toolbar {
@@ -23040,29 +23206,21 @@ html, body {
 }
 
 @media (max-width: 480px) {
-  .dist-categories-grid {
+  .dist-select-grid {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 5px !important;
+    gap: 6px !important;
   }
 
-  .dist-category-card {
-    padding: 5px 6px !important;
-    min-height: 38px !important;
-    gap: 4px !important;
+  .dist-select-card {
+    padding: 8px !important;
   }
 
-  .dist-cat-name {
-    font-size: 0.72rem !important;
+  .dist-select-card-title {
+    font-size: 0.78rem !important;
   }
 
-  .dist-cat-reserved-tag {
-    font-size: 0.52rem !important;
-    padding: 1px 2px !important;
-  }
-
-  .dist-cat-count-badge {
-    font-size: 0.68rem !important;
-    padding: 1px 4px !important;
+  .dist-select-count-pill {
+    font-size: 0.62rem !important;
   }
 
   .dist-policy-btn {

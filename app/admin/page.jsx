@@ -316,6 +316,7 @@ export default function AdminPage() {
   };
 
   // ─── Distribution Aid Scanner (8 Categories & Rainbow Theme) ───
+  const [distScannerStep, setDistScannerStep] = useState('select'); // 'select' | 'scan'
   const [selectedDistCategory, setSelectedDistCategory] = useState('groceries');
   const [distAllowDuplicates, setDistAllowDuplicates] = useState(false);
   const [distScannerMode, setDistScannerMode] = useState('camera'); // 'camera' | 'capture' | 'manual' | 'traffic'
@@ -10659,162 +10660,235 @@ export default function AdminPage() {
       }
     };
 
+    // ─── STEP 1: CATEGORY SELECTION SCREEN ───
+    if (distScannerStep === 'select') {
+      return (
+        <div className="admin-panel dist-select-panel">
+          {/* Clean Header */}
+          <div className="panel-header dist-panel-header">
+            <div className="dist-header-title-wrap">
+              <div className="dist-header-icon-box">
+                <Gift size={20} />
+              </div>
+              <div className="dist-header-text">
+                <div className="dist-header-title-row">
+                  <h3>Aid &amp; Benefits Distribution</h3>
+                  <span className="panel-badge">8 Categories</span>
+                </div>
+                <p className="dist-header-sub">
+                  Select an aid program below to launch the camera scanner and record verified distributions.
+                </p>
+              </div>
+            </div>
+
+            <div className="dist-header-actions">
+              <button 
+                type="button" 
+                className="btn btn-sm btn-outline-emerald"
+                onClick={() => fetchDistributionRecords(distFilterCategory)}
+                disabled={distRecordsLoading}
+                title="Refresh distribution logs"
+              >
+                <RotateCw size={13} className={distRecordsLoading ? 'spin' : ''} /> Refresh
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-sm btn-outline-emerald"
+                onClick={exportDistributionCSV}
+                disabled={distRecentRecords.length === 0}
+                title="Export distribution records to Excel"
+              >
+                <Download size={13} /> Export Logs
+              </button>
+            </div>
+          </div>
+
+          {/* Hero / Quick Policy Bar */}
+          <div className="dist-select-hero">
+            <div className="dist-select-hero-left">
+              <div className="dist-select-hero-icon">
+                <ShieldCheck size={22} />
+              </div>
+              <div className="dist-select-hero-text">
+                <h4>Select a Category to Start Scanning</h4>
+                <p>Tap any category to open the scanner. You can enforce 1-per-resident strict policy or allow recurring claims.</p>
+              </div>
+            </div>
+
+            <div className="dist-select-hero-policy">
+              <span className="dist-policy-sublabel">Duplicate Policy:</span>
+              <div className="dist-toggle-btn-group">
+                <button
+                  type="button"
+                  className={`dist-policy-btn ${!distAllowDuplicates ? 'active-strict' : ''}`}
+                  onClick={() => setDistAllowDuplicates(false)}
+                >
+                  <Lock size={12} /> Strict (1-Per-Resident)
+                </button>
+                <button
+                  type="button"
+                  className={`dist-policy-btn ${distAllowDuplicates ? 'active-allow' : ''}`}
+                  onClick={() => setDistAllowDuplicates(true)}
+                >
+                  <Check size={12} /> Allow Multiple Claims
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 8 Category Selection Cards Grid */}
+          <div className="dist-select-grid">
+            {DISTRIBUTION_CATEGORIES.map(cat => {
+              const count = distStats[cat.id] || 0;
+
+              return (
+                <div
+                  key={cat.id}
+                  className="dist-select-card"
+                  style={{
+                    '--cat-color': cat.color,
+                  }}
+                  onClick={() => {
+                    setSelectedDistCategory(cat.id);
+                    setDistScannerStep('scan');
+                    setDistScanResult(null);
+                    setDistScanToken(distScannerMode === 'manual' ? 'EM-' : '');
+                    if (distScannerMode === 'camera') {
+                      setTimeout(() => startDistCamera(), 60);
+                    }
+                  }}
+                >
+                  <div className="dist-select-card-top">
+                    <div className="dist-select-card-icon" style={{ color: cat.color, background: `${cat.color}15` }}>
+                      {getCategoryIcon(cat.icon, 22)}
+                    </div>
+                    <span className="dist-select-count-pill" style={{ color: cat.color, borderColor: `${cat.color}35`, background: `${cat.color}10` }}>
+                      {count} {count === 1 ? 'Claim' : 'Claims'}
+                    </span>
+                  </div>
+
+                  <div className="dist-select-card-body">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <h4 className="dist-select-card-title">{cat.name}</h4>
+                      {cat.isYourEM && (
+                        <span className="dist-cat-reserved-tag">Reserved</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="dist-select-card-footer">
+                    <span className="dist-select-action-btn">
+                      Open Scanner <ArrowRight size={14} />
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ─── STEP 2: DEDICATED SCANNER SCREEN ───
     return (
       <div className="admin-panel dist-scanner-panel">
-        {/* Clean Header */}
+        {/* Dedicated Scanner Header with Back Navigation */}
         <div className="panel-header dist-panel-header">
-          <div className="dist-header-title-wrap">
-            <div className="dist-header-icon-box">
-              <Gift size={20} />
-            </div>
-            <div className="dist-header-text">
-              <div className="dist-header-title-row">
-                <h3>Aid &amp; Benefits Distribution Scanner</h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                onClick={() => {
+                  stopDistScanner();
+                  setDistScannerStep('select');
+                  setDistScanResult(null);
+                }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+              >
+                <ArrowLeft size={14} /> Back to Categories
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span 
                   className="dist-active-cat-pill"
                   style={{
                     background: `${activeCat.color}15`,
                     color: activeCat.color,
                     border: `1px solid ${activeCat.color}40`,
-                    padding: '2px 8px',
+                    padding: '4px 12px',
                     borderRadius: 20,
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    fontWeight: 800,
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: 6,
                   }}
                 >
-                  {getCategoryIcon(activeCat.icon, 13)} {activeCat.name}
+                  {getCategoryIcon(activeCat.icon, 15)} {activeCat.name}
                 </span>
+                {activeCat.isYourEM && <span className="dist-cat-reserved-tag">Reserved</span>}
               </div>
-              <p className="dist-header-sub">
-                Select a category and scan citizen EM Cards to verify &amp; record official aid distribution.
-              </p>
             </div>
-          </div>
 
-          <div className="dist-header-actions">
-            <button 
-              type="button" 
-              className="btn btn-sm btn-outline-emerald"
-              onClick={() => fetchDistributionRecords(distFilterCategory)}
-              disabled={distRecordsLoading}
-              title="Refresh distribution logs"
-            >
-              <RotateCw size={13} className={distRecordsLoading ? 'spin' : ''} /> Refresh
-            </button>
-            <button 
-              type="button" 
-              className="btn btn-sm btn-outline-emerald"
-              onClick={exportDistributionCSV}
-              disabled={distRecentRecords.length === 0}
-              title="Export distribution records to Excel"
-            >
-              <Download size={13} /> Export Logs
-            </button>
+            {/* Quick Policy Toggle in Scanner Topbar */}
+            <div className="dist-duplicate-toggle-box" style={{ margin: 0 }}>
+              <span className="dist-toggle-label" style={{ fontSize: '0.78rem' }}>Policy:</span>
+              <div className="dist-toggle-btn-group">
+                <button
+                  type="button"
+                  className={`dist-policy-btn ${!distAllowDuplicates ? 'active-strict' : ''}`}
+                  onClick={() => setDistAllowDuplicates(false)}
+                  title="Strict 1-per-resident."
+                >
+                  <Lock size={12} /> Strict
+                </button>
+                <button
+                  type="button"
+                  className={`dist-policy-btn ${distAllowDuplicates ? 'active-allow' : ''}`}
+                  onClick={() => setDistAllowDuplicates(true)}
+                  title="Allow multiple claims."
+                >
+                  <Check size={12} /> Allow Multiple
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* 8 Category Selector Grid */}
-        <div className="dist-categories-grid">
-          {DISTRIBUTION_CATEGORIES.map(cat => {
-            const isSelected = selectedDistCategory === cat.id;
-            const count = distStats[cat.id] || 0;
-
-            return (
-              <div
-                key={cat.id}
-                className={`dist-category-card ${isSelected ? 'selected' : ''}`}
-                style={{
-                  '--cat-color': cat.color,
-                }}
-                onClick={() => {
-                  setSelectedDistCategory(cat.id);
-                  if (distScannerMode === 'camera') {
-                    startDistCamera();
-                  }
-                }}
-              >
-                <div className="dist-cat-icon-wrap" style={{ color: cat.color }}>
-                  {getCategoryIcon(cat.icon, 18)}
-                </div>
-                <div className="dist-cat-text">
-                  <span className="dist-cat-name">{cat.name}</span>
-                  {cat.isYourEM && (
-                    <span className="dist-cat-reserved-tag">Reserved</span>
-                  )}
-                </div>
-                <div className="dist-cat-count-badge">
-                  {count}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Policy & Mode Toolbar */}
-        <div className="dist-policy-toolbar">
-          {/* Duplicate Prevention Policy Switch */}
-          <div className="dist-duplicate-toggle-box">
-            <span className="dist-toggle-label">
-              <strong>Duplicate Policy:</strong>
-            </span>
-            <div className="dist-toggle-btn-group">
-              <button
-                type="button"
-                className={`dist-policy-btn ${!distAllowDuplicates ? 'active-strict' : ''}`}
-                onClick={() => setDistAllowDuplicates(false)}
-                title="Strict 1-per-resident. Blocks second scans for the same category."
-              >
-                <Lock size={12} /> Strict (1-Per-Resident)
-              </button>
-              <button
-                type="button"
-                className={`dist-policy-btn ${distAllowDuplicates ? 'active-allow' : ''}`}
-                onClick={() => setDistAllowDuplicates(true)}
-                title="Allow multiple claims / repeat distributions."
-              >
-                <Check size={12} /> Allow Multiple Claims
-              </button>
-            </div>
-          </div>
-
-          {/* Scanner Mode Tabs */}
-          <div className="scanner-mode-toggle dist-mode-toggle">
-            <button
-              type="button"
-              className={distScannerMode === 'camera' ? 'active' : ''}
-              onClick={() => { setDistScannerMode('camera'); resetDistScanState(); }}
-            >
-              <Camera size={14} /> Live Camera
-            </button>
-            <button
-              type="button"
-              className={distScannerMode === 'capture' ? 'active' : ''}
-              onClick={() => { setDistScannerMode('capture'); stopDistScanner(); }}
-            >
-              <Upload size={14} /> Photo Capture
-            </button>
-            <button
-              type="button"
-              className={distScannerMode === 'manual' ? 'active' : ''}
-              onClick={() => {
-                setDistScannerMode('manual');
-                stopDistScanner();
-                setDistScanToken(prev => (prev && prev.startsWith('EM-')) ? prev : 'EM-');
-              }}
-            >
-              <ScanLine size={14} /> Manual Entry
-            </button>
-            <button
-              type="button"
-              className={distScannerMode === 'traffic' ? 'active' : ''}
-              onClick={() => { setDistScannerMode('traffic'); stopDistScanner(); fetchDistributionRecords(distFilterCategory); }}
-            >
-              <Activity size={14} /> Live Feed &amp; History
-            </button>
-          </div>
+        {/* Scanner Mode Tabs */}
+        <div className="scanner-mode-toggle dist-mode-toggle" style={{ width: '100%', margin: '0 0 6px 0' }}>
+          <button
+            type="button"
+            className={distScannerMode === 'camera' ? 'active' : ''}
+            onClick={() => { setDistScannerMode('camera'); resetDistScanState(); }}
+          >
+            <Camera size={14} /> Live Camera
+          </button>
+          <button
+            type="button"
+            className={distScannerMode === 'capture' ? 'active' : ''}
+            onClick={() => { setDistScannerMode('capture'); stopDistScanner(); }}
+          >
+            <Upload size={14} /> Photo Capture
+          </button>
+          <button
+            type="button"
+            className={distScannerMode === 'manual' ? 'active' : ''}
+            onClick={() => {
+              setDistScannerMode('manual');
+              stopDistScanner();
+              setDistScanToken(prev => (prev && prev.startsWith('EM-')) ? prev : 'EM-');
+            }}
+          >
+            <ScanLine size={14} /> Manual Entry
+          </button>
+          <button
+            type="button"
+            className={distScannerMode === 'traffic' ? 'active' : ''}
+            onClick={() => { setDistScannerMode('traffic'); stopDistScanner(); fetchDistributionRecords(distFilterCategory); }}
+          >
+            <Activity size={14} /> History ({filteredRecords.length})
+          </button>
         </div>
 
         {/* ─── Result Modal (for manual/capture and camera overlay) ─── */}
