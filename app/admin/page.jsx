@@ -10652,7 +10652,7 @@ export default function AdminPage() {
 
     const resetDistScanState = () => {
       setDistScanResult(null);
-      setDistScanToken('');
+      setDistScanToken(distScannerMode === 'manual' ? 'EM-' : '');
       distScanInProgressRef.current = false;
       if (distScannerMode === 'camera') {
         startDistCamera();
@@ -10803,7 +10803,11 @@ export default function AdminPage() {
             <button
               type="button"
               className={distScannerMode === 'manual' ? 'active' : ''}
-              onClick={() => { setDistScannerMode('manual'); stopDistScanner(); }}
+              onClick={() => {
+                setDistScannerMode('manual');
+                stopDistScanner();
+                setDistScanToken(prev => (prev && prev.startsWith('EM-')) ? prev : 'EM-');
+              }}
             >
               <ScanLine size={14} /> Manual Entry
             </button>
@@ -11031,33 +11035,86 @@ export default function AdminPage() {
 
           {/* 3. MANUAL TOKEN ENTRY MODE */}
           {distScannerMode === 'manual' && (
-            <>
-              <div className="scan-input-icon" style={{ color: activeCat.color }}>
-                {getCategoryIcon(activeCat.icon, 40)}
+            <div className="dist-manual-entry-card" style={{ width: '100%', maxWidth: 440, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '16px 8px' }}>
+              <div className="scan-input-icon" style={{ color: activeCat.color, margin: '0 auto' }}>
+                {getCategoryIcon(activeCat.icon, 36)}
               </div>
-              <h4>Manual QR Token Entry</h4>
-              <p>Type or paste the QR token from the EM Card for <strong>{activeCat.name}</strong></p>
-              <form onSubmit={e => { e.preventDefault(); handleDistributionScan(distScanToken); }} style={{ width: '100%', maxWidth: 440 }}>
-                <input
-                  type="text"
-                  value={distScanToken}
-                  onChange={e => setDistScanToken(e.target.value)}
-                  placeholder="Enter QR token (e.g., EM-...)"
-                  className="scan-token-input"
-                  autoFocus
-                  autoComplete="off"
-                />
+              <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Manual QR Token Entry</h4>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', textAlign: 'center' }}>
+                Type or paste the QR token from the EM Card for <strong>{activeCat.name}</strong>
+              </p>
+              <form 
+                onSubmit={e => { e.preventDefault(); handleDistributionScan(distScanToken); }} 
+                style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}
+              >
+                <div style={{ position: 'relative', width: '100%' }}>
+                  <input
+                    type="text"
+                    value={distScanToken}
+                    onChange={e => {
+                      let val = e.target.value;
+                      if (!val || val === 'E' || val === 'EM' || val === 'EM-') {
+                        setDistScanToken('EM-');
+                        return;
+                      }
+                      if (val.includes('/card/')) {
+                        const match = val.match(/\/card\/(EM[A-Za-z0-9-]+)/);
+                        if (match) val = match[1];
+                      }
+                      if (!val.startsWith('EM-')) {
+                        if (val.toUpperCase().startsWith('EM-')) {
+                          val = 'EM-' + val.slice(3);
+                        } else if (val.toUpperCase().startsWith('EM')) {
+                          val = 'EM-' + val.slice(2).replace(/^-+/, '');
+                        } else {
+                          val = 'EM-' + val;
+                        }
+                      }
+                      setDistScanToken(val);
+                    }}
+                    onFocus={() => {
+                      if (!distScanToken) setDistScanToken('EM-');
+                    }}
+                    placeholder="Enter token (e.g. EM-1234567890)"
+                    className="scan-token-input"
+                    autoFocus
+                    autoComplete="off"
+                    style={{ width: '100%', fontSize: '1rem', padding: '12px 14px' }}
+                  />
+                  {distScanToken && distScanToken !== 'EM-' && (
+                    <button
+                      type="button"
+                      onClick={() => setDistScanToken('EM-')}
+                      style={{
+                        position: 'absolute',
+                        right: 10,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        padding: 4,
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      title="Clear token"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
                 <button 
                   type="submit" 
                   className="btn btn-primary" 
-                  style={{ marginTop: 12, width: '100%', background: activeCat.color, borderColor: activeCat.color }}
-                  disabled={distScanLoading || !distScanToken.trim()}
+                  style={{ width: '100%', padding: '12px', fontSize: '0.95rem', background: activeCat.color, borderColor: activeCat.color }}
+                  disabled={distScanLoading || !distScanToken.trim() || distScanToken.trim() === 'EM-'}
                 >
                   {distScanLoading ? 'Verifying...' : `Verify & Distribute ${activeCat.name}`}
                 </button>
               </form>
-              {distScanLoading && <div className="scan-spinner" style={{ marginTop: 12 }}>Processing distribution...</div>}
-            </>
+              {distScanLoading && <div className="scan-spinner" style={{ marginTop: 8 }}>Processing distribution...</div>}
+            </div>
           )}
 
           {/* 4. LIVE FEED & HISTORY MODE */}

@@ -22579,13 +22579,141 @@ html, body {
 
 @media (max-width: 1100px) {
   .dist-categories-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .dist-categories-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
+  .dist-scanner-panel {
+    gap: 12px;
+  }
+
+  .dist-panel-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    padding-bottom: 12px !important;
+  }
+
+  .dist-panel-header .event-scanner-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+
+  .dist-panel-header .event-scanner-actions button {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 10px;
+    font-size: 0.78rem;
+  }
+
   .dist-categories-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .dist-category-card {
+    padding: 8px 10px;
+    border-radius: 10px;
+    gap: 6px;
+  }
+
+  .dist-cat-icon-wrap {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+  }
+
+  .dist-cat-name {
+    font-size: 0.8rem;
+  }
+
+  .dist-cat-count-badge {
+    font-size: 0.72rem;
+    padding: 2px 6px;
+  }
+
+  .dist-policy-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .dist-duplicate-toggle-box {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .dist-toggle-btn-group {
+    width: 100%;
+    display: flex;
+  }
+
+  .dist-policy-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 7px 4px;
+    font-size: 0.72rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .dist-mode-toggle {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+  }
+
+  .dist-mode-toggle button {
+    justify-content: center;
+    padding: 8px 6px;
+    font-size: 0.76rem;
+  }
+
+  .dist-result-categories-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .dist-categories-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .dist-category-card {
+    padding: 7px 8px;
+    gap: 5px;
+  }
+
+  .dist-cat-name {
+    font-size: 0.74rem;
+  }
+
+  .dist-cat-reserved-tag {
+    font-size: 0.55rem;
+    padding: 1px 3px;
+  }
+
+  .dist-policy-btn {
+    font-size: 0.68rem;
+    padding: 6px 2px;
+  }
+
+  .dist-mode-toggle button {
+    font-size: 0.72rem;
+    padding: 7px 4px;
   }
 }
 
