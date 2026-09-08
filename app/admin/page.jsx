@@ -10914,9 +10914,9 @@ export default function AdminPage() {
         </div>
 
         {/* ─── Result Modal (for manual/capture and camera overlay) ─── */}
-        {distScanResult && (
+        {distScanResult && typeof document !== 'undefined' && createPortal(
           <div className="modal-overlay scan-result-overlay" onClick={resetDistScanState}>
-            <div className={`modal-card scan-result-modal scan-result-${distScanResult.type}`} style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
+            <div className={`modal-card scan-result-modal scan-result-${distScanResult.type}`} onClick={e => e.stopPropagation()}>
               {/* SUCCESS MODAL */}
               {distScanResult.type === 'success' && (
                 <>
@@ -11063,7 +11063,8 @@ export default function AdminPage() {
                 </>
               )}
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Scan Input Modes */}
