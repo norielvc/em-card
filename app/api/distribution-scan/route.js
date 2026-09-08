@@ -216,7 +216,7 @@ export async function GET(request) {
     // 2. Fetch requested detailed records
     let query = supabaseAdmin
       .from('aid_distributions')
-      .select('*, registrations(id, first_name, last_name, middle_name, suffix, em_card_no, qr_token, house_no, purok, contact, photo_url, photo_base64, ValidResidents(first_name, last_name, middle_name, suffix, barangay))')
+      .select('*, registrations(*, ValidResidents(*))')
       .order('distributed_at', { ascending: false })
       .limit(limit);
 
@@ -305,7 +305,7 @@ export async function POST(request) {
     // 2. Fetch Registration + ValidResident
     const { data: reg, error: regErr } = await supabaseAdmin
       .from('registrations')
-      .select('*, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+      .select('*, ValidResidents(*)')
       .eq('qr_token', token)
       .eq('status', 'Approved')
       .maybeSingle();

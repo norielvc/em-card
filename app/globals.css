@@ -25827,12 +25827,407 @@ html, body {
   padding-right: 4px;
 }
 
+/* ==========================================================================
+   EVENT SCANNER - MODAL RESULT OVERLAY (MODERN, RESPONSIVE, POLISHED)
+   ========================================================================== */
 
+.scan-result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999 !important;
+  background: rgba(15, 23, 42, 0.78) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  animation: scanModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
 
+@keyframes scanModalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
+.scan-result-modal {
+  background: #ffffff !important;
+  border-radius: 20px !important;
+  width: 100% !important;
+  max-width: 440px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.2) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  animation: scanModalPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  margin: auto !important;
+}
 
+@keyframes scanModalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
 
+/* Header Banners */
+.scan-result-header-banner {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.90rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffffff;
+}
 
+.scan-result-header-banner.success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+}
 
+.scan-result-header-banner.duplicate {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+}
 
+.scan-result-header-banner.household-duplicate {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+}
 
+.scan-result-header-banner.restricted {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.scan-result-header-banner.invalid {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* Modal Body */
+.scan-result-body {
+  padding: 20px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Resident Profile Card */
+.scan-result-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.scan-result-avatar-wrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  border: 2px solid #e2e8f0;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #f8fafc;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+.scan-result-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.scan-result-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.scan-result-primary-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.scan-result-fullname {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.scan-result-brgy-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  width: fit-content;
+  border: 1px solid #e2e8f0;
+}
+
+/* Member Details Grid */
+.scan-result-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.scan-result-detail-chip {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.scan-result-detail-chip .chip-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.scan-result-detail-chip .chip-val {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scan-result-detail-chip .chip-val.monospace {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  color: #047857;
+  letter-spacing: 0.02em;
+}
+
+/* Tagged Aid Program Confirmation Banner */
+.event-scan-aid-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid;
+  transition: all 0.2s ease;
+}
+
+.aid-banner-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.aid-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.aid-banner-sub {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.85;
+}
+
+.aid-banner-main {
+  font-size: 0.88rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.aid-claim-pill {
+  font-size: 0.70rem;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.08);
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+/* Warnings (Duplicate, Household, Restricted) */
+.scan-result-warning-box {
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.scan-result-warning-box p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.scan-result-warning-box.duplicate {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.scan-result-warning-box.household {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+
+.scan-result-warning-box.restricted {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.warning-box-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.warning-scanner {
+  font-size: 0.76rem;
+  opacity: 0.85;
+}
+
+.warning-do-not-distribute {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  font-size: 0.80rem;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.12);
+  letter-spacing: 0.02em;
+}
+
+/* Modal Footer */
+.scan-result-modal-footer {
+  padding: 14px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid #f1f5f9;
+  background: #fafafa;
+}
+
+.scan-result-counter {
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.scan-next-action-btn {
+  width: 100% !important;
+  padding: 14px 20px !important;
+  font-size: 0.98rem !important;
+  font-weight: 800 !important;
+  border-radius: 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.scan-next-action-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.scan-next-action-btn:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 480px) {
+  .scan-result-modal {
+    max-width: 94% !important;
+    border-radius: 18px !important;
+  }
+
+  .scan-result-body {
+    padding: 16px 16px 12px;
+    gap: 12px;
+  }
+
+  .scan-result-avatar-wrap {
+    width: 64px;
+    height: 64px;
+  }
+
+  .scan-result-fullname {
+    font-size: 1.05rem;
+  }
+
+  .scan-result-details-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .scan-result-modal-footer {
+    padding: 12px 16px 16px;
+  }
+
+  .scan-next-action-btn {
+    padding: 13px 18px !important;
+    font-size: 0.92rem !important;
+  }
+}

@@ -5153,9 +5153,13 @@ export default function AdminPage() {
                           key={resident.registration_id || idx}
                           className="dist-top-resident-row clickable"
                           onClick={() => {
-                            if (resident.registration) {
-                              setSelectedMember(resident.registration);
-                              fetchMemberAidHistory(resident.registration_id);
+                            const regId = resident.registration_id || resident.registration?.id;
+                            if (regId) {
+                              const fullMember = allRegs.find(a => a.id === regId) || resident.registration;
+                              if (fullMember) {
+                                setSelectedMember(fullMember);
+                                fetchMemberAidHistory(regId);
+                              }
                             }
                           }}
                           title="Click to view full citizen dossier & aid history"
@@ -5375,9 +5379,11 @@ export default function AdminPage() {
                             key={r.id || idx}
                             className="dist-ledger-row clickable"
                             onClick={() => {
-                              if (reg.id) {
-                                setSelectedMember(reg);
-                                fetchMemberAidHistory(reg.id);
+                              const regId = reg.id || r.registration_id;
+                              if (regId) {
+                                const fullMember = allRegs.find(a => a.id === regId) || reg;
+                                setSelectedMember(fullMember);
+                                fetchMemberAidHistory(regId);
                               }
                             }}
                             title="Click to view citizen dossier"
@@ -10644,159 +10650,287 @@ export default function AdminPage() {
           </div>
           <div className="event-scanner-actions">
             <span className="scan-stat-badge">{scanStats.total.toLocaleString()} Scanned</span>
-            <button className="btn-change-event" onClick={() => { setSelectedEvent(null); setScannerMode('select'); localScanCountRef.current = 0; recentScanCacheRef.current.clear(); resetScanState(); }}>Back to Events</button>
+            <button className="btn btn-secondary" onClick={() => setSelectedEvent(null)}>
+              Change Event
+            </button>
+            <button className="btn btn-secondary" onClick={() => openEventRecords(selectedEvent)}>
+              <FileText size={16} /> View Records
+            </button>
           </div>
         </div>
 
-        {/* Result modal — shown for capture & manual modes */}
-        {scanResult && scannerInputMode !== 'camera' && (
+        {/* ─── Result Modal (Unified Portal for Camera, Capture & Manual Modes) ─── */}
+        {scanResult && typeof document !== 'undefined' && createPortal(
           <div className="modal-overlay scan-result-overlay" onClick={resetScanState}>
             <div className={`modal-card scan-result-modal scan-result-${scanResult.type}`} onClick={e => e.stopPropagation()}>
+              
+              {/* SUCCESS / VERIFIED MODAL */}
               {scanResult.type === 'success' && (
                 <>
-                  <div className="scan-result-badge success"><CheckCircle size={32} /> VERIFIED — ELIGIBLE</div>
-                  <div className="scan-result-profile">
-                    <div className="scan-result-photo">
-                      {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
-                    </div>
-                    <div className="scan-result-info">
-                      <h2>{scanResult.name}</h2>
-                      <div className="scan-result-meta-grid">
-                        <span><MapPin size={14} /> {scanResult.barangay}</span>
-                        <span><Home size={14} /> {scanResult.houseNo}</span>
-                        <span><MapPin size={14} /> {scanResult.purok}</span>
-                        <span><Phone size={14} /> {scanResult.contact}</span>
-                        <span><CreditCard size={14} /> {scanResult.emCardNo}</span>
-                      </div>
-                      {scanResult.aidInfo && (
-                        <div 
-                          style={{
-                            marginTop: 10,
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            background: `${scanResult.aidInfo.categoryColor}15`,
-                            color: scanResult.aidInfo.categoryColor,
-                            border: `1px solid ${scanResult.aidInfo.categoryColor}40`,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            fontSize: '0.80rem',
-                            fontWeight: 700,
-                          }}
-                        >
-                          <Gift size={14} />
-                          <span>Aid Distribution Counted: <strong>{scanResult.aidInfo.categoryName}</strong> (Claim #{scanResult.aidInfo.claimNumber})</span>
-                        </div>
-                      )}
-                    </div>
+                  <div className="scan-result-header-banner success">
+                    <CheckCircle size={24} />
+                    <span>VERIFIED &bull; ELIGIBLE</span>
                   </div>
-                  <div className="scan-result-footer">
-                    <span>Scan #{scanResult.scanCount} recorded</span>
-                    <button className="btn btn-primary" onClick={resetScanState}>Scan Next</button>
+
+                  <div className="scan-result-body">
+                    <div className="scan-result-profile-card">
+                      <div className="scan-result-avatar-wrap">
+                        {scanResult.photo ? (
+                          <img src={scanResult.photo} alt={scanResult.name} className="scan-result-avatar-img" />
+                        ) : (
+                          <div className="scan-result-avatar-placeholder">
+                            <User size={42} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="scan-result-primary-info">
+                        <h3 className="scan-result-fullname">{scanResult.name}</h3>
+                        <div className="scan-result-brgy-tag">
+                          <MapPin size={13} />
+                          <span>{scanResult.barangay || 'Balagtas'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Member Details Grid */}
+                    <div className="scan-result-details-grid">
+                      <div className="scan-result-detail-chip">
+                        <span className="chip-label"><Home size={13} /> House / Street</span>
+                        <strong className="chip-val">{scanResult.houseNo || '—'}</strong>
+                      </div>
+                      <div className="scan-result-detail-chip">
+                        <span className="chip-label"><MapPin size={13} /> Purok / Subd</span>
+                        <strong className="chip-val">{scanResult.purok ? (SUBDIVISION_PUROKS.includes(scanResult.purok) ? scanResult.purok : `Purok ${scanResult.purok}`) : '—'}</strong>
+                      </div>
+                      <div className="scan-result-detail-chip">
+                        <span className="chip-label"><Phone size={13} /> Contact Number</span>
+                        <strong className="chip-val">{scanResult.contact || '—'}</strong>
+                      </div>
+                      <div className="scan-result-detail-chip">
+                        <span className="chip-label"><CreditCard size={13} /> EM Card Number</span>
+                        <strong className="chip-val monospace">{scanResult.emCardNo || '—'}</strong>
+                      </div>
+                    </div>
+
+                    {/* Tagged Aid Program Confirmation */}
+                    {scanResult.aidInfo && (
+                      <div 
+                        className="event-scan-aid-banner"
+                        style={{
+                          background: `${scanResult.aidInfo.categoryColor || '#059669'}12`,
+                          color: scanResult.aidInfo.categoryColor || '#059669',
+                          borderColor: `${scanResult.aidInfo.categoryColor || '#059669'}35`,
+                        }}
+                      >
+                        <div 
+                          className="aid-banner-icon"
+                          style={{ background: scanResult.aidInfo.categoryColor || '#059669' }}
+                        >
+                          <Gift size={16} color="#ffffff" />
+                        </div>
+                        <div className="aid-banner-text">
+                          <span className="aid-banner-sub">Aid Program Credited</span>
+                          <strong className="aid-banner-main">
+                            {scanResult.aidInfo.categoryName} <span className="aid-claim-pill">Claim #{scanResult.aidInfo.claimNumber}</span>
+                          </strong>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="scan-result-modal-footer">
+                    <span className="scan-result-counter">Scan #{scanResult.scanCount || 1} recorded</span>
+                    <button className="btn btn-primary scan-next-action-btn" onClick={resetScanState} autoFocus>
+                      Scan Next Citizen
+                    </button>
                   </div>
                 </>
               )}
 
+              {/* DUPLICATE MODAL */}
               {scanResult.type === 'duplicate' && (
                 <>
-                  <div className="scan-result-badge duplicate"><AlertTriangle size={32} /> DUPLICATE — STOP DISTRIBUTION</div>
-                  <div className="scan-result-profile">
-                    <div className="scan-result-photo">
-                      {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
+                  <div className="scan-result-header-banner duplicate">
+                    <AlertTriangle size={24} />
+                    <span>DUPLICATE &bull; STOP DISTRIBUTION</span>
+                  </div>
+
+                  <div className="scan-result-body">
+                    <div className="scan-result-profile-card">
+                      <div className="scan-result-avatar-wrap">
+                        {scanResult.photo ? (
+                          <img src={scanResult.photo} alt={scanResult.name} className="scan-result-avatar-img" />
+                        ) : (
+                          <div className="scan-result-avatar-placeholder">
+                            <User size={42} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="scan-result-primary-info">
+                        <h3 className="scan-result-fullname">{scanResult.name}</h3>
+                        <div className="scan-result-brgy-tag">
+                          <MapPin size={13} />
+                          <span>{scanResult.barangay || 'Balagtas'}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="scan-result-info">
-                      <h2>{scanResult.name}</h2>
-                      <div className="scan-result-meta-grid">
-                        <span><MapPin size={14} /> {scanResult.barangay}</span>
-                        <span><Home size={14} /> {scanResult.houseNo}</span>
-                        <span><MapPin size={14} /> {scanResult.purok}</span>
-                        <span><Phone size={14} /> {scanResult.contact}</span>
-                        <span><CreditCard size={14} /> {scanResult.emCardNo}</span>
+
+                    <div className="scan-result-warning-box duplicate">
+                      <div className="warning-box-head">
+                        <AlertTriangle size={18} />
+                        <strong>ALREADY SCANNED FOR THIS EVENT</strong>
+                      </div>
+                      <p>Claimed at <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
+                      {scanResult.scannedBy && <p className="warning-scanner">Recorded by: {scanResult.scannedBy}</p>}
+                      <div className="warning-do-not-distribute">
+                        <Ban size={15} /> DO NOT DISTRIBUTE &bull; Resident already received items
                       </div>
                     </div>
                   </div>
-                  <div className="scan-result-footer duplicate-footer">
-                    <div className="duplicate-warning">
-                      <strong><AlertTriangle size={14} /> ALREADY SCANNED</strong>
-                      <p>At <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
-                      {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
-                      <p className="duplicate-stop"><Ban size={14} /> DO NOT DISTRIBUTE — This resident has already received items.</p>
-                    </div>
-                    <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
+
+                  <div className="scan-result-modal-footer">
+                    <button className="btn btn-danger scan-next-action-btn" onClick={resetScanState}>
+                      Acknowledge &amp; Scan Next
+                    </button>
                   </div>
                 </>
               )}
 
+              {/* HOUSEHOLD DUPLICATE MODAL */}
               {scanResult.type === 'household_duplicate' && (
                 <>
-                  <div className="scan-result-badge household-duplicate"><AlertTriangle size={32} /> HOUSEHOLD ALREADY CLAIMED — STOP</div>
-                  <div className="scan-result-profile">
-                    <div className="scan-result-photo">
-                      {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
+                  <div className="scan-result-header-banner household-duplicate">
+                    <Home size={24} />
+                    <span>HOUSEHOLD ALREADY CLAIMED &bull; STOP</span>
+                  </div>
+
+                  <div className="scan-result-body">
+                    <div className="scan-result-profile-card">
+                      <div className="scan-result-avatar-wrap">
+                        {scanResult.photo ? (
+                          <img src={scanResult.photo} alt={scanResult.name} className="scan-result-avatar-img" />
+                        ) : (
+                          <div className="scan-result-avatar-placeholder">
+                            <User size={42} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="scan-result-primary-info">
+                        <h3 className="scan-result-fullname">{scanResult.name}</h3>
+                        <div className="scan-result-brgy-tag">
+                          <MapPin size={13} />
+                          <span>{scanResult.barangay || 'Balagtas'}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="scan-result-info">
-                      <h2>{scanResult.name}</h2>
-                      <div className="scan-result-meta-grid">
-                        <span><MapPin size={14} /> {scanResult.barangay}</span>
-                        <span><Home size={14} /> {scanResult.houseNo}</span>
-                        <span><MapPin size={14} /> {scanResult.purok}</span>
-                        <span><Phone size={14} /> {scanResult.contact}</span>
-                        <span><CreditCard size={14} /> {scanResult.emCardNo}</span>
+
+                    <div className="scan-result-warning-box household">
+                      <div className="warning-box-head">
+                        <Home size={18} />
+                        <strong>HOUSEHOLD BENEFIT ALREADY CLAIMED</strong>
+                      </div>
+                      <p>Claimed by <strong>{scanResult.claimedBy}</strong> at <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
+                      {scanResult.scannedBy && <p className="warning-scanner">Recorded by: {scanResult.scannedBy}</p>}
+                      <div className="warning-do-not-distribute">
+                        <Ban size={15} /> DO NOT DISTRIBUTE &bull; Another household member already claimed
                       </div>
                     </div>
                   </div>
-                  <div className="scan-result-footer duplicate-footer">
-                    <div className="duplicate-warning">
-                      <strong><Home size={14} /> HOUSEHOLD AID ALREADY CLAIMED</strong>
-                      <p>Claimed by <strong>{scanResult.claimedBy}</strong> at <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
-                      {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
-                      <p className="duplicate-stop"><Ban size={14} /> DO NOT DISTRIBUTE — Another household member already received items.</p>
-                    </div>
-                    <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
+
+                  <div className="scan-result-modal-footer">
+                    <button className="btn btn-danger scan-next-action-btn" onClick={resetScanState}>
+                      Acknowledge &amp; Scan Next
+                    </button>
                   </div>
                 </>
               )}
 
+              {/* BARANGAY RESTRICTED MODAL */}
               {scanResult.type === 'barangay_restricted' && (
                 <>
-                  <div className="scan-result-badge barangay-restricted"><AlertTriangle size={32} /> NOT ELIGIBLE — BARANGAY RESTRICTED</div>
-                  <div className="scan-result-profile">
-                    <div className="scan-result-photo">
-                      {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
+                  <div className="scan-result-header-banner restricted">
+                    <ShieldAlert size={24} />
+                    <span>NOT ELIGIBLE &bull; BARANGAY RESTRICTED</span>
+                  </div>
+
+                  <div className="scan-result-body">
+                    <div className="scan-result-profile-card">
+                      <div className="scan-result-avatar-wrap">
+                        {scanResult.photo ? (
+                          <img src={scanResult.photo} alt={scanResult.name} className="scan-result-avatar-img" />
+                        ) : (
+                          <div className="scan-result-avatar-placeholder">
+                            <User size={42} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="scan-result-primary-info">
+                        <h3 className="scan-result-fullname">{scanResult.name}</h3>
+                        <div className="scan-result-brgy-tag">
+                          <MapPin size={13} />
+                          <span>{scanResult.barangay || 'Balagtas'}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="scan-result-info">
-                      <h2>{scanResult.name}</h2>
-                      <div className="scan-result-meta-grid">
-                        <span><MapPin size={14} /> {scanResult.barangay}</span>
-                        <span><Home size={14} /> {scanResult.houseNo}</span>
-                        <span><MapPin size={14} /> {scanResult.purok}</span>
-                        <span><Phone size={14} /> {scanResult.contact}</span>
-                        <span><CreditCard size={14} /> {scanResult.emCardNo}</span>
+
+                    <div className="scan-result-warning-box restricted">
+                      <div className="warning-box-head">
+                        <ShieldAlert size={18} />
+                        <strong>NOT IN TARGET BARANGAY LIST</strong>
+                      </div>
+                      <p>Member&apos;s Barangay: <strong>{scanResult.barangay}</strong></p>
+                      <p>Event Restricted To: <strong>{scanResult.allowedBarangays}</strong></p>
+                      <div className="warning-do-not-distribute">
+                        <Ban size={15} /> DO NOT DISTRIBUTE &bull; Member is not part of designated barangays
                       </div>
                     </div>
                   </div>
-                <div className="scan-result-footer barangay-restricted-footer">
-                  <div className="barangay-restriction-warning">
-                    <strong><ShieldAlert size={32} /> NOT ELIGIBLE FOR THIS EVENT</strong>
-                    <p>Member's Barangay: <strong>{scanResult.barangay}</strong></p>
-                    <p>Event Restricted To: <strong>{scanResult.allowedBarangays}</strong></p>
-                    <p className="restriction-stop"><Ban size={14} /> DO NOT DISTRIBUTE — This member is from a barangay not selected for this event.</p>
-                  </div>
-                  <button className="btn btn-secondary" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
-                </div>
-              </>
-            )}
 
-            {(scanResult.type === 'invalid' || scanResult.type === 'error') && (
-              <>
-                <div className="scan-result-badge invalid"><X size={32} /> {scanResult.type === 'invalid' ? 'INVALID CARD' : 'ERROR'}</div>
-                <p className="scan-error-message">{scanResult.message}</p>
-                {scanResult.rawText && <code style={{fontSize:'0.75rem',background:'#f3f4f6',padding:'4px 8px',borderRadius:4,marginTop:8,display:'block',wordBreak:'break-all'}}>Decoded: {scanResult.rawText}</code>}
-                <button className="btn btn-secondary" onClick={resetScanState}>Try Again</button>
-              </>
-            )}
+                  <div className="scan-result-modal-footer">
+                    <button className="btn btn-danger scan-next-action-btn" onClick={resetScanState}>
+                      Acknowledge &amp; Scan Next
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* INVALID / ERROR */}
+              {(scanResult.type === 'invalid' || scanResult.type === 'error') && (
+                <>
+                  <div className="scan-result-header-banner invalid">
+                    <X size={24} />
+                    <span>{scanResult.type === 'invalid' ? 'INVALID QR CARD' : 'SCAN ERROR'}</span>
+                  </div>
+
+                  <div className="scan-result-body" style={{ textAlign: 'center', padding: '24px 20px' }}>
+                    <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#fee2e2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                      <X size={28} />
+                    </div>
+                    <p style={{ margin: '0 0 12px', color: '#1e293b', fontWeight: 600, fontSize: '0.95rem', lineHeight: 1.5 }}>
+                      {scanResult.message}
+                    </p>
+                    {scanResult.rawText && (
+                      <code style={{ fontSize: '0.75rem', background: '#f1f5f9', color: '#64748b', padding: '6px 10px', borderRadius: 6, display: 'block', wordBreak: 'break-all', marginTop: 8 }}>
+                        Raw: {scanResult.rawText}
+                      </code>
+                    )}
+                  </div>
+
+                  <div className="scan-result-modal-footer">
+                    <button className="btn btn-secondary scan-next-action-btn" onClick={resetScanState}>
+                      Try Again
+                    </button>
+                  </div>
+                </>
+              )}
+
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Scan Input */}
@@ -10857,157 +10991,8 @@ export default function AdminPage() {
                       )}
                     </div>
                   )}
-
-                  {/* Result overlay — covers camera without unmounting it */}
-                  {scanResult && (
-                    <div className="scan-result-overlay camera-fullscreen-overlay">
-                      {scanResult.type === 'success' && (
-                        <>
-                          <div className="scan-result-badge success"><CheckCircle size={32} /> VERIFIED</div>
-                          <div className="scan-result-profile">
-                            <div className="scan-result-photo">
-                              {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
-                            </div>
-                            <div className="scan-result-info">
-                              <h2>{scanResult.name}</h2>
-                              <div className="scan-result-meta-grid">
-                                <span><MapPin size={14} /> {scanResult.barangay}</span>
-                                <span><Home size={14} /> {scanResult.houseNo}</span>
-                                <span><MapPin size={14} /> {scanResult.purok}</span>
-                                <span><Phone size={14} /> {scanResult.contact}</span>
-                                <span><CreditCard size={14} /> {scanResult.emCardNo}</span>
-                              </div>
-                              {scanResult.aidInfo && (
-                                <div 
-                                  style={{
-                                    marginTop: 10,
-                                    padding: '6px 12px',
-                                    borderRadius: '8px',
-                                    background: `${scanResult.aidInfo.categoryColor}15`,
-                                    color: scanResult.aidInfo.categoryColor,
-                                    border: `1px solid ${scanResult.aidInfo.categoryColor}40`,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 6,
-                                    fontSize: '0.80rem',
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  <Gift size={14} />
-                                  <span>Aid Distribution Counted: <strong>{scanResult.aidInfo.categoryName}</strong> (Claim #{scanResult.aidInfo.claimNumber})</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="scan-result-footer">
-                            <span>Scan #{scanResult.scanCount} recorded</span>
-                            <button className="btn btn-primary" onClick={resetScanState}>Scan Next</button>
-                          </div>
-                        </>
-                      )}
-
-                      {scanResult.type === 'duplicate' && (
-                        <>
-                          <div className="scan-result-badge duplicate"><AlertTriangle size={32} /> DUPLICATE — STOP</div>
-                          <div className="scan-result-profile">
-                            <div className="scan-result-photo">
-                              {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
-                            </div>
-                            <div className="scan-result-info">
-                              <h2>{scanResult.name}</h2>
-                              <div className="scan-result-meta-grid">
-                                <span><MapPin size={14} /> {scanResult.barangay}</span>
-                                <span><Home size={14} /> {scanResult.houseNo}</span>
-                                <span><MapPin size={14} /> {scanResult.purok}</span>
-                                <span><Phone size={14} /> {scanResult.contact}</span>
-                                <span><CreditCard size={14} /> {scanResult.emCardNo}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="scan-result-footer duplicate-footer">
-                            <div className="duplicate-warning">
-                              <strong><AlertTriangle size={14} /> ALREADY SCANNED</strong>
-                              <p>At <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
-                              {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
-                              <p className="duplicate-stop"><Ban size={14} /> DO NOT DISTRIBUTE</p>
-                            </div>
-                            <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
-                          </div>
-                        </>
-                      )}
-
-                      {scanResult.type === 'household_duplicate' && (
-                        <>
-                          <div className="scan-result-badge household-duplicate"><AlertTriangle size={32} /> HOUSEHOLD CLAIMED — STOP</div>
-                          <div className="scan-result-profile">
-                            <div className="scan-result-photo">
-                              {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
-                            </div>
-                            <div className="scan-result-info">
-                              <h2>{scanResult.name}</h2>
-                              <div className="scan-result-meta-grid">
-                                <span><MapPin size={14} /> {scanResult.barangay}</span>
-                                <span><Home size={14} /> {scanResult.houseNo}</span>
-                                <span><MapPin size={14} /> {scanResult.purok}</span>
-                                <span><Phone size={14} /> {scanResult.contact}</span>
-                                <span><CreditCard size={14} /> {scanResult.emCardNo}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="scan-result-footer duplicate-footer">
-                            <div className="duplicate-warning">
-                              <strong><Home size={14} /> HOUSEHOLD AID ALREADY CLAIMED</strong>
-                              <p>Claimed by <strong>{scanResult.claimedBy}</strong> at <strong>{selectedEvent.event_name}</strong> on {new Date(scanResult.scannedAt).toLocaleString()}</p>
-                              {scanResult.scannedBy && <p>By: {scanResult.scannedBy}</p>}
-                              <p className="duplicate-stop"><Ban size={14} /> DO NOT DISTRIBUTE — Another household member already received items.</p>
-                            </div>
-                            <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
-                          </div>
-                        </>
-                      )}
-
-                      {scanResult.type === 'barangay_restricted' && (
-                        <>
-                          <div className="scan-result-badge barangay-restricted"><AlertTriangle size={32} /> NOT ELIGIBLE — BARANGAY RESTRICTED</div>
-                          <div className="scan-result-profile">
-                            <div className="scan-result-photo">
-                              {scanResult.photo ? <img src={scanResult.photo} alt="" /> : <User size={60} />}
-                            </div>
-                            <div className="scan-result-info">
-                              <h2>{scanResult.name}</h2>
-                              <div className="scan-result-meta-grid">
-                                <span><MapPin size={14} /> {scanResult.barangay}</span>
-                                <span><Home size={14} /> {scanResult.houseNo}</span>
-                                <span><MapPin size={14} /> {scanResult.purok}</span>
-                                <span><Phone size={14} /> {scanResult.contact}</span>
-                                <span><CreditCard size={14} /> {scanResult.emCardNo}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="scan-result-footer barangay-restricted-footer">
-                            <div className="barangay-restriction-warning">
-                              <strong><AlertTriangle size={14} /> NOT ELIGIBLE FOR THIS EVENT</strong>
-                              <p>Member's Barangay: <strong>{scanResult.barangay}</strong></p>
-                              <p>Event Restricted To: <strong>{scanResult.allowedBarangays}</strong></p>
-                              <p className="restriction-stop"><Ban size={14} /> DO NOT DISTRIBUTE — This member is from a barangay not selected for this event.</p>
-                            </div>
-                            <button className="btn btn-danger" onClick={resetScanState}>Acknowledge &amp; Scan Next</button>
-                          </div>
-                        </>
-                      )}
-
-                      {(scanResult.type === 'invalid' || scanResult.type === 'error') && (
-                        <>
-                          <div className="scan-result-badge invalid"><X size={32} /> {scanResult.type === 'invalid' ? 'INVALID CARD' : 'ERROR'}</div>
-                          <p className="scan-error-message">{scanResult.message}</p>
-                          {scanResult.rawText && <code style={{fontSize:'0.75rem',background:'#f3f4f6',padding:'4px 8px',borderRadius:4,marginTop:8,display:'block',wordBreak:'break-all'}}>Decoded: {scanResult.rawText}</code>}
-                          <button className="btn btn-secondary" onClick={resetScanState}>Try Again</button>
-                        </>
-                      )}
-                    </div>
-                  )}
                 </div>
-                <p className="camera-hint camera-fullscreen-hint">Point camera at the resident's EM Card QR code — Tap screen to exit</p>
+                <p className="camera-hint camera-fullscreen-hint">Point camera at the resident's EM Card QR code</p>
                 <button type="button" className="camera-exit-btn" onClick={() => setScannerInputMode('manual')}>Exit Scanner</button>
               </>
             )}
