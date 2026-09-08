@@ -10140,13 +10140,17 @@ export default function AdminPage() {
 
   const detectQRSimple = async (file) => {
     const debug = [];
-    const objectUrl = URL.createObjectURL(file);
+    let objectUrl = null;
+    try {
+      objectUrl = URL.createObjectURL(file);
+    } catch (_) {}
+
     const meta = {
       name: file.name || 'captured_photo.jpg',
       sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
       width: 0,
       height: 0,
-      previewUrl: objectUrl,
+      previewUrl: objectUrl || '',
     };
 
     return new Promise((resolve) => {
@@ -10154,114 +10158,67 @@ export default function AdminPage() {
       const safeResolve = (result) => {
         if (!isResolved) {
           isResolved = true;
+          // Revoke raw high-res objectUrl to free native memory
+          if (objectUrl && result.meta?.previewUrl && result.meta.previewUrl !== objectUrl) {
+            try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+          }
           resolve(result);
         }
       };
 
-      // Hard safety timer: max 3.5 seconds. CAN NEVER BE STUCK!
+      // Hard safety timer: 3.5 seconds max
       const timer = setTimeout(() => {
         debug.push('safety_timeout');
         safeResolve({ data: null, debug: debug.join(' | '), meta });
       }, 3500);
 
-      const processImage = async () => {
+      if (!objectUrl) {
+        clearTimeout(timer);
+        debug.push('no_blob_url');
+        safeResolve({ data: null, debug: debug.join(' | '), meta });
+        return;
+      }
+
+      // Memory-safe Image loading (avoids createImageBitmap & BarcodeDetector memory crashes on iOS Safari)
+      const img = new Image();
+
+      img.onload = () => {
         let qrData = null;
-
         try {
-          // 1. Instant check with Native BarcodeDetector if supported by mobile browser
-          if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-            try {
-              const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-              const detected = await detector.detect(file);
-              if (detected && detected.length > 0 && detected[0].rawValue) {
-                qrData = detected[0].rawValue;
-                debug.push('nativeBD:found');
-              }
-            } catch (e) {
-              debug.push(`bdFileErr:${e.message}`);
-            }
+          const origW = img.naturalWidth || img.width || 640;
+          const origH = img.naturalHeight || img.height || 480;
+          meta.width = origW;
+          meta.height = origH;
+          debug.push(`dims:${origW}x${origH}`);
+
+          // Downscale to a lightweight 640px canvas (< 2MB RAM, 100% safe on iOS Safari)
+          const maxDim = 640;
+          let w = origW;
+          let h = origH;
+          if (w > maxDim || h > maxDim) {
+            const ratio = Math.min(maxDim / w, maxDim / h);
+            w = Math.max(1, Math.round(w * ratio));
+            h = Math.max(1, Math.round(h * ratio));
           }
 
-          // 2. Decode image to canvas for dimensions, lightweight preview, and multi-algorithm scan
-          let imgSource = null;
-          let origW = 0;
-          let origH = 0;
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-          // Prefer createImageBitmap if available (native C++ background decode, super fast)
-          if (typeof window !== 'undefined' && 'createImageBitmap' in window) {
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+
+            // Create lightweight compressed JPEG thumbnail (< 40 KB)
             try {
-              const bmp = await createImageBitmap(file);
-              origW = bmp.width;
-              origH = bmp.height;
-              imgSource = bmp;
-            } catch (_) {}
-          }
-
-          // Fallback to Image() with objectUrl
-          if (!imgSource) {
-            await new Promise((imgRes) => {
-              const img = new Image();
-              img.onload = () => {
-                origW = img.naturalWidth || img.width;
-                origH = img.naturalHeight || img.height;
-                imgSource = img;
-                imgRes();
-              };
-              img.onerror = () => {
-                debug.push('img:err');
-                imgRes();
-              };
-              img.src = objectUrl;
-            });
-          }
-
-          if (imgSource) {
-            meta.width = origW;
-            meta.height = origH;
-            debug.push(`dims:${origW}x${origH}`);
-
-            // Downscale to max 800px canvas to preserve mobile memory
-            const maxDim = 800;
-            let w = origW;
-            let h = origH;
-            if (w > maxDim || h > maxDim) {
-              const ratio = Math.min(maxDim / w, maxDim / h);
-              w = Math.max(1, Math.round(w * ratio));
-              h = Math.max(1, Math.round(h * ratio));
-            }
-
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            ctx.drawImage(imgSource, 0, 0, w, h);
-
-            if (imgSource.close) {
-              try { imgSource.close(); } catch (_) {}
-            }
-
-            // Create compressed JPEG preview URL (< 60 KB)
-            try {
-              const compressed = canvas.toDataURL('image/jpeg', 0.8);
+              const compressed = canvas.toDataURL('image/jpeg', 0.7);
               if (compressed && compressed.length > 100) {
                 meta.previewUrl = compressed;
               }
             } catch (_) {}
 
-            // If not found yet, try BarcodeDetector on canvas
-            if (!qrData && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-              try {
-                const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-                const detected = await detector.detect(canvas);
-                if (detected && detected.length > 0 && detected[0].rawValue) {
-                  qrData = detected[0].rawValue;
-                  debug.push('canvasBD:found');
-                }
-              } catch (_) {}
-            }
-
-            // Fallback to jsQR
-            if (!qrData && typeof jsQR === 'function') {
+            // Run jsQR on the safe 640px canvas buffer
+            if (typeof jsQR === 'function') {
               try {
                 const imgData = ctx.getImageData(0, 0, w, h);
                 for (const inv of ['dontInvert', 'attemptBoth']) {
@@ -10278,14 +10235,23 @@ export default function AdminPage() {
             }
           }
         } catch (err) {
-          debug.push(`processErr:${err.message}`);
+          debug.push(`procErr:${err.message}`);
         } finally {
+          // Free raw image memory immediately
+          img.src = '';
           clearTimeout(timer);
           safeResolve({ data: qrData, debug: debug.join(' | '), meta });
         }
       };
 
-      processImage();
+      img.onerror = () => {
+        img.src = '';
+        clearTimeout(timer);
+        debug.push('img_load_err');
+        safeResolve({ data: null, debug: debug.join(' | '), meta });
+      };
+
+      img.src = objectUrl;
     });
   };
 
@@ -11130,6 +11096,8 @@ export default function AdminPage() {
               <>
                 <input
                   type="file"
+                  name="event_scanner_photo"
+                  id="event-scanner-photo-input"
                   accept="image/*"
                   capture="environment"
                   ref={fileInputRef}
@@ -12007,6 +11975,8 @@ export default function AdminPage() {
             <>
               <input
                 type="file"
+                name="dist_scanner_photo"
+                id="dist-scanner-photo-input"
                 accept="image/*"
                 capture="environment"
                 ref={distFileInputRef}
