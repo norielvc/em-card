@@ -28,79 +28,14 @@ const SUBDIVISION_PUROKS = ['North Ville 6', 'Balagtas Heights', 'Milaflor Subdi
 
 // 8 Official Government Aid & Distribution Programs
 const DISTRIBUTION_CATEGORIES = [
-  { 
-    id: 'groceries', 
-    code: 'PRG-01',
-    name: 'Groceries & Staple Food', 
-    agency: 'Food Security & Relief',
-    desc: 'Rice packs, basic canned goods, and essential pantry staples for low-income households.',
-    color: '#059669', 
-    icon: 'ShoppingBag' 
-  },
-  { 
-    id: 'food_packs', 
-    code: 'PRG-02',
-    name: 'Emergency Relief Food Packs', 
-    agency: 'Disaster Risk Reduction',
-    desc: 'Standardized emergency nutritional rations for disaster response and immediate relief.',
-    color: '#0d9488', 
-    icon: 'Package' 
-  },
-  { 
-    id: 'cash_assistance', 
-    code: 'PRG-03',
-    name: 'Financial Assistance (AICS)', 
-    agency: 'Social Welfare & Development',
-    desc: 'Direct emergency cash subsidy for individuals and families in crisis situations.',
-    color: '#d97706', 
-    icon: 'Coins' 
-  },
-  { 
-    id: 'your_em', 
-    code: 'PRG-04',
-    name: 'yourEM Welfare Privileges', 
-    agency: "Mayor's Executive Office",
-    desc: 'Flagship municipal digital entitlement card benefits and municipal privileges.',
-    color: '#0284c7', 
-    isYourEM: true, 
-    icon: 'Sparkles' 
-  },
-  { 
-    id: 'medicines', 
-    code: 'PRG-05',
-    name: 'Prescription Medicines', 
-    agency: 'City Health Office',
-    desc: 'Maintenance drugs, antibiotics, vitamins, and pharmaceutical welfare assistance.',
-    color: '#0891b2', 
-    icon: 'Pill' 
-  },
-  { 
-    id: 'medical_assistance', 
-    code: 'PRG-06',
-    name: 'Hospital & Medical Aid', 
-    agency: 'Public Health Care Services',
-    desc: 'Hospitalization bill guarantee, laboratory diagnostics, and dialysis assistance.',
-    color: '#2563eb', 
-    icon: 'HeartPulse' 
-  },
-  { 
-    id: 'electric_bill', 
-    code: 'PRG-07',
-    name: 'Electric Utility Subsidy', 
-    agency: 'Public Utilities Bureau',
-    desc: 'Lifeline electricity consumption grant and power bill settlement assistance.',
-    color: '#4f46e5', 
-    icon: 'Zap' 
-  },
-  { 
-    id: 'water_bill', 
-    code: 'PRG-08',
-    name: 'Water Utility Subsidy', 
-    agency: 'Public Utilities Bureau',
-    desc: 'Potable water supply billing assistance and basic utilities relief subsidy.',
-    color: '#7c3aed', 
-    icon: 'Droplets' 
-  },
+  { id: 'groceries', code: 'PRG-01', name: 'Groceries', color: '#ef4444', icon: 'ShoppingBag' },
+  { id: 'food_packs', code: 'PRG-02', name: 'Food Packs', color: '#f97316', icon: 'Package' },
+  { id: 'cash_assistance', code: 'PRG-03', name: 'Cash Assistance', color: '#eab308', icon: 'Coins' },
+  { id: 'your_em', code: 'PRG-04', name: 'yourEM', color: '#10b981', isYourEM: true, icon: 'Sparkles' },
+  { id: 'medicines', code: 'PRG-05', name: 'Medicines', color: '#06b6d4', icon: 'Pill' },
+  { id: 'medical_assistance', code: 'PRG-06', name: 'Medical Assistance', color: '#3b82f6', icon: 'HeartPulse' },
+  { id: 'electric_bill', code: 'PRG-07', name: 'Electric Bill Assistance', color: '#6366f1', icon: 'Zap' },
+  { id: 'water_bill', code: 'PRG-08', name: 'Water Bill Assistance', color: '#a855f7', icon: 'Droplets' },
 ];
 
 function getCategoryIcon(iconName, size = 18) {
@@ -3619,23 +3554,23 @@ export default function AdminPage() {
     const thisMonth = dashLoading ? 0 : thisMonthRegs;
     const lastMonth = dashLoading ? 0 : lastMonthRegs;
     const regChange = lastMonth > 0 ? ((thisMonth - lastMonth) / lastMonth) * 100 : (thisMonth > 0 ? 100 : 0);
-    const regChangeStr = `${regChange >= 0 ? '↑' : '↓'} ${Math.abs(regChange).toFixed(1)}% vs last month`;
+    const regChangeStr = `${regChange >= 0 ? '↑' : '↓'} ${Math.abs(regChange).toFixed(1)}% vs last mo.`;
     const regChangeClass = regChange >= 0 ? 'up' : 'down';
 
     const currentRate = totalApprovedMembers / (totalResidents || 1);
     const lastMonthRate = (totalApprovedMembers - thisMonth) / (totalResidents || 1);
     const rateChange = (currentRate - lastMonthRate) * 100;
-    const rateChangeStr = `${rateChange >= 0 ? '↑' : '↓'} ${Math.abs(rateChange).toFixed(1)}pp vs last month`;
+    const rateChangeStr = `${rateChange >= 0 ? '↑' : '↓'} ${Math.abs(rateChange).toFixed(1)}pp vs last mo.`;
     const rateChangeClass = rateChange >= 0 ? 'up' : 'down';
 
     return (
     <>
       {/* Dashboard Welcome Header & Section Tabs Navbar */}
-      <div className="dash-welcome" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+      <div className="dash-welcome">
         <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>Dashboard</h1>
-          <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: '#64748b' }}>
-            Welcome back, <strong style={{ color: '#0f172a' }}>{username || 'Admin'}</strong>! Here&apos;s what&apos;s happening with your EM Card system.
+          <h1>Dashboard</h1>
+          <p>
+            Welcome back, <strong>{username || 'Admin'}</strong>! Here&apos;s what&apos;s happening with your EM Card system.
           </p>
         </div>
 
@@ -10727,8 +10662,6 @@ export default function AdminPage() {
 
     // ─── STEP 1: CATEGORY SELECTION SCREEN ───
     if (distScannerStep === 'select') {
-      const totalVerifiedClaims = Object.values(distStats).reduce((a, b) => a + b, 0);
-
       return (
         <div className="admin-panel dist-select-panel">
           {/* Official Government Registry Header */}
@@ -10742,13 +10675,11 @@ export default function AdminPage() {
                   <span className="dist-gov-seal-badge">
                     <ShieldCheck size={12} /> OFFICIAL CITIZEN AID &amp; SOCIAL SERVICES REGISTRY
                   </span>
-                </div>
-                <div className="dist-header-title-row">
-                  <h3>Beneficiary Aid &amp; Welfare Distribution Dispatch</h3>
                   <span className="panel-badge dist-programs-count-badge">8 Active Programs</span>
                 </div>
+                <h3 className="dist-header-main-title">Beneficiary Aid &amp; Welfare Distribution Dispatch</h3>
                 <p className="dist-header-sub">
-                  Secure biometric and QR verification system for municipal assistance programs, emergency relief, and verified resident claims.
+                  Secure biometric and QR verification system for municipal assistance programs and verified resident claims.
                 </p>
               </div>
             </div>
@@ -10775,56 +10706,13 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Executive KPI Summary Ribbon */}
-          <div className="dist-kpi-ribbon">
-            <div className="dist-kpi-card">
-              <span className="dist-kpi-label">Active Welfare Programs</span>
-              <div className="dist-kpi-value-row">
-                <span className="dist-kpi-value">8</span>
-                <span className="dist-kpi-subtext">Municipal Tracks</span>
-              </div>
-            </div>
-            <div className="dist-kpi-card">
-              <span className="dist-kpi-label">Total Verified Disbursals</span>
-              <div className="dist-kpi-value-row">
-                <span className="dist-kpi-value dist-kpi-emerald">{totalVerifiedClaims.toLocaleString()}</span>
-                <span className="dist-kpi-subtext">Recorded Claims</span>
-              </div>
-            </div>
-            <div className="dist-kpi-card">
-              <span className="dist-kpi-label">Anti-Duplicate Engine</span>
-              <div className="dist-kpi-value-row">
-                <span className={`dist-kpi-value ${!distAllowDuplicates ? 'dist-kpi-strict' : 'dist-kpi-allow'}`}>
-                  {!distAllowDuplicates ? 'Strict (1-Claim)' : 'Multi-Claim'}
-                </span>
-                <span className="dist-kpi-subtext">{!distAllowDuplicates ? 'Fraud Prevention Active' : 'Unrestricted Mode'}</span>
-              </div>
-            </div>
-            <div className="dist-kpi-card">
-              <span className="dist-kpi-label">System Readiness</span>
-              <div className="dist-kpi-value-row">
-                <span className="dist-kpi-value dist-kpi-ready">
-                  <span className="dist-kpi-pulse-dot"></span> Ready
-                </span>
-                <span className="dist-kpi-subtext">Biometric / QR Engine</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Anti-Fraud Policy & Governance Toolbar */}
-          <div className="dist-select-hero">
-            <div className="dist-select-hero-left">
-              <div className="dist-select-hero-icon">
-                <ShieldCheck size={24} />
-              </div>
-              <div className="dist-select-hero-text">
-                <h4>Beneficiary Fraud &amp; Duplicate Prevention Engine</h4>
-                <p>Enforces real-time resident registry validation. Strict mode prevents duplicate claim collection across all distribution operators.</p>
-              </div>
-            </div>
-
-            <div className="dist-select-hero-policy">
-              <span className="dist-policy-sublabel">Enforcement Policy:</span>
+          {/* Clean Compact Duplicate Enforcement Policy Bar */}
+          <div className="dist-policy-toolbar">
+            <div className="dist-duplicate-toggle-box">
+              <span className="dist-toggle-label">
+                <ShieldCheck size={15} style={{ color: '#059669', verticalAlign: 'middle', marginRight: 4 }} />
+                Duplicate Enforcement Policy:
+              </span>
               <div className="dist-toggle-btn-group">
                 <button
                   type="button"
@@ -10832,7 +10720,7 @@ export default function AdminPage() {
                   onClick={() => setDistAllowDuplicates(false)}
                   title="Enforce strict 1-per-resident policy"
                 >
-                  <Lock size={13} /> Strict (1-Per-Resident)
+                  <Lock size={12} /> Strict (1-Per-Resident)
                 </button>
                 <button
                   type="button"
@@ -10840,9 +10728,14 @@ export default function AdminPage() {
                   onClick={() => setDistAllowDuplicates(true)}
                   title="Allow multiple claims per resident"
                 >
-                  <Check size={13} /> Allow Multiple Claims
+                  <Check size={12} /> Allow Multiple Claims
                 </button>
               </div>
+            </div>
+
+            <div className="dist-policy-status-pill">
+              <span className={`dist-status-bullet ${!distAllowDuplicates ? 'strict' : 'allow'}`}></span>
+              <span>{!distAllowDuplicates ? 'Anti-Duplicate Active (1 Claim Per Resident)' : 'Open Distribution (Multi-Claim Permitted)'}</span>
             </div>
           </div>
 
@@ -10868,34 +10761,32 @@ export default function AdminPage() {
                     }
                   }}
                 >
-                  {/* Top Bar: Code, Status & Claim Counter */}
-                  <div className="dist-select-card-top">
+                  {/* Designated Color Header Bar */}
+                  <div className="dist-select-card-header" style={{ background: cat.color }}>
                     <div className="dist-card-badge-group">
                       <span className="dist-prog-code">{cat.code || 'PRG'}</span>
                       <span className="dist-prog-status">
                         <span className="dist-status-dot"></span> Active
                       </span>
                     </div>
-                    <span className="dist-select-count-pill" style={{ color: cat.color, borderColor: `${cat.color}35`, background: `${cat.color}10` }}>
+                    <span className="dist-select-count-pill">
                       {count.toLocaleString()} {count === 1 ? 'Claim' : 'Claims'}
                     </span>
                   </div>
 
-                  {/* Body: Icon, Agency & Title & Mandate Description */}
+                  {/* Clean Body: Category Icon & Title Only */}
                   <div className="dist-select-card-body">
                     <div className="dist-card-header-cluster">
-                      <div className="dist-select-card-icon" style={{ color: cat.color, background: `${cat.color}14` }}>
-                        {getCategoryIcon(cat.icon, 20)}
+                      <div className="dist-select-card-icon" style={{ color: cat.color, background: `${cat.color}18` }}>
+                        {getCategoryIcon(cat.icon, 24)}
                       </div>
-                      <div className="dist-card-title-group">
-                        <span className="dist-prog-agency">{cat.agency || 'MUNICIPAL WELFARE'}</span>
+                      <div className="dist-card-title-wrap">
                         <h4 className="dist-select-card-title">{cat.name}</h4>
+                        {cat.isYourEM && (
+                          <span className="dist-cat-reserved-tag">Reserved</span>
+                        )}
                       </div>
                     </div>
-                    {cat.isYourEM && (
-                      <span className="dist-cat-reserved-tag">Mayor&apos;s Special Welfare</span>
-                    )}
-                    <p className="dist-card-desc">{cat.desc}</p>
                   </div>
 
                   {/* Footer: Official Action Button */}
