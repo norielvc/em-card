@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabaseClient';
 import * as XLSX from 'xlsx';
 import RegisterForm from '../components/RegisterForm';
 import { QRCodeSVG } from 'qrcode.react';
+import jsQR from 'jsqr';
 import { 
   Users, UserCheck, UserPlus, Trash2, Search, Download, QrCode, X, CheckCircle, Link2, 
   AlertTriangle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Edit3, BarChart3, PieChart, TrendingUp, 
@@ -10139,12 +10140,13 @@ export default function AdminPage() {
 
   const detectQRSimple = async (file) => {
     const debug = [];
+    const objectUrl = URL.createObjectURL(file);
     const meta = {
       name: file.name || 'captured_photo.jpg',
       sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
       width: 0,
       height: 0,
-      previewUrl: '',
+      previewUrl: objectUrl,
     };
 
     return new Promise((resolve) => {
@@ -10156,107 +10158,134 @@ export default function AdminPage() {
         }
       };
 
-      // 1. Read file as DataURL via FileReader (guaranteed reliability across iOS Safari & Android)
-      const reader = new FileReader();
-
-      reader.onerror = () => {
-        debug.push('reader:error');
+      // Hard safety timer: max 3.5 seconds. CAN NEVER BE STUCK!
+      const timer = setTimeout(() => {
+        debug.push('safety_timeout');
         safeResolve({ data: null, debug: debug.join(' | '), meta });
-      };
+      }, 3500);
 
-      reader.onload = () => {
-        const rawDataUrl = reader.result;
-        if (!rawDataUrl) {
-          debug.push('reader:empty');
-          safeResolve({ data: null, debug: debug.join(' | '), meta });
-          return;
-        }
+      const processImage = async () => {
+        let qrData = null;
 
-        // Set immediate fallback preview so preview card is guaranteed to render
-        meta.previewUrl = rawDataUrl;
+        try {
+          // 1. Instant check with Native BarcodeDetector if supported by mobile browser
+          if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+            try {
+              const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+              const detected = await detector.detect(file);
+              if (detected && detected.length > 0 && detected[0].rawValue) {
+                qrData = detected[0].rawValue;
+                debug.push('nativeBD:found');
+              }
+            } catch (e) {
+              debug.push(`bdFileErr:${e.message}`);
+            }
+          }
 
-        const img = new Image();
-        img.onload = async () => {
-          try {
-            const origW = img.naturalWidth || img.width;
-            const origH = img.naturalHeight || img.height;
+          // 2. Decode image to canvas for dimensions, lightweight preview, and multi-algorithm scan
+          let imgSource = null;
+          let origW = 0;
+          let origH = 0;
+
+          // Prefer createImageBitmap if available (native C++ background decode, super fast)
+          if (typeof window !== 'undefined' && 'createImageBitmap' in window) {
+            try {
+              const bmp = await createImageBitmap(file);
+              origW = bmp.width;
+              origH = bmp.height;
+              imgSource = bmp;
+            } catch (_) {}
+          }
+
+          // Fallback to Image() with objectUrl
+          if (!imgSource) {
+            await new Promise((imgRes) => {
+              const img = new Image();
+              img.onload = () => {
+                origW = img.naturalWidth || img.width;
+                origH = img.naturalHeight || img.height;
+                imgSource = img;
+                imgRes();
+              };
+              img.onerror = () => {
+                debug.push('img:err');
+                imgRes();
+              };
+              img.src = objectUrl;
+            });
+          }
+
+          if (imgSource) {
             meta.width = origW;
             meta.height = origH;
             debug.push(`dims:${origW}x${origH}`);
 
-            // Downscale to a safe, lightweight max 800px canvas to prevent iOS Safari memory crashes
+            // Downscale to max 800px canvas to preserve mobile memory
             const maxDim = 800;
             let w = origW;
             let h = origH;
             if (w > maxDim || h > maxDim) {
               const ratio = Math.min(maxDim / w, maxDim / h);
-              w = Math.floor(w * ratio);
-              h = Math.floor(h * ratio);
+              w = Math.max(1, Math.round(w * ratio));
+              h = Math.max(1, Math.round(h * ratio));
             }
 
             const canvas = document.createElement('canvas');
             canvas.width = w;
             canvas.height = h;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            ctx.drawImage(img, 0, 0, w, h);
+            ctx.drawImage(imgSource, 0, 0, w, h);
 
-            // Replace with lightweight compressed JPEG (< 60 KB)
+            if (imgSource.close) {
+              try { imgSource.close(); } catch (_) {}
+            }
+
+            // Create compressed JPEG preview URL (< 60 KB)
             try {
               const compressed = canvas.toDataURL('image/jpeg', 0.8);
-              if (compressed && compressed.length > 50) {
+              if (compressed && compressed.length > 100) {
                 meta.previewUrl = compressed;
               }
             } catch (_) {}
 
-            const imageData = ctx.getImageData(0, 0, w, h);
-
-            // Load jsQR safely
-            let jsQR;
-            try {
-              const jsQRModule = await import('jsqr');
-              jsQR = jsQRModule.default;
-            } catch (importError) {
-              if (typeof window !== 'undefined' && window.jsQR) {
-                jsQR = window.jsQR;
-              } else {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-                document.head.appendChild(script);
-                await new Promise((res, rej) => {
-                  script.onload = () => res();
-                  script.onerror = () => rej(new Error('CDN load failed'));
-                });
-                jsQR = window.jsQR;
-              }
-            }
-
-            if (typeof jsQR === 'function') {
-              for (const inv of ['dontInvert', 'attemptBoth']) {
-                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: inv });
-                if (code && code.data) {
-                  debug.push('jsQR:found');
-                  safeResolve({ data: code.data, debug: debug.join(' | '), meta });
-                  return;
+            // If not found yet, try BarcodeDetector on canvas
+            if (!qrData && typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+              try {
+                const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+                const detected = await detector.detect(canvas);
+                if (detected && detected.length > 0 && detected[0].rawValue) {
+                  qrData = detected[0].rawValue;
+                  debug.push('canvasBD:found');
                 }
-              }
-              debug.push('found:none');
+              } catch (_) {}
             }
-          } catch (err) {
-            debug.push(`err:${err.message}`);
+
+            // Fallback to jsQR
+            if (!qrData && typeof jsQR === 'function') {
+              try {
+                const imgData = ctx.getImageData(0, 0, w, h);
+                for (const inv of ['dontInvert', 'attemptBoth']) {
+                  const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: inv });
+                  if (code && code.data) {
+                    qrData = code.data;
+                    debug.push('jsQR:found');
+                    break;
+                  }
+                }
+              } catch (jErr) {
+                debug.push(`jsqrErr:${jErr.message}`);
+              }
+            }
           }
-
-          safeResolve({ data: null, debug: debug.join(' | '), meta });
-        };
-
-        img.onerror = () => {
-          debug.push('img:error');
-          safeResolve({ data: null, debug: debug.join(' | '), meta });
-        };
-
-        img.src = rawDataUrl;
+        } catch (err) {
+          debug.push(`processErr:${err.message}`);
+        } finally {
+          clearTimeout(timer);
+          safeResolve({ data: qrData, debug: debug.join(' | '), meta });
+        }
       };
 
-      reader.readAsDataURL(file);
+      processImage();
     });
   };
 
