@@ -11053,6 +11053,7 @@ export default function AdminPage() {
                   name="event_scanner_photo"
                   id="event-scanner-photo-input"
                   accept="image/*"
+                  capture="environment"
                   ref={fileInputRef}
                   style={{ display: 'none' }}
                   onChange={async (e) => {
@@ -11876,6 +11877,7 @@ export default function AdminPage() {
                 name="dist_scanner_photo"
                 id="dist-scanner-photo-input"
                 accept="image/*"
+                capture="environment"
                 ref={distFileInputRef}
                 style={{ display: 'none' }}
                 onChange={async (e) => {
