@@ -323,7 +323,7 @@ export default function AdminPage() {
   const [distScannerMode, setDistScannerMode] = useState('camera'); // 'camera' | 'capture' | 'manual' | 'traffic'
   const [distScanResult, setDistScanResult] = useState(null);
   const [distScanLoading, setDistScanLoading] = useState(false);
-  const [distScanToken, setDistScanToken] = useState('');
+  const [distScanToken, setDistScanToken] = useState('EM-');
   const [distCameraActive, setDistCameraActive] = useState(false);
   const [distFocusPoint, setDistFocusPoint] = useState(null);
   const [distCapturedImagePreview, setDistCapturedImagePreview] = useState(null);
@@ -465,7 +465,7 @@ export default function AdminPage() {
     } finally {
       setDistScanLoading(false);
       distScanInProgressRef.current = false;
-      setDistScanToken('');
+      setDistScanToken('EM-');
     }
   };
 
@@ -711,7 +711,7 @@ export default function AdminPage() {
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const [scanToken, setScanToken] = useState('');
+  const [scanToken, setScanToken] = useState('EM-');
   const [scanResult, setScanResult] = useState(null);
   const [scanLoading, setScanLoading] = useState(false);
   const [scannerMode, setScannerMode] = useState('select'); // select | scan | result
@@ -10276,7 +10276,7 @@ export default function AdminPage() {
           rawText: cleanToken,
         });
         setScanLoading(false);
-        setScanToken('');
+        setScanToken('EM-');
         scanInProgressRef.current = false;
         return;
       }
@@ -10298,7 +10298,7 @@ export default function AdminPage() {
           scannedBy: 'this device (cached)',
         });
         setScanLoading(false);
-        setScanToken('');
+        setScanToken('EM-');
         return;
       }
 
@@ -10344,7 +10344,7 @@ export default function AdminPage() {
       });
     } finally {
       setScanLoading(false);
-      setScanToken('');
+      setScanToken('EM-');
       scanInProgressRef.current = false;
     }
   };
@@ -10996,7 +10996,10 @@ export default function AdminPage() {
               </button>
               <button
                 className={scannerInputMode === 'manual' ? 'active' : ''}
-                onClick={() => setScannerInputMode('manual')}
+                onClick={() => {
+                  setScannerInputMode('manual');
+                  if (!scanToken || scanToken === '') setScanToken('EM-');
+                }}
               >
                 <ScanLine size={16} /> Manual
               </button>
@@ -11129,24 +11132,84 @@ export default function AdminPage() {
 
             {/* ── MANUAL MODE ── */}
             {scannerInputMode === 'manual' && (
-              <>
-                <div className="scan-input-icon"><ScanLine size={40} /></div>
-                <h4>Manual QR Entry</h4>
-                <p>Type or paste the QR token from the EM Card</p>
-                <form onSubmit={e => { e.preventDefault(); handleEventScan(scanToken); }}>
-                  <input
-                    type="text"
-                    value={scanToken}
-                    onChange={e => setScanToken(e.target.value)}
-                    placeholder="Enter QR token (e.g., EM...)"
-                    className="scan-token-input"
-                    autoFocus
-                    autoComplete="off"
-                  />
-                  <button type="submit" className="btn btn-primary" style={{ marginTop: 12 }}>Verify</button>
+              <div className="dist-manual-entry-card" style={{ width: '100%', maxWidth: 440, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '16px 8px' }}>
+                <div className="scan-input-icon" style={{ margin: '0 auto' }}><ScanLine size={36} /></div>
+                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>Manual QR Entry</h4>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', textAlign: 'center' }}>
+                  Type or paste the QR token from the EM Card
+                </p>
+                <form 
+                  onSubmit={e => { e.preventDefault(); handleEventScan(scanToken); }}
+                  style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}
+                >
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <input
+                      type="text"
+                      value={scanToken}
+                      onChange={e => {
+                        let val = e.target.value;
+                        if (!val || val === 'E' || val === 'EM' || val === 'EM-') {
+                          setScanToken('EM-');
+                          return;
+                        }
+                        if (val.includes('/card/')) {
+                          const match = val.match(/\/card\/(EM[A-Za-z0-9-]+)/);
+                          if (match) val = match[1];
+                        }
+                        if (!val.startsWith('EM-')) {
+                          if (val.toUpperCase().startsWith('EM-')) {
+                            val = 'EM-' + val.slice(3);
+                          } else if (val.toUpperCase().startsWith('EM')) {
+                            val = 'EM-' + val.slice(2).replace(/^-+/, '');
+                          } else {
+                            val = 'EM-' + val;
+                          }
+                        }
+                        setScanToken(val);
+                      }}
+                      onFocus={() => {
+                        if (!scanToken) setScanToken('EM-');
+                      }}
+                      placeholder="Enter token (e.g. EM-1234567890)"
+                      className="scan-token-input"
+                      autoFocus
+                      autoComplete="off"
+                      style={{ width: '100%', fontSize: '1rem', padding: '12px 14px' }}
+                    />
+                    {scanToken && scanToken !== 'EM-' && (
+                      <button
+                        type="button"
+                        onClick={() => setScanToken('EM-')}
+                        style={{
+                          position: 'absolute',
+                          right: 10,
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          color: '#94a3b8',
+                          cursor: 'pointer',
+                          padding: 4,
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                        title="Clear token"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }}
+                    disabled={scanLoading || !scanToken.trim() || scanToken.trim() === 'EM-'}
+                  >
+                    {scanLoading ? 'Verifying...' : 'Verify'}
+                  </button>
                 </form>
-                {scanLoading && <div className="scan-spinner">Verifying...</div>}
-              </>
+                {scanLoading && <div className="scan-spinner" style={{ marginTop: 8 }}>Verifying...</div>}
+              </div>
             )}
 
             {/* ── LIVE TRAFFIC MONITOR MODE ── */}
