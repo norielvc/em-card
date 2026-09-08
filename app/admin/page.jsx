@@ -420,8 +420,9 @@ export default function AdminPage() {
     }
   };
 
-  const handleDistributionScan = async (scannedToken, overrideAllowDuplicate = undefined) => {
+  const handleDistributionScan = async (scannedToken, overrideAllowDuplicate = undefined, photoUrl = null) => {
     if (!scannedToken || !scannedToken.trim()) return;
+    const currentPhoto = photoUrl || distCapturedImagePreview;
     setDistScanLoading(true);
     setDistScanResult(null);
 
@@ -440,7 +441,10 @@ export default function AdminPage() {
       });
 
       const json = await res.json();
-      setDistScanResult(json);
+      setDistScanResult({
+        ...json,
+        capturedImage: currentPhoto,
+      });
 
       if (json.type === 'success') {
         showToast(`Aid distributed: ${json.categoryName} to ${json.name}`, 'success');
@@ -454,6 +458,7 @@ export default function AdminPage() {
       setDistScanResult({
         type: 'error',
         message: err.message || 'Failed to communicate with distribution scanner API.',
+        capturedImage: currentPhoto,
       });
       showToast('Scan processing failed', 'error');
     } finally {
@@ -10151,103 +10156,113 @@ export default function AdminPage() {
         }
       };
 
-      // Hard safety timer: max 3 seconds
-      const timer = setTimeout(() => {
-        debug.push('safety_timeout');
+      // 1. Read file as DataURL via FileReader (guaranteed reliability across iOS Safari & Android)
+      const reader = new FileReader();
+
+      reader.onerror = () => {
+        debug.push('reader:error');
         safeResolve({ data: null, debug: debug.join(' | '), meta });
-      }, 3000);
+      };
 
-      const objectUrl = URL.createObjectURL(file);
-      const img = new Image();
-
-      img.onload = async () => {
-        try {
-          const origW = img.naturalWidth || img.width;
-          const origH = img.naturalHeight || img.height;
-          meta.width = origW;
-          meta.height = origH;
-          debug.push(`dims:${origW}x${origH}`);
-
-          // Downscale to a safe, lightweight max 800px canvas to prevent iOS Safari memory crashes
-          const maxDim = 800;
-          let w = origW;
-          let h = origH;
-          if (w > maxDim || h > maxDim) {
-            const ratio = Math.min(maxDim / w, maxDim / h);
-            w = Math.floor(w * ratio);
-            h = Math.floor(h * ratio);
-          }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          ctx.drawImage(img, 0, 0, w, h);
-
-          // Generate a lightweight compressed JPEG data URL for safe UI preview (< 60 KB)
-          try {
-            meta.previewUrl = canvas.toDataURL('image/jpeg', 0.75);
-          } catch (_) {}
-
-          // Release raw high-res image from memory immediately
-          img.src = '';
-          URL.revokeObjectURL(objectUrl);
-
-          const imageData = ctx.getImageData(0, 0, w, h);
-
-          // Load jsQR safely
-          let jsQR;
-          try {
-            const jsQRModule = await import('jsqr');
-            jsQR = jsQRModule.default;
-          } catch (importError) {
-            if (typeof window !== 'undefined' && window.jsQR) {
-              jsQR = window.jsQR;
-            } else {
-              const script = document.createElement('script');
-              script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-              document.head.appendChild(script);
-              await new Promise((res, rej) => {
-                script.onload = () => res();
-                script.onerror = () => rej(new Error('CDN load failed'));
-              });
-              jsQR = window.jsQR;
-            }
-          }
-
-          if (typeof jsQR === 'function') {
-            for (const inv of ['dontInvert', 'attemptBoth']) {
-              const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: inv });
-              if (code && code.data) {
-                clearTimeout(timer);
-                debug.push('jsQR:found');
-                safeResolve({ data: code.data, debug: debug.join(' | '), meta });
-                return;
-              }
-            }
-            debug.push('found:none');
-          }
-        } catch (err) {
-          debug.push(`err:${err.message}`);
+      reader.onload = () => {
+        const rawDataUrl = reader.result;
+        if (!rawDataUrl) {
+          debug.push('reader:empty');
+          safeResolve({ data: null, debug: debug.join(' | '), meta });
+          return;
         }
 
-        clearTimeout(timer);
-        safeResolve({ data: null, debug: debug.join(' | '), meta });
+        // Set immediate fallback preview so preview card is guaranteed to render
+        meta.previewUrl = rawDataUrl;
+
+        const img = new Image();
+        img.onload = async () => {
+          try {
+            const origW = img.naturalWidth || img.width;
+            const origH = img.naturalHeight || img.height;
+            meta.width = origW;
+            meta.height = origH;
+            debug.push(`dims:${origW}x${origH}`);
+
+            // Downscale to a safe, lightweight max 800px canvas to prevent iOS Safari memory crashes
+            const maxDim = 800;
+            let w = origW;
+            let h = origH;
+            if (w > maxDim || h > maxDim) {
+              const ratio = Math.min(maxDim / w, maxDim / h);
+              w = Math.floor(w * ratio);
+              h = Math.floor(h * ratio);
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, w, h);
+
+            // Replace with lightweight compressed JPEG (< 60 KB)
+            try {
+              const compressed = canvas.toDataURL('image/jpeg', 0.8);
+              if (compressed && compressed.length > 50) {
+                meta.previewUrl = compressed;
+              }
+            } catch (_) {}
+
+            const imageData = ctx.getImageData(0, 0, w, h);
+
+            // Load jsQR safely
+            let jsQR;
+            try {
+              const jsQRModule = await import('jsqr');
+              jsQR = jsQRModule.default;
+            } catch (importError) {
+              if (typeof window !== 'undefined' && window.jsQR) {
+                jsQR = window.jsQR;
+              } else {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+                document.head.appendChild(script);
+                await new Promise((res, rej) => {
+                  script.onload = () => res();
+                  script.onerror = () => rej(new Error('CDN load failed'));
+                });
+                jsQR = window.jsQR;
+              }
+            }
+
+            if (typeof jsQR === 'function') {
+              for (const inv of ['dontInvert', 'attemptBoth']) {
+                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: inv });
+                if (code && code.data) {
+                  debug.push('jsQR:found');
+                  safeResolve({ data: code.data, debug: debug.join(' | '), meta });
+                  return;
+                }
+              }
+              debug.push('found:none');
+            }
+          } catch (err) {
+            debug.push(`err:${err.message}`);
+          }
+
+          safeResolve({ data: null, debug: debug.join(' | '), meta });
+        };
+
+        img.onerror = () => {
+          debug.push('img:error');
+          safeResolve({ data: null, debug: debug.join(' | '), meta });
+        };
+
+        img.src = rawDataUrl;
       };
 
-      img.onerror = () => {
-        clearTimeout(timer);
-        URL.revokeObjectURL(objectUrl);
-        debug.push('img:error');
-        safeResolve({ data: null, debug: debug.join(' | '), meta });
-      };
-
-      img.src = objectUrl;
+      reader.readAsDataURL(file);
     });
   };
 
-  const handleEventScan = async (rawToken) => {
+  const handleEventScan = async (rawToken, photoUrl = null) => {
     if (!rawToken.trim() || !selectedEvent) return;
+    const currentPhoto = photoUrl || capturedImagePreview;
     scanInProgressRef.current = true;
     setScanLoading(true);
     setScanResult(null);
@@ -10267,7 +10282,12 @@ export default function AdminPage() {
       // SECURITY: Strict token format validation
       const validTokenPattern = /^(EM[A-Za-z0-9]{24}|EM-\d{10})$/;
       if (!validTokenPattern.test(cleanToken)) {
-        setScanResult({ type: 'invalid', message: 'SECURITY ALERT: Invalid QR format. This is NOT a valid EM Card.', rawText: cleanToken });
+        setScanResult({ 
+          type: 'invalid', 
+          message: 'SECURITY ALERT: Invalid QR format. This is NOT a valid EM Card.', 
+          rawText: cleanToken,
+          capturedImage: currentPhoto,
+        });
         setScanLoading(false);
         setScanToken('');
         scanInProgressRef.current = false;
@@ -10289,6 +10309,7 @@ export default function AdminPage() {
           qrToken: cleanToken,
           scannedAt: new Date().toISOString(),
           scannedBy: 'this device (cached)',
+          capturedImage: currentPhoto,
         });
         setScanLoading(false);
         setScanToken('');
@@ -10310,11 +10331,18 @@ export default function AdminPage() {
       const result = await res.json();
 
       if (!res.ok) {
-        setScanResult({ type: 'error', message: result.message || result.error || 'Network error. Try again.' });
+        setScanResult({ 
+          type: 'error', 
+          message: result.message || result.error || 'Network error. Try again.',
+          capturedImage: currentPhoto,
+        });
         return;
       }
 
-      setScanResult(result);
+      setScanResult({
+        ...result,
+        capturedImage: currentPhoto,
+      });
 
       if (result.type === 'success') {
         // Add to client-side cache for fast duplicate detection
@@ -10328,7 +10356,11 @@ export default function AdminPage() {
         setScanStats(prev => ({ ...prev, total: localScanCountRef.current }));
       }
     } catch (err) {
-      setScanResult({ type: 'error', message: err.message || 'Network error. Try again.' });
+      setScanResult({ 
+        type: 'error', 
+        message: err.message || 'Network error. Try again.',
+        capturedImage: currentPhoto,
+      });
     } finally {
       setScanLoading(false);
       setScanToken('');
@@ -11091,9 +11123,13 @@ export default function AdminPage() {
                       if (decodedText) {
                         setCapturedScanStatus('success');
                         if (scanInProgressRef.current) {
-                          setScanResult({ type: 'invalid', message: 'A scan is already in progress. Please wait.' });
+                          setScanResult({ 
+                            type: 'invalid', 
+                            message: 'A scan is already in progress. Please wait.',
+                            capturedImage: meta?.previewUrl || capturedImagePreview,
+                          });
                         } else {
-                          await handleEventScan(decodedText);
+                          await handleEventScan(decodedText, meta?.previewUrl);
                         }
                       } else {
                         setCapturedScanStatus('failed');
@@ -11101,11 +11137,16 @@ export default function AdminPage() {
                           type: 'invalid',
                           message: 'Could not read QR code from image. Please inspect the captured photo below and ensure the QR is focused and clearly lit.',
                           rawText: debug,
+                          capturedImage: meta?.previewUrl || capturedImagePreview,
                         });
                       }
                     } catch (err) {
                       setCapturedScanStatus('failed');
-                      setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
+                      setScanResult({ 
+                        type: 'invalid', 
+                        message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.',
+                        capturedImage: capturedImagePreview,
+                      });
                     } finally {
                       setScanLoading(false);
                       e.target.value = '';
@@ -11959,9 +12000,13 @@ export default function AdminPage() {
                     if (decodedText) {
                       setDistCapturedScanStatus('success');
                       if (distScanInProgressRef.current) {
-                        setDistScanResult({ type: 'invalid', message: 'A scan is already in progress. Please wait.' });
+                        setDistScanResult({ 
+                          type: 'invalid', 
+                          message: 'A scan is already in progress. Please wait.',
+                          capturedImage: meta?.previewUrl || distCapturedImagePreview,
+                        });
                       } else {
-                        await handleDistributionScan(decodedText);
+                        await handleDistributionScan(decodedText, undefined, meta?.previewUrl);
                       }
                     } else {
                       setDistCapturedScanStatus('failed');
@@ -11969,11 +12014,16 @@ export default function AdminPage() {
                         type: 'invalid',
                         message: `Could not read QR code from image for ${activeCat.name}. Please inspect the photo below and ensure the QR is focused and clearly lit.`,
                         rawText: debug,
+                        capturedImage: meta?.previewUrl || distCapturedImagePreview,
                       });
                     }
                   } catch (err) {
                     setDistCapturedScanStatus('failed');
-                    setDistScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please try again or use Manual entry.' });
+                    setDistScanResult({ 
+                      type: 'invalid', 
+                      message: 'Could not read QR code from image. Please try again or use Manual entry.',
+                      capturedImage: distCapturedImagePreview,
+                    });
                   } finally {
                     setDistScanLoading(false);
                     e.target.value = '';
