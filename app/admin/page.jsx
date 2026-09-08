@@ -345,6 +345,16 @@ export default function AdminPage() {
   const distScannerRef = useRef(null);
   const distScanInProgressRef = useRef(false);
   const distFileInputRef = useRef(null);
+  const distAllowDuplicatesRef = useRef(distAllowDuplicates);
+  const selectedDistCategoryRef = useRef(selectedDistCategory);
+
+  useEffect(() => {
+    distAllowDuplicatesRef.current = distAllowDuplicates;
+  }, [distAllowDuplicates]);
+
+  useEffect(() => {
+    selectedDistCategoryRef.current = selectedDistCategory;
+  }, [selectedDistCategory]);
 
   const fetchDistributionRecords = async (category = '') => {
     setDistRecordsLoading(true);
@@ -375,10 +385,12 @@ export default function AdminPage() {
     }
   };
 
-  const handleDistributionScan = async (scannedToken) => {
+  const handleDistributionScan = async (scannedToken, overrideAllowDuplicate = undefined) => {
     if (!scannedToken || !scannedToken.trim()) return;
     setDistScanLoading(true);
     setDistScanResult(null);
+
+    const isAllowDup = overrideAllowDuplicate !== undefined ? Boolean(overrideAllowDuplicate) : Boolean(distAllowDuplicatesRef.current);
 
     try {
       const res = await authFetch('/api/distribution-scan', {
@@ -386,8 +398,8 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rawToken: scannedToken,
-          category: selectedDistCategory,
-          allow_duplicates: distAllowDuplicates,
+          category: selectedDistCategoryRef.current || selectedDistCategory,
+          allow_duplicates: isAllowDup,
           scanned_by: username || 'Admin',
         }),
       });
@@ -10717,7 +10729,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   className={`dist-policy-btn ${!distAllowDuplicates ? 'active-strict' : ''}`}
-                  onClick={() => setDistAllowDuplicates(false)}
+                  onClick={() => { setDistAllowDuplicates(false); distAllowDuplicatesRef.current = false; }}
                   title="Enforce strict 1-per-resident policy"
                 >
                   <Lock size={12} /> Strict (1-Per-Resident)
@@ -10725,7 +10737,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   className={`dist-policy-btn ${distAllowDuplicates ? 'active-allow' : ''}`}
-                  onClick={() => setDistAllowDuplicates(true)}
+                  onClick={() => { setDistAllowDuplicates(true); distAllowDuplicatesRef.current = true; }}
                   title="Allow multiple claims per resident"
                 >
                   <Check size={12} /> Allow Multiple Claims
@@ -10845,7 +10857,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   className={`dist-policy-btn ${!distAllowDuplicates ? 'active-strict' : ''}`}
-                  onClick={() => setDistAllowDuplicates(false)}
+                  onClick={() => { setDistAllowDuplicates(false); distAllowDuplicatesRef.current = false; }}
                   title="Strict 1-per-resident policy."
                 >
                   <Lock size={12} /> Strict (1-Per-Resident)
@@ -10853,7 +10865,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   className={`dist-policy-btn ${distAllowDuplicates ? 'active-allow' : ''}`}
-                  onClick={() => setDistAllowDuplicates(true)}
+                  onClick={() => { setDistAllowDuplicates(true); distAllowDuplicatesRef.current = true; }}
                   title="Allow multiple claims."
                 >
                   <Check size={12} /> Allow Multiple
@@ -10969,7 +10981,7 @@ export default function AdminPage() {
               {distScanResult.type === 'duplicate' && (
                 <>
                   <div className="scan-result-badge duplicate">
-                    <AlertTriangle size={28} /> ALREADY CLAIMED — STOP DISTRIBUTION
+                    <AlertTriangle size={28} /> ALREADY CLAIMED — DUPLICATE
                   </div>
 
                   <div className="scan-result-profile">
@@ -10993,11 +11005,20 @@ export default function AdminPage() {
                       <strong><AlertTriangle size={14} /> PREVIOUSLY CLAIMED FOR {distScanResult.categoryName?.toUpperCase()}</strong>
                       <p>Claimed on <strong>{new Date(distScanResult.scannedAt).toLocaleDateString()}</strong> at <strong>{new Date(distScanResult.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong></p>
                       {distScanResult.scannedBy && <p>Operator: <strong>{distScanResult.scannedBy}</strong></p>}
-                      <p className="duplicate-stop"><Ban size={14} /> DO NOT DISTRIBUTE — This resident already claimed this assistance in strict mode.</p>
+                      <p className="duplicate-stop"><Ban size={14} /> Strict Policy Notice: This resident already claimed this assistance.</p>
                     </div>
-                    <button className="btn btn-danger" onClick={resetDistScanState}>
-                      Acknowledge &amp; Scan Next
-                    </button>
+                    <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 10 }}>
+                      <button className="btn btn-secondary" onClick={resetDistScanState}>
+                        Cancel &amp; Scan Next
+                      </button>
+                      <button
+                        className="btn btn-primary"
+                        style={{ background: '#059669', borderColor: '#059669', color: '#ffffff', fontWeight: 700 }}
+                        onClick={() => handleDistributionScan(distScanResult.qrToken, true)}
+                      >
+                        <Check size={15} /> Distribute Anyway (Multi-Claim)
+                      </button>
+                    </div>
                   </div>
                 </>
               )}

@@ -111,7 +111,8 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { rawToken, category, allow_duplicates = false, scanned_by, notes } = body;
+    const { rawToken, category, scanned_by, notes } = body;
+    const allow_duplicates = body.allow_duplicates === true || body.allow_duplicates === 'true' || body.allowDuplicates === true || body.allowDuplicates === 'true';
 
     if (!rawToken || !category) {
       return Response.json({ error: 'Missing token or aid category' }, { status: 400 });
