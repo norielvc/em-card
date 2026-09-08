@@ -342,6 +342,7 @@ export default function AdminPage() {
   const [distSearchQuery, setDistSearchQuery] = useState('');
   const [memberAidHistory, setMemberAidHistory] = useState([]);
   const [memberAidLoading, setMemberAidLoading] = useState(false);
+  const [selectedMemberAidCat, setSelectedMemberAidCat] = useState(null);
   const distScannerRef = useRef(null);
   const distScanInProgressRef = useRef(false);
   const distFileInputRef = useRef(null);
@@ -1262,6 +1263,7 @@ export default function AdminPage() {
   }, [activeTab, distFilterCategory]);
 
   useEffect(() => {
+    setSelectedMemberAidCat(null);
     if (selectedMember?.id) {
       fetchMemberAidHistory(selectedMember.id);
     } else {
@@ -10946,7 +10948,9 @@ export default function AdminPage() {
                     <span className="dist-result-section-label">Citizen&apos;s Benefit Claim Status:</span>
                     <div className="dist-result-categories-grid">
                       {DISTRIBUTION_CATEGORIES.map(cat => {
-                        const isClaimed = (distScanResult.allDistributions || []).some(d => d.category === cat.id);
+                        const catClaims = (distScanResult.allDistributions || []).filter(d => d.category === cat.id);
+                        const claimCount = catClaims.length;
+                        const isClaimed = claimCount > 0;
                         return (
                           <div 
                             key={cat.id} 
@@ -10959,7 +10963,25 @@ export default function AdminPage() {
                           >
                             <span className="dist-chip-icon">{getCategoryIcon(cat.icon, 13)}</span>
                             <span className="dist-chip-name">{cat.name}</span>
-                            <span className="dist-chip-status">{isClaimed ? '✓' : '○'}</span>
+                            {isClaimed ? (
+                              <div className="dist-chip-claims-wrap">
+                                <div className="dist-chip-dots" title={`${claimCount} claim${claimCount > 1 ? 's' : ''} received`}>
+                                  {Array.from({ length: Math.min(claimCount, 4) }).map((_, dotIdx) => (
+                                    <span 
+                                      key={dotIdx} 
+                                      className="dist-chip-dot" 
+                                      style={{ background: cat.color, boxShadow: `0 0 5px ${cat.color}` }}
+                                    />
+                                  ))}
+                                  {claimCount > 4 && (
+                                    <span className="dist-chip-dots-more" style={{ color: cat.color }}>+{claimCount - 4}</span>
+                                  )}
+                                </div>
+                                <span className="dist-chip-status">{claimCount > 1 ? `${claimCount}x` : '✓'}</span>
+                              </div>
+                            ) : (
+                              <span className="dist-chip-status">○</span>
+                            )}
                           </div>
                         );
                       })}
@@ -11431,12 +11453,6 @@ export default function AdminPage() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
           <div className="admin-topbar-title">{navItems.find(n => n.id === activeTab)?.label}</div>
-
-          {/* Global Search */}
-          <div className="topbar-search">
-            <Search size={14} />
-            <input type="text" placeholder="Search members, registrations..." readOnly />
-          </div>
 
           <div className="admin-topbar-right">
             <span className="topbar-date">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
@@ -12925,44 +12941,128 @@ export default function AdminPage() {
                             {memberAidLoading ? (
                               <div className="gov-scan-status"><RotateCw className="spin" size={16} /> Loading aid distribution history...</div>
                             ) : (
-                              <div className="dist-member-modal-grid">
-                                {DISTRIBUTION_CATEGORIES.map(cat => {
+                              <>
+                                <div className="dist-member-modal-grid">
+                                  {DISTRIBUTION_CATEGORIES.map(cat => {
+                                    const claims = memberAidHistory.filter(d => d.category === cat.id);
+                                    const isClaimed = claims.length > 0;
+                                    const isSelected = selectedMemberAidCat?.id === cat.id;
+
+                                    return (
+                                      <div 
+                                        key={cat.id} 
+                                        className={`dist-member-cat-card ${isClaimed ? 'claimed' : 'unclaimed'} ${cat.isYourEM ? 'your-em-card' : ''} ${isSelected ? 'active-selected' : ''}`}
+                                        style={{
+                                          '--cat-color': cat.color,
+                                          cursor: isClaimed ? 'pointer' : 'default',
+                                        }}
+                                        onClick={() => {
+                                          if (isClaimed) {
+                                            setSelectedMemberAidCat(isSelected ? null : cat);
+                                          }
+                                        }}
+                                        title={isClaimed ? `Click to view ${cat.name} full disbursal details` : `${cat.name} — Not claimed`}
+                                      >
+                                        <div className="dist-member-cat-top">
+                                          <div className="dist-member-cat-icon" style={{ color: cat.color }}>
+                                            {getCategoryIcon(cat.icon, 16)}
+                                          </div>
+                                          {isClaimed ? (
+                                            <div className="dist-member-top-badge-group">
+                                              <div className="dist-claim-dots-row" title={`${claims.length} claim${claims.length > 1 ? 's' : ''} recorded`}>
+                                                {Array.from({ length: Math.min(claims.length, 5) }).map((_, dotIdx) => (
+                                                  <span 
+                                                    key={dotIdx} 
+                                                    className="dist-claim-dot" 
+                                                    style={{ background: cat.color, boxShadow: `0 0 6px ${cat.color}90` }}
+                                                    title={`Claim #${dotIdx + 1}`}
+                                                  />
+                                                ))}
+                                                {claims.length > 5 && (
+                                                  <span className="dist-claim-dots-more" style={{ color: cat.color }}>+{claims.length - 5}</span>
+                                                )}
+                                              </div>
+                                              <span className="dist-member-cat-pill claimed">
+                                                ✓ {claims.length > 1 ? `Received (${claims.length}x)` : 'Received'}
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <span className="dist-member-cat-pill unclaimed">
+                                              ○ Not claimed
+                                            </span>
+                                          )}
+                                        </div>
+                                        <strong className="dist-member-cat-name">{cat.name}</strong>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Detailed Disbursal Ledger Box — Only shown when a claimed category is selected */}
+                                {selectedMemberAidCat && (() => {
+                                  const cat = selectedMemberAidCat;
                                   const claims = memberAidHistory.filter(d => d.category === cat.id);
-                                  const isClaimed = claims.length > 0;
-                                  const latestClaim = isClaimed ? claims[0] : null;
+                                  if (claims.length === 0) return null;
 
                                   return (
-                                    <div 
-                                      key={cat.id} 
-                                      className={`dist-member-cat-card ${isClaimed ? 'claimed' : 'unclaimed'} ${cat.isYourEM ? 'your-em-card' : ''}`}
-                                      style={{
-                                        '--cat-color': cat.color,
-                                      }}
-                                    >
-                                      <div className="dist-member-cat-top">
-                                        <div className="dist-member-cat-icon" style={{ color: cat.color }}>
-                                          {getCategoryIcon(cat.icon, 16)}
+                                    <div className="dist-member-aid-detail-box" style={{ '--detail-color': cat.color }}>
+                                      <div className="dist-detail-header">
+                                        <div className="dist-detail-title-cluster">
+                                          <div className="dist-detail-icon" style={{ background: `${cat.color}15`, color: cat.color }}>
+                                            {getCategoryIcon(cat.icon, 18)}
+                                          </div>
+                                          <div>
+                                            <h5>{cat.name} — Full Disbursal Details</h5>
+                                            <span>{claims.length} total disbursal{claims.length > 1 ? 's' : ''} recorded for this resident</span>
+                                          </div>
                                         </div>
-                                        {isClaimed ? (
-                                          <span className="dist-member-cat-pill claimed">
-                                            ✓ Received {claims.length > 1 ? `(${claims.length}x)` : ''}
-                                          </span>
-                                        ) : (
-                                          <span className="dist-member-cat-pill unclaimed">
-                                            ○ Not claimed
-                                          </span>
-                                        )}
+                                        <button 
+                                          type="button" 
+                                          className="dist-detail-close-btn" 
+                                          onClick={() => setSelectedMemberAidCat(null)}
+                                          title="Close details"
+                                        >
+                                          ✕
+                                        </button>
                                       </div>
-                                      <strong className="dist-member-cat-name">{cat.name}</strong>
-                                      {isClaimed && latestClaim && (
-                                        <span className="dist-member-cat-date">
-                                          {new Date(latestClaim.distributed_at).toLocaleDateString()}
-                                        </span>
-                                      )}
+
+                                      <div className="dist-detail-timeline">
+                                        {claims.map((claim, idx) => (
+                                          <div key={claim.id || idx} className="dist-detail-item">
+                                            <div className="dist-item-top">
+                                              <span className="dist-item-claim-badge" style={{ borderColor: cat.color, color: cat.color, background: `${cat.color}15` }}>
+                                                Disbursal #{claim.claim_number || (claims.length - idx)}
+                                              </span>
+                                              <span className="dist-item-date">
+                                                {new Date(claim.distributed_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(claim.distributed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                              </span>
+                                            </div>
+                                            <div className="dist-item-grid">
+                                              <div>
+                                                <span style={{ display: 'block', fontSize: '0.68rem', textTransform: 'uppercase', color: '#94a3b8' }}>Disbursing Officer</span>
+                                                <strong>{claim.scanned_by || 'Admin / Staff'}</strong>
+                                              </div>
+                                              <div>
+                                                <span style={{ display: 'block', fontSize: '0.68rem', textTransform: 'uppercase', color: '#94a3b8' }}>Barangay</span>
+                                                <strong>{claim.barangay || selectedMember.barangay || 'Municipality of Balagtas'}</strong>
+                                              </div>
+                                              <div>
+                                                <span style={{ display: 'block', fontSize: '0.68rem', textTransform: 'uppercase', color: '#94a3b8' }}>Verification Status</span>
+                                                <strong style={{ color: '#059669' }}>✓ System Validated</strong>
+                                              </div>
+                                            </div>
+                                            {claim.notes && (
+                                              <div className="dist-item-notes">
+                                                <strong>Notes:</strong> {claim.notes}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
                                   );
-                                })}
-                              </div>
+                                })()}
+                              </>
                             )}
                           </div>
 
