@@ -10140,7 +10140,7 @@ export default function AdminPage() {
 
   // Server-side QR decoder: uploads photo to /api/scan-photo-qr so iOS never
   // has to decode a full-resolution bitmap in the WebKit process (no crash).
-  const detectQRSimple = async (file, previewUrl = null) => {
+  const detectQRSimple = async (file) => {
     const meta = {
       name: file.name || 'captured_photo.jpg',
       sizeFormatted: (file.size / 1024 / 1024) > 1
@@ -10148,7 +10148,7 @@ export default function AdminPage() {
         : `${Math.round(file.size / 1024)} KB`,
       width: 0,
       height: 0,
-      previewUrl: previewUrl || '',
+      previewUrl: '',
     };
 
     try {
@@ -10163,14 +10163,19 @@ export default function AdminPage() {
       });
 
       const json = await res.json();
+      if (json.thumbnail) {
+        meta.previewUrl = json.thumbnail;
+      }
       return {
         data: json.qrText || null,
+        thumbnail: json.thumbnail || null,
         debug: json.debug || '',
         meta,
       };
     } catch (err) {
       return {
         data: null,
+        thumbnail: null,
         debug: `upload_err:${err.message}`,
         meta,
       };
@@ -11027,32 +11032,23 @@ export default function AdminPage() {
                     const file = e.target.files?.[0];
                     if (!file) return;
 
-                    // 1. Instantly create and set preview URL so preview is GUARANTEED to appear immediately
-                    let immediatePhotoUrl = '';
-                    try {
-                      immediatePhotoUrl = URL.createObjectURL(file);
-                    } catch (_) {}
-
-                    if (immediatePhotoUrl) {
-                      setCapturedImagePreview(immediatePhotoUrl);
-                      setCapturedImageMeta({
-                        name: file.name || 'captured_photo.jpg',
-                        sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
-                        width: 0,
-                        height: 0,
-                        previewUrl: immediatePhotoUrl,
-                      });
-                    }
-
+                    // Set initial UI state without loading heavy full-res 48MP blob into DOM
                     setScanResult(null);
                     setScanLoading(true);
                     setCapturedScanStatus('analyzing');
+                    setCapturedImagePreview(null);
+                    setCapturedImageMeta({
+                      name: file.name || 'captured_photo.jpg',
+                      sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
+                      width: 0,
+                      height: 0,
+                      previewUrl: '',
+                    });
 
                     try {
-                      const { data: decodedText, debug, meta } = await detectQRSimple(file, immediatePhotoUrl);
-                      const activePhoto = meta?.previewUrl || immediatePhotoUrl;
-                      if (activePhoto) {
-                        setCapturedImagePreview(activePhoto);
+                      const { data: decodedText, thumbnail, debug, meta } = await detectQRSimple(file);
+                      if (thumbnail) {
+                        setCapturedImagePreview(thumbnail);
                       }
                       if (meta) {
                         setCapturedImageMeta(meta);
@@ -11064,10 +11060,10 @@ export default function AdminPage() {
                           setScanResult({ 
                             type: 'invalid', 
                             message: 'A scan is already in progress. Please wait.',
-                            capturedImage: activePhoto,
+                            capturedImage: thumbnail || null,
                           });
                         } else {
-                          await handleEventScan(decodedText, activePhoto);
+                          await handleEventScan(decodedText, thumbnail || null);
                         }
                       } else {
                         setCapturedScanStatus('failed');
@@ -11075,7 +11071,7 @@ export default function AdminPage() {
                           type: 'invalid',
                           message: 'Could not read QR code from image. Please inspect the captured photo below and ensure the QR is focused and clearly lit.',
                           rawText: debug,
-                          capturedImage: activePhoto,
+                          capturedImage: thumbnail || null,
                         });
                       }
                     } catch (err) {
@@ -11083,7 +11079,7 @@ export default function AdminPage() {
                       setScanResult({ 
                         type: 'invalid', 
                         message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.',
-                        capturedImage: immediatePhotoUrl,
+                        capturedImage: null,
                       });
                     } finally {
                       setScanLoading(false);
@@ -11925,32 +11921,23 @@ export default function AdminPage() {
                   const file = e.target.files?.[0];
                   if (!file) return;
 
-                  // 1. Instantly create and set preview URL so preview is GUARANTEED to appear immediately
-                  let immediatePhotoUrl = '';
-                  try {
-                    immediatePhotoUrl = URL.createObjectURL(file);
-                  } catch (_) {}
-
-                  if (immediatePhotoUrl) {
-                    setDistCapturedImagePreview(immediatePhotoUrl);
-                    setDistCapturedImageMeta({
-                      name: file.name || 'captured_photo.jpg',
-                      sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
-                      width: 0,
-                      height: 0,
-                      previewUrl: immediatePhotoUrl,
-                    });
-                  }
-
+                  // Set initial UI state without loading heavy full-res 48MP blob into DOM
                   setDistScanResult(null);
                   setDistScanLoading(true);
                   setDistCapturedScanStatus('analyzing');
+                  setDistCapturedImagePreview(null);
+                  setDistCapturedImageMeta({
+                    name: file.name || 'captured_photo.jpg',
+                    sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
+                    width: 0,
+                    height: 0,
+                    previewUrl: '',
+                  });
 
                   try {
-                    const { data: decodedText, debug, meta } = await detectQRSimple(file);
-                    const activePhoto = meta?.previewUrl || immediatePhotoUrl;
-                    if (activePhoto) {
-                      setDistCapturedImagePreview(activePhoto);
+                    const { data: decodedText, thumbnail, debug, meta } = await detectQRSimple(file);
+                    if (thumbnail) {
+                      setDistCapturedImagePreview(thumbnail);
                     }
                     if (meta) {
                       setDistCapturedImageMeta(meta);
@@ -11962,10 +11949,10 @@ export default function AdminPage() {
                         setDistScanResult({ 
                           type: 'invalid', 
                           message: 'A scan is already in progress. Please wait.',
-                          capturedImage: activePhoto,
+                          capturedImage: thumbnail || null,
                         });
                       } else {
-                        await handleDistributionScan(decodedText, undefined, activePhoto);
+                        await handleDistributionScan(decodedText, undefined, thumbnail || null);
                       }
                     } else {
                       setDistCapturedScanStatus('failed');
@@ -11973,7 +11960,7 @@ export default function AdminPage() {
                         type: 'invalid',
                         message: `Could not read QR code from image for ${activeCat.name}. Please inspect the photo below and ensure the QR is focused and clearly lit.`,
                         rawText: debug,
-                        capturedImage: activePhoto,
+                        capturedImage: thumbnail || null,
                       });
                     }
                   } catch (err) {
@@ -11981,7 +11968,7 @@ export default function AdminPage() {
                     setDistScanResult({ 
                       type: 'invalid', 
                       message: 'Could not read QR code from image. Please try again or use Manual entry.',
-                      capturedImage: immediatePhotoUrl,
+                      capturedImage: null,
                     });
                   } finally {
                     setDistScanLoading(false);
