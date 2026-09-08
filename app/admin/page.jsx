@@ -10138,211 +10138,43 @@ export default function AdminPage() {
     }
   };
 
-  const detectQRSimple = async (file, existingObjectUrl = null) => {
-    const debug = [];
-    // Reuse the blob URL already created in onChange to avoid double allocation
-    let objectUrl = existingObjectUrl || null;
-    let ownObjectUrl = false; // track if WE created it (so we don't revoke a caller-owned URL)
-    if (!objectUrl) {
-      try {
-        objectUrl = URL.createObjectURL(file);
-        ownObjectUrl = true;
-      } catch (_) {}
-    }
-
+  // Server-side QR decoder: uploads photo to /api/scan-photo-qr so iOS never
+  // has to decode a full-resolution bitmap in the WebKit process (no crash).
+  const detectQRSimple = async (file, previewUrl = null) => {
     const meta = {
       name: file.name || 'captured_photo.jpg',
-      sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
+      sizeFormatted: (file.size / 1024 / 1024) > 1
+        ? `${(file.size / 1024 / 1024).toFixed(2)} MB`
+        : `${Math.round(file.size / 1024)} KB`,
       width: 0,
       height: 0,
-      previewUrl: objectUrl || '',
+      previewUrl: previewUrl || '',
     };
 
-    return new Promise((resolve) => {
-      let isResolved = false;
-      const safeResolve = (result) => {
-        if (!isResolved) {
-          isResolved = true;
-          resolve(result);
-        }
+    try {
+      const form = new FormData();
+      form.append('photo', file);
+
+      // Use authFetch so the session cookie is included
+      const res = await authFetch('/api/scan-photo-qr', {
+        method: 'POST',
+        body: form,
+        // Do NOT set Content-Type — browser sets it with boundary automatically
+      });
+
+      const json = await res.json();
+      return {
+        data: json.qrText || null,
+        debug: json.debug || '',
+        meta,
       };
-
-      // Hard safety timer: 3.5 seconds max
-      const timer = setTimeout(() => {
-        debug.push('safety_timeout');
-        safeResolve({ data: null, debug: debug.join(' | '), meta });
-      }, 3500);
-
-      const cleanup = () => {
-        // Only revoke if we were the ones who created the objectUrl
-        if (ownObjectUrl && objectUrl) {
-          try { URL.revokeObjectURL(objectUrl); } catch (_) {}
-        }
+    } catch (err) {
+      return {
+        data: null,
+        debug: `upload_err:${err.message}`,
+        meta,
       };
-
-      if (!objectUrl) {
-        clearTimeout(timer);
-        debug.push('no_blob_url');
-        safeResolve({ data: null, debug: debug.join(' | '), meta });
-        return;
-      }
-
-      // Safe image loading: avoid calling Html5Qrcode.scanFile or createImageBitmap on raw camera files
-      const img = new Image();
-
-      img.onload = async () => {
-        let qrData = null;
-        try {
-          const origW = img.naturalWidth || img.width || 800;
-          const origH = img.naturalHeight || img.height || 600;
-          meta.width = origW;
-          meta.height = origH;
-          debug.push(`dims:${origW}x${origH}`);
-
-          // Scale to 1000px max dimension (preserves sharp QR modules while consuming < 3.5MB RAM, 100% safe on iOS Safari)
-          const maxDim = 1000;
-          let w = origW;
-          let h = origH;
-          if (w > maxDim || h > maxDim) {
-            const ratio = Math.min(maxDim / w, maxDim / h);
-            w = Math.max(1, Math.round(w * ratio));
-            h = Math.max(1, Math.round(h * ratio));
-          }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, w, h);
-
-            // Free high-res source image texture immediately to release mobile RAM
-            img.src = '';
-
-            // Generate compressed lightweight preview JPEG for inspector (< 50 KB)
-            try {
-              const compressed = canvas.toDataURL('image/jpeg', 0.8);
-              if (compressed && compressed.length > 100) {
-                meta.previewUrl = compressed;
-              }
-            } catch (_) {}
-
-            // 1. Native BarcodeDetector on safe downscaled canvas (fast native decoding where supported)
-            if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-              try {
-                const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-                const detected = await detector.detect(canvas);
-                if (detected && detected.length > 0 && detected[0].rawValue) {
-                  qrData = detected[0].rawValue.trim();
-                  debug.push('nativeBD:found');
-                }
-              } catch (_) {}
-            }
-
-            // 2. Robust multi-pass jsQR engine
-            const decodeQR = typeof jsQR === 'function' ? jsQR : (jsQR?.default || (typeof window !== 'undefined' && window.jsQR));
-
-            if (!qrData && typeof decodeQR === 'function') {
-              // Pass 1: Full frame scan
-              const fullImgData = ctx.getImageData(0, 0, w, h);
-              for (const inv of ['dontInvert', 'attemptBoth']) {
-                const code = decodeQR(fullImgData.data, fullImgData.width, fullImgData.height, { inversionAttempts: inv });
-                if (code && code.data) {
-                  qrData = code.data.trim();
-                  debug.push('jsQR_full:found');
-                  break;
-                }
-              }
-
-              // Pass 2: Center crop 70% (card target area)
-              let crop70Data = null;
-              if (!qrData && w > 200 && h > 200) {
-                const cw = Math.round(w * 0.70);
-                const ch = Math.round(h * 0.70);
-                const cx = Math.round((w - cw) / 2);
-                const cy = Math.round((h - ch) / 2);
-                crop70Data = ctx.getImageData(cx, cy, cw, ch);
-                for (const inv of ['dontInvert', 'attemptBoth']) {
-                  const code = decodeQR(crop70Data.data, crop70Data.width, crop70Data.height, { inversionAttempts: inv });
-                  if (code && code.data) {
-                    qrData = code.data.trim();
-                    debug.push('jsQR_crop70:found');
-                    break;
-                  }
-                }
-              }
-
-              // Pass 3: Center crop 50% (closer shot)
-              if (!qrData && w > 200 && h > 200) {
-                const cw2 = Math.round(w * 0.50);
-                const ch2 = Math.round(h * 0.50);
-                const cx2 = Math.round((w - cw2) / 2);
-                const cy2 = Math.round((h - ch2) / 2);
-                const crop50Data = ctx.getImageData(cx2, cy2, cw2, ch2);
-                for (const inv of ['dontInvert', 'attemptBoth']) {
-                  const code = decodeQR(crop50Data.data, crop50Data.width, crop50Data.height, { inversionAttempts: inv });
-                  if (code && code.data) {
-                    qrData = code.data.trim();
-                    debug.push('jsQR_crop50:found');
-                    break;
-                  }
-                }
-              }
-
-              // Pass 4: Contrast stretch on crop to recover low-light or reflected card photos
-              if (!qrData && crop70Data) {
-                try {
-                  const d = crop70Data.data;
-                  const len = d.length;
-                  let min = 255;
-                  let max = 0;
-                  for (let i = 0; i < len; i += 4) {
-                    const lum = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
-                    if (lum < min) min = lum;
-                    if (lum > max) max = lum;
-                  }
-                  const range = max - min;
-                  if (range >= 35) {
-                    const stretched = new Uint8ClampedArray(len);
-                    for (let i = 0; i < len; i += 4) {
-                      const lum = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
-                      const s = Math.round(((lum - min) * 255) / range);
-                      stretched[i] = s;
-                      stretched[i + 1] = s;
-                      stretched[i + 2] = s;
-                      stretched[i + 3] = 255;
-                    }
-                    const code = decodeQR(stretched, crop70Data.width, crop70Data.height, { inversionAttempts: 'dontInvert' });
-                    if (code && code.data) {
-                      qrData = code.data.trim();
-                      debug.push('jsQR_contrast:found');
-                    }
-                  }
-                } catch (_) {}
-              }
-            }
-          }
-        } catch (procErr) {
-          debug.push(`procErr:${procErr.message}`);
-        } finally {
-          img.src = '';
-          clearTimeout(timer);
-          cleanup();
-          safeResolve({ data: qrData, debug: debug.join(' | '), meta });
-        }
-      };
-
-      img.onerror = () => {
-        img.src = '';
-        clearTimeout(timer);
-        cleanup();
-        debug.push('img_err');
-        safeResolve({ data: null, debug: debug.join(' | '), meta });
-      };
-
-      img.src = objectUrl;
-    });
+    }
   };
 
   const handleEventScan = async (rawToken, photoUrl = null) => {
