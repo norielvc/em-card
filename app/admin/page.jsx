@@ -325,6 +325,9 @@ export default function AdminPage() {
   const [distScanToken, setDistScanToken] = useState('');
   const [distCameraActive, setDistCameraActive] = useState(false);
   const [distFocusPoint, setDistFocusPoint] = useState(null);
+  const [distCapturedImagePreview, setDistCapturedImagePreview] = useState(null);
+  const [distCapturedImageMeta, setDistCapturedImageMeta] = useState(null);
+  const [distCapturedScanStatus, setDistCapturedScanStatus] = useState('idle'); // 'idle' | 'analyzing' | 'success' | 'failed'
   const [distRecentRecords, setDistRecentRecords] = useState([]);
   const [distRecordsLoading, setDistRecordsLoading] = useState(false);
   const [distStats, setDistStats] = useState({
@@ -744,6 +747,10 @@ export default function AdminPage() {
   const scannerRef = useRef(null);
   const scanInProgressRef = useRef(false);
   const fileInputRef = useRef(null);
+  const [capturedImagePreview, setCapturedImagePreview] = useState(null);
+  const [capturedImageMeta, setCapturedImageMeta] = useState(null);
+  const [capturedScanStatus, setCapturedScanStatus] = useState('idle'); // 'idle' | 'analyzing' | 'success' | 'failed'
+  const [inspectImageModal, setInspectImageModal] = useState(null);
   const localScanCountRef = useRef(0); // optimistic counter for mass scanning (40k+ events)
   const recentScanCacheRef = useRef(new Set()); // client-side dedup cache for speed (last ~500 scans)
   const idCardNameRef = useRef(null);
@@ -2628,19 +2635,22 @@ export default function AdminPage() {
     setLoginError('');
     setLoginLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: username,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: username.trim(),
         password: password,
       });
       if (error) {
         setLoginError(error.message === 'Invalid login credentials'
           ? 'Invalid username or password.' : error.message);
-      } else {
+      } else if (data?.user) {
         setPassword('');
-        logAdminAction('login', null, null, null, { email: username });
+        logAdminAction('login', null, null, null, { email: username.trim() });
       }
     } catch (err) {
-      setLoginError('An unexpected error occurred.');
+      console.warn('Login auth connection error:', err);
+      setLoginError(err.message?.includes('fetch') || err.message?.includes('Network')
+        ? 'Unable to connect to authentication server. Please check your internet connection and try again.'
+        : (err.message || 'An unexpected error occurred.'));
     } finally {
       setLoginLoading(false);
     }
@@ -10124,33 +10134,72 @@ export default function AdminPage() {
 
   const detectQRSimple = async (file) => {
     const debug = [];
+    const meta = {
+      name: file.name || 'captured_photo.jpg',
+      sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
+      width: 0,
+      height: 0,
+      previewUrl: '',
+    };
+
     return new Promise((resolve) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
+      const reader = new FileReader();
+      reader.onload = async (readerEvent) => {
+        const previewUrl = readerEvent.target?.result;
+        meta.previewUrl = previewUrl;
 
-      img.onload = async () => {
-        URL.revokeObjectURL(url);
-        try {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.onload = async () => {
+          meta.width = img.naturalWidth || img.width;
+          meta.height = img.naturalHeight || img.height;
+          debug.push(`dims:${meta.width}x${meta.height}`);
 
-          const maxSize = 600;
-          let { width, height } = img;
-
-          if (width > maxSize || height > maxSize) {
-            const ratio = Math.min(maxSize / width, maxSize / height);
-            width = Math.floor(width * ratio);
-            height = Math.floor(height * ratio);
+          // 1. ENGINE 1: Native BarcodeDetector (Modern Android Chrome / Desktop Chrome / Safari 17+)
+          try {
+            if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+              const barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+              const barcodes = await barcodeDetector.detect(img);
+              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                debug.push(`native:found:${barcodes[0].rawValue.substring(0, 20)}`);
+                resolve({ data: barcodes[0].rawValue, debug: debug.join(' | '), meta });
+                return;
+              }
+              debug.push('native:none');
+            }
+          } catch (nativeErr) {
+            debug.push(`native-err:${nativeErr.message}`);
           }
 
-          canvas.width = width;
-          canvas.height = height;
-          ctx.drawImage(img, 0, 0, width, height);
+          // 2. ENGINE 2: Html5Qrcode scanFile (if loaded)
+          try {
+            if (typeof window !== 'undefined' && window.Html5Qrcode) {
+              const tempId = 'qr-temp-' + Math.random().toString(36).substring(2, 9);
+              const tempDiv = document.createElement('div');
+              tempDiv.id = tempId;
+              tempDiv.style.display = 'none';
+              document.body.appendChild(tempDiv);
 
-          const imageData = ctx.getImageData(0, 0, width, height);
-          debug.push(`img:${width}x${height}`);
+              const html5Qr = new window.Html5Qrcode(tempId, { verbose: false });
+              try {
+                const result = await html5Qr.scanFile(file, false);
+                try { await html5Qr.clear(); } catch (_) {}
+                tempDiv.remove();
+                if (result) {
+                  debug.push(`html5qr:found:${result.substring(0, 20)}`);
+                  resolve({ data: result, debug: debug.join(' | '), meta });
+                  return;
+                }
+              } catch (_) {
+                try { await html5Qr.clear(); } catch (_) {}
+                tempDiv.remove();
+                debug.push('html5qr:none');
+              }
+            }
+          } catch (h5Err) {
+            debug.push(`html5qr-err:${h5Err.message}`);
+          }
 
-          // ── EXACT pattern from working mobile-qr-scanner.js project ──
+          // 3. ENGINE 3: Multi-Scale jsQR with Contrast & Crop Filters
           try {
             let jsQR;
             try {
@@ -10171,26 +10220,78 @@ export default function AdminPage() {
             }
 
             if (typeof jsQR === 'function') {
-              debug.push('jsQR:func');
-              const detectionOptions = [
-                { inversionAttempts: 'dontInvert' },
-                { inversionAttempts: 'onlyInvert' },
-                { inversionAttempts: 'attemptBoth' },
-              ];
+              const targetSizes = [1600, 1000, 600];
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-              for (const options of detectionOptions) {
-                const code = jsQR(
-                  imageData.data,
-                  imageData.width,
-                  imageData.height,
-                  options,
-                );
-                if (code && code.data) {
-                  debug.push(`found:${code.data.substring(0, 20)}...`);
-                  resolve({ data: code.data, debug: debug.join(' | ') });
+              for (const targetSize of targetSizes) {
+                let w = img.naturalWidth || img.width;
+                let h = img.naturalHeight || img.height;
+
+                if (w > targetSize || h > targetSize) {
+                  const ratio = Math.min(targetSize / w, targetSize / h);
+                  w = Math.floor(w * ratio);
+                  h = Math.floor(h * ratio);
+                }
+
+                canvas.width = w;
+                canvas.height = h;
+                ctx.clearRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+
+                const imageData = ctx.getImageData(0, 0, w, h);
+
+                for (const inv of ['dontInvert', 'onlyInvert', 'attemptBoth']) {
+                  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: inv });
+                  if (code && code.data) {
+                    debug.push(`jsQR:${targetSize}px:${inv}:found`);
+                    resolve({ data: code.data, debug: debug.join(' | '), meta });
+                    return;
+                  }
+                }
+
+                // High-contrast binarization filter at medium scale
+                if (targetSize === 1000) {
+                  const d = imageData.data;
+                  for (let i = 0; i < d.length; i += 4) {
+                    const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+                    const v = gray > 128 ? 255 : 0;
+                    d[i] = v;
+                    d[i + 1] = v;
+                    d[i + 2] = v;
+                  }
+                  const codeBinarized = jsQR(d, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+                  if (codeBinarized && codeBinarized.data) {
+                    debug.push('jsQR:binarized:found');
+                    resolve({ data: codeBinarized.data, debug: debug.join(' | '), meta });
+                    return;
+                  }
+                }
+              }
+
+              // Center Crop Analysis (if card is centered in photo)
+              const origW = img.naturalWidth || img.width;
+              const origH = img.naturalHeight || img.height;
+              if (origW > 400 && origH > 400) {
+                const cropW = Math.floor(origW * 0.7);
+                const cropH = Math.floor(origH * 0.7);
+                const startX = Math.floor((origW - cropW) / 2);
+                const startY = Math.floor((origH - cropH) / 2);
+
+                canvas.width = cropW;
+                canvas.height = cropH;
+                ctx.clearRect(0, 0, cropW, cropH);
+                ctx.drawImage(img, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
+
+                const cropData = ctx.getImageData(0, 0, cropW, cropH);
+                const codeCrop = jsQR(cropData.data, cropData.width, cropData.height, { inversionAttempts: 'attemptBoth' });
+                if (codeCrop && codeCrop.data) {
+                  debug.push('jsQR:crop:found');
+                  resolve({ data: codeCrop.data, debug: debug.join(' | '), meta });
                   return;
                 }
               }
+
               debug.push('found:none');
             } else {
               debug.push(`jsQR:${typeof jsQR}`);
@@ -10199,19 +10300,21 @@ export default function AdminPage() {
             debug.push(`jsQR-err:${jsqrError.message}`);
           }
 
-          resolve({ data: null, debug: debug.join(' | ') });
-        } catch (err) {
-          debug.push(`err:${err.message}`);
-          resolve({ data: null, debug: debug.join(' | ') });
-        }
+          resolve({ data: null, debug: debug.join(' | '), meta });
+        };
+
+        img.onerror = () => {
+          resolve({ data: null, debug: 'img:error', meta });
+        };
+
+        img.src = previewUrl;
       };
 
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        resolve({ data: null, debug: 'img:error' });
+      reader.onerror = () => {
+        resolve({ data: null, debug: 'filereader:error', meta });
       };
 
-      img.src = url;
+      reader.readAsDataURL(file);
     });
   };
 
@@ -11012,24 +11115,32 @@ export default function AdminPage() {
 
                     setScanResult(null);
                     setScanLoading(true);
+                    setCapturedScanStatus('analyzing');
 
                     try {
-                      const { data: decodedText, debug } = await detectQRSimple(file);
+                      const { data: decodedText, debug, meta } = await detectQRSimple(file);
+                      if (meta?.previewUrl) {
+                        setCapturedImagePreview(meta.previewUrl);
+                        setCapturedImageMeta(meta);
+                      }
 
                       if (decodedText) {
+                        setCapturedScanStatus('success');
                         if (scanInProgressRef.current) {
                           setScanResult({ type: 'invalid', message: 'A scan is already in progress. Please wait.' });
                         } else {
                           await handleEventScan(decodedText);
                         }
                       } else {
+                        setCapturedScanStatus('failed');
                         setScanResult({
                           type: 'invalid',
-                          message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.',
+                          message: 'Could not read QR code from image. Please inspect the captured photo below and ensure the QR is focused and clearly lit.',
                           rawText: debug,
                         });
                       }
                     } catch (err) {
+                      setCapturedScanStatus('failed');
                       setScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.' });
                     } finally {
                       setScanLoading(false);
@@ -11037,22 +11148,108 @@ export default function AdminPage() {
                     }
                   }}
                 />
-                <div className="camera-scanner-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-                  <Camera size={64} style={{ opacity: 0.5 }} />
-                  <h4 style={{ margin: 0 }}>Capture QR Code</h4>
-                  <p style={{ textAlign: 'center', margin: 0, color: 'var(--muted)' }}>
-                    Tap the button below to open your camera, then take a photo of the EM Card QR code.
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    style={{ padding: '14px 32px', fontSize: '1.1rem' }}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <Camera size={20} style={{ marginRight: 8 }} /> Capture QR
-                  </button>
-                </div>
-                {scanLoading && (
+
+                {capturedImagePreview ? (
+                  /* ─── Photo Inspector & Diagnostics ─── */
+                  <div className="capture-inspector-card">
+                    <div 
+                      className="capture-preview-frame"
+                      onClick={() => setInspectImageModal(capturedImagePreview)}
+                      title="Click to view full-resolution photo"
+                    >
+                      <img src={capturedImagePreview} alt="Captured EM Card" className="capture-preview-img" />
+                      
+                      {scanLoading ? (
+                        <div className="capture-status-badge analyzing">
+                          <RotateCw className="spin" size={13} /> Analyzing Multi-Scale QR...
+                        </div>
+                      ) : capturedScanStatus === 'success' ? (
+                        <div className="capture-status-badge success">
+                          <CheckCircle size={13} /> QR Code Recognized &amp; Processed
+                        </div>
+                      ) : (
+                        <div className="capture-status-badge failed">
+                          <AlertTriangle size={13} /> QR Code Not Detected
+                        </div>
+                      )}
+
+                      <div className="capture-zoom-hint">
+                        <ZoomIn size={12} /> Click to enlarge
+                      </div>
+                    </div>
+
+                    <div className="capture-meta-bar">
+                      <span className="capture-meta-tag">
+                        <Camera size={13} /> {capturedImageMeta?.name || 'Captured Photo'}
+                      </span>
+                      <span>
+                        {capturedImageMeta?.width} &times; {capturedImageMeta?.height} px ({capturedImageMeta?.sizeFormatted})
+                      </span>
+                    </div>
+
+                    <div className="capture-body-content">
+                      {capturedScanStatus === 'failed' && (
+                        <div className="capture-failed-notice">
+                          <div className="capture-notice-title">
+                            <AlertTriangle size={16} /> Why did scanning fail?
+                          </div>
+                          <p className="capture-notice-desc">
+                            The system captured the image above, but no valid QR matrix was recognized.
+                          </p>
+                          <ul className="capture-troubleshoot-list">
+                            <li><strong>Distance:</strong> Hold camera closer so QR code occupies 40%+ of the photo.</li>
+                            <li><strong>Focus &amp; Glare:</strong> Avoid glossy light reflection on card plastic and tap screen to focus.</li>
+                            <li><strong>Alternative:</strong> Use <strong>Manual</strong> mode to type the EM Card number directly.</li>
+                          </ul>
+                        </div>
+                      )}
+
+                      <div className="capture-action-cluster">
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={scanLoading}
+                        >
+                          <Camera size={16} /> {capturedScanStatus === 'failed' ? 'Retake Photo' : 'Capture Next Photo'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => setInspectImageModal(capturedImagePreview)}
+                        >
+                          <Eye size={16} /> Enlarge Photo
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-action-outline"
+                          onClick={() => setScannerInputMode('manual')}
+                        >
+                          <ScanLine size={16} /> Manual Mode
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* ─── Initial Capture Prompt ─── */
+                  <div className="camera-scanner-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                    <Camera size={64} style={{ opacity: 0.5 }} />
+                    <h4 style={{ margin: 0 }}>Capture QR Code Photo</h4>
+                    <p style={{ textAlign: 'center', margin: 0, color: 'var(--muted)', maxWidth: 360 }}>
+                      Tap the button below to take a photo of the citizen&apos;s EM Card QR code with your camera or select an image file.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ padding: '14px 32px', fontSize: '1.1rem' }}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Camera size={20} style={{ marginRight: 8 }} /> Capture QR Photo
+                    </button>
+                  </div>
+                )}
+
+                {scanLoading && !capturedImagePreview && (
                   <div className="scan-spinner" style={{ marginTop: 16 }}>Analyzing image...</div>
                 )}
               </>
@@ -11750,23 +11947,32 @@ export default function AdminPage() {
 
                   setDistScanResult(null);
                   setDistScanLoading(true);
+                  setDistCapturedScanStatus('analyzing');
 
                   try {
-                    const { data: decodedText, debug } = await detectQRSimple(file);
+                    const { data: decodedText, debug, meta } = await detectQRSimple(file);
+                    if (meta?.previewUrl) {
+                      setDistCapturedImagePreview(meta.previewUrl);
+                      setDistCapturedImageMeta(meta);
+                    }
+
                     if (decodedText) {
+                      setDistCapturedScanStatus('success');
                       if (distScanInProgressRef.current) {
                         setDistScanResult({ type: 'invalid', message: 'A scan is already in progress. Please wait.' });
                       } else {
                         await handleDistributionScan(decodedText);
                       }
                     } else {
+                      setDistCapturedScanStatus('failed');
                       setDistScanResult({
                         type: 'invalid',
-                        message: 'Could not read QR code from image. Please ensure the QR is clearly visible and try again, or use Manual entry.',
+                        message: `Could not read QR code from image for ${activeCat.name}. Please inspect the photo below and ensure the QR is focused and clearly lit.`,
                         rawText: debug,
                       });
                     }
                   } catch (err) {
+                    setDistCapturedScanStatus('failed');
                     setDistScanResult({ type: 'invalid', message: 'Could not read QR code from image. Please try again or use Manual entry.' });
                   } finally {
                     setDistScanLoading(false);
@@ -11774,24 +11980,111 @@ export default function AdminPage() {
                   }
                 }}
               />
-              <div className="camera-scanner-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '40px 20px' }}>
-                <div style={{ width: 64, height: 64, borderRadius: '50%', background: `${activeCat.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: activeCat.color }}>
-                  {getCategoryIcon(activeCat.icon, 32)}
+
+              {distCapturedImagePreview ? (
+                /* ─── Photo Inspector & Diagnostics ─── */
+                <div className="capture-inspector-card">
+                  <div 
+                    className="capture-preview-frame"
+                    onClick={() => setInspectImageModal(distCapturedImagePreview)}
+                    title="Click to view full-resolution photo"
+                  >
+                    <img src={distCapturedImagePreview} alt="Captured EM Card" className="capture-preview-img" />
+                    
+                    {distScanLoading ? (
+                      <div className="capture-status-badge analyzing" style={{ background: activeCat.color }}>
+                        <RotateCw className="spin" size={13} /> Verifying {activeCat.name}...
+                      </div>
+                    ) : distCapturedScanStatus === 'success' ? (
+                      <div className="capture-status-badge success">
+                        <CheckCircle size={13} /> QR Code Recognized &amp; Claimed
+                      </div>
+                    ) : (
+                      <div className="capture-status-badge failed">
+                        <AlertTriangle size={13} /> QR Code Not Detected
+                      </div>
+                    )}
+
+                    <div className="capture-zoom-hint">
+                      <ZoomIn size={12} /> Click to enlarge
+                    </div>
+                  </div>
+
+                  <div className="capture-meta-bar">
+                    <span className="capture-meta-tag">
+                      <Camera size={13} /> {distCapturedImageMeta?.name || 'Captured Photo'}
+                    </span>
+                    <span>
+                      {distCapturedImageMeta?.width} &times; {distCapturedImageMeta?.height} px ({distCapturedImageMeta?.sizeFormatted})
+                    </span>
+                  </div>
+
+                  <div className="capture-body-content">
+                    {distCapturedScanStatus === 'failed' && (
+                      <div className="capture-failed-notice">
+                        <div className="capture-notice-title">
+                          <AlertTriangle size={16} /> QR Code Recognition Failed
+                        </div>
+                        <p className="capture-notice-desc">
+                          The system could not locate a clear QR code pattern for <strong>{activeCat.name}</strong> in this photo.
+                        </p>
+                        <ul className="capture-troubleshoot-list">
+                          <li><strong>Distance:</strong> Hold camera closer so QR code occupies 40%+ of the frame.</li>
+                          <li><strong>Focus &amp; Glare:</strong> Avoid glossy light reflections on laminated card.</li>
+                          <li><strong>Alternative:</strong> Use <strong>Manual</strong> mode to type or paste the EM Card number.</li>
+                        </ul>
+                      </div>
+                    )}
+
+                    <div className="capture-action-cluster">
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ background: activeCat.color, borderColor: activeCat.color }}
+                        onClick={() => distFileInputRef.current?.click()}
+                        disabled={distScanLoading}
+                      >
+                        <Camera size={16} /> {distCapturedScanStatus === 'failed' ? 'Retake Photo' : 'Capture Next Photo'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setInspectImageModal(distCapturedImagePreview)}
+                      >
+                        <Eye size={16} /> Enlarge Photo
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-action-outline"
+                        onClick={() => { setDistScannerMode('manual'); stopDistScanner(); }}
+                      >
+                        <ScanLine size={16} /> Manual Mode
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <h4 style={{ margin: 0 }}>Capture QR for {activeCat.name}</h4>
-                <p style={{ textAlign: 'center', margin: 0, color: 'var(--muted)', maxWidth: 360 }}>
-                  Take a photo of the citizen&apos;s EM Card with your phone camera or select an image file to distribute <strong>{activeCat.name}</strong>.
-                </p>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  style={{ padding: '14px 32px', fontSize: '1.05rem', background: activeCat.color, borderColor: activeCat.color }}
-                  onClick={() => distFileInputRef.current?.click()}
-                >
-                  <Camera size={20} style={{ marginRight: 8 }} /> Capture QR Photo
-                </button>
-              </div>
-              {distScanLoading && (
+              ) : (
+                /* ─── Initial Capture Prompt ─── */
+                <div className="camera-scanner-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '40px 20px' }}>
+                  <div style={{ width: 64, height: 64, borderRadius: '50%', background: `${activeCat.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: activeCat.color }}>
+                    {getCategoryIcon(activeCat.icon, 32)}
+                  </div>
+                  <h4 style={{ margin: 0 }}>Capture QR for {activeCat.name}</h4>
+                  <p style={{ textAlign: 'center', margin: 0, color: 'var(--muted)', maxWidth: 360 }}>
+                    Take a photo of the citizen&apos;s EM Card with your phone camera or select an image file to distribute <strong>{activeCat.name}</strong>.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ padding: '14px 32px', fontSize: '1.05rem', background: activeCat.color, borderColor: activeCat.color }}
+                    onClick={() => distFileInputRef.current?.click()}
+                  >
+                    <Camera size={20} style={{ marginRight: 8 }} /> Capture QR Photo
+                  </button>
+                </div>
+              )}
+
+              {distScanLoading && !distCapturedImagePreview && (
                 <div className="scan-spinner" style={{ marginTop: 16 }}>Analyzing QR photo...</div>
               )}
             </>
@@ -14479,6 +14772,34 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* FULLSCREEN CAPTURED PHOTO INSPECTOR MODAL */}
+      {inspectImageModal && typeof document !== 'undefined' && createPortal(
+        <div className="modal-overlay" onClick={() => setInspectImageModal(null)}>
+          <div className="modal-card image-inspect-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="image-inspect-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Eye size={18} />
+                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Captured Photo Inspector</h4>
+              </div>
+              <button 
+                type="button" 
+                className="modal-close-x" 
+                onClick={() => setInspectImageModal(null)}
+                style={{ color: '#ffffff' }}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="image-inspect-modal-body">
+              <img src={inspectImageModal} alt="Captured preview" className="image-inspect-full-img" />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
+
+
