@@ -241,9 +241,24 @@ export default function CardDashboardPage() {
                       {cat.icon}
                     </div>
                     {isClaimed ? (
-                      <span className="card-aid-status-pill claimed">
-                        ✓ Received {claims.length > 1 ? `(${claims.length}x)` : ''}
-                      </span>
+                      <div className="card-aid-top-badge-group">
+                        <div className="dist-claim-dots-row" title={`${claims.length} claim${claims.length > 1 ? 's' : ''} recorded`}>
+                          {Array.from({ length: Math.min(claims.length, 5) }).map((_, dotIdx) => (
+                            <span 
+                              key={dotIdx} 
+                              className="dist-claim-dot" 
+                              style={{ background: cat.color, boxShadow: `0 0 6px ${cat.color}90` }}
+                              title={`Claim #${dotIdx + 1}`}
+                            />
+                          ))}
+                          {claims.length > 5 && (
+                            <span className="dist-claim-dots-more" style={{ color: cat.color }}>+{claims.length - 5}</span>
+                          )}
+                        </div>
+                        <span className="card-aid-status-pill claimed">
+                          ✓ Received {claims.length > 1 ? `(${claims.length}x)` : ''}
+                        </span>
+                      </div>
                     ) : (
                       <span className="card-aid-status-pill unclaimed">
                         Not Claimed

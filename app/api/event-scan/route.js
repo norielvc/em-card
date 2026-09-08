@@ -40,6 +40,17 @@ async function logAdminAction(action_type, target_table, target_id, target_name,
   }
 }
 
+const DISTRIBUTION_CATEGORIES = {
+  groceries: { id: 'groceries', name: 'Groceries', color: '#ef4444' },
+  food_packs: { id: 'food_packs', name: 'Food Packs', color: '#f97316' },
+  cash_assistance: { id: 'cash_assistance', name: 'Cash Assistance', color: '#eab308' },
+  your_em: { id: 'your_em', name: 'yourEM', color: '#10b981' },
+  medicines: { id: 'medicines', name: 'Medicines', color: '#06b6d4' },
+  medical_assistance: { id: 'medical_assistance', name: 'Medical Assistance', color: '#3b82f6' },
+  electric_bill: { id: 'electric_bill', name: 'Electric Bill Assistance', color: '#6366f1' },
+  water_bill: { id: 'water_bill', name: 'Water Bill Assistance', color: '#a855f7' },
+};
+
 export async function POST(request) {
   try {
     const user = await requireAuth(request);
@@ -73,7 +84,7 @@ export async function POST(request) {
     ] = await Promise.all([
       supabaseAdmin
         .from('scan_events')
-        .select('id, event_name, selected_barangays, household_mode')
+        .select('id, event_name, selected_barangays, household_mode, aid_category')
         .eq('id', event_id)
         .single(),
       supabaseAdmin
@@ -226,15 +237,80 @@ export async function POST(request) {
       throw insertErr;
     }
 
-    // 8. Update registration global scan stats (non-blocking — analytics only)
+    // 8. Auto-tag to Aid Distribution if event is linked to an aid program
+    let aidInfo = null;
+    if (event.aid_category) {
+      const catMeta = DISTRIBUTION_CATEGORIES[event.aid_category] || {
+        id: event.aid_category,
+        name: event.aid_category,
+        color: '#059669',
+      };
+
+      try {
+        const { data: prevClaims } = await supabaseAdmin
+          .from('aid_distributions')
+          .select('id')
+          .eq('registration_id', reg.id)
+          .eq('category', event.aid_category);
+
+        const claimNumber = (prevClaims ? prevClaims.length : 0) + 1;
+
+        const { data: newAidDist } = await supabaseAdmin
+          .from('aid_distributions')
+          .insert({
+            registration_id: reg.id,
+            category: event.aid_category,
+            category_name: catMeta.name,
+            scanned_by: scanned_by || user.email || 'Event Scanner',
+            notes: `Auto-credited via Event: ${event.event_name}`,
+            barangay: reg.barangay || person.barangay || '-',
+            claim_number: claimNumber,
+            distributed_at: now,
+          })
+          .select()
+          .maybeSingle();
+
+        aidInfo = {
+          tagged: true,
+          category: event.aid_category,
+          categoryName: catMeta.name,
+          categoryColor: catMeta.color,
+          claimNumber,
+        };
+
+        logAdminAction(
+          'distribution_scan',
+          'aid_distributions',
+          newAidDist?.id || reg.id,
+          fullName,
+          {
+            category: event.aid_category,
+            category_name: catMeta.name,
+            event_id: event.id,
+            event_name: event.event_name,
+            claim_number: claimNumber,
+          },
+          scanned_by || user.email,
+          request
+        );
+      } catch (aidErr) {
+        console.error('Failed to auto-credit aid distribution:', aidErr);
+      }
+    }
+
+    // 9. Update registration global scan stats (non-blocking — analytics only)
     supabaseAdmin.from('registrations').update({
       last_scanned_at: now,
       scan_count: (reg.scan_count || 0) + 1,
       printed_at: reg.printed_at || now,
     }).eq('id', reg.id).then(() => {}).catch(() => {});
 
-    // 9. Fire admin log in background (never block)
-    logAdminAction('scan_event', 'event_scans', reg.id, fullName, { event: event.event_name, em_card_no: reg.em_card_no }, scanned_by, request);
+    // 10. Fire admin log in background (never block)
+    logAdminAction('scan_event', 'event_scans', reg.id, fullName, { 
+      event: event.event_name, 
+      em_card_no: reg.em_card_no,
+      aid_category: event.aid_category || null 
+    }, scanned_by, request);
 
     return Response.json({
       type: 'success',
@@ -247,6 +323,7 @@ export async function POST(request) {
       emCardNo: reg.em_card_no || '-',
       qrToken: reg.qr_token,
       scanCount: (reg.scan_count || 0) + 1,
+      aidInfo,
     });
   } catch (err) {
     return Response.json({ type: 'error', message: 'Server error' }, { status: 500 });

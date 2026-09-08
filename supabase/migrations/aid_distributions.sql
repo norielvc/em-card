@@ -15,3 +15,7 @@ CREATE TABLE IF NOT EXISTS aid_distributions (
 CREATE INDEX IF NOT EXISTS idx_aid_dist_reg_cat ON aid_distributions(registration_id, category);
 CREATE INDEX IF NOT EXISTS idx_aid_dist_date ON aid_distributions(distributed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_aid_dist_barangay ON aid_distributions(barangay);
+
+-- Add optional aid_category tag column to scan_events table
+ALTER TABLE scan_events ADD COLUMN IF NOT EXISTS aid_category VARCHAR(50);
+

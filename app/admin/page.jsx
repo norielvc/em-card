@@ -337,6 +337,23 @@ export default function AdminPage() {
     electric_bill: 0,
     water_bill: 0,
   });
+  const [distTotalCount, setDistTotalCount] = useState(0);
+  const [distUniqueBeneficiaries, setDistUniqueBeneficiaries] = useState(0);
+  const [distTodayCount, setDistTodayCount] = useState(0);
+  const [distThisWeekCount, setDistThisWeekCount] = useState(0);
+  const [distBarangayStats, setDistBarangayStats] = useState([]);
+  const [distOperatorStats, setDistOperatorStats] = useState([]);
+  const [distTimeline, setDistTimeline] = useState([]);
+  const [distMonthlyTimeline, setDistMonthlyTimeline] = useState([]);
+  const [distTopBeneficiaries, setDistTopBeneficiaries] = useState([]);
+  const [showAllTopBeneficiariesModal, setShowAllTopBeneficiariesModal] = useState(false);
+  const [topBeneficiariesSearch, setTopBeneficiariesSearch] = useState('');
+  const [distCategoryRankings, setDistCategoryRankings] = useState([]);
+  const [distSingleClaimCount, setDistSingleClaimCount] = useState(0);
+  const [distMultiClaimCount, setDistMultiClaimCount] = useState(0);
+  const [distDashFilterCat, setDistDashFilterCat] = useState('');
+  const [distDashFilterBrgy, setDistDashFilterBrgy] = useState('');
+  const [distDashSearch, setDistDashSearch] = useState('');
   const [distFilterCategory, setDistFilterCategory] = useState('');
   const [distFilterBarangay, setDistFilterBarangay] = useState('');
   const [distSearchQuery, setDistSearchQuery] = useState('');
@@ -357,14 +374,28 @@ export default function AdminPage() {
     selectedDistCategoryRef.current = selectedDistCategory;
   }, [selectedDistCategory]);
 
-  const fetchDistributionRecords = async (category = '') => {
+  const fetchDistributionRecords = async (category = '', barangay = '') => {
     setDistRecordsLoading(true);
     try {
-      const url = category ? `/api/distribution-scan?category=${category}&limit=100` : '/api/distribution-scan?limit=100';
+      let url = '/api/distribution-scan?limit=100';
+      if (category) url += `&category=${encodeURIComponent(category)}`;
+      if (barangay) url += `&barangay=${encodeURIComponent(barangay)}`;
       const res = await authFetch(url);
       const json = await res.json();
       if (json.records) setDistRecentRecords(json.records);
       if (json.stats) setDistStats(json.stats);
+      if (json.totalDistributions !== undefined) setDistTotalCount(json.totalDistributions);
+      if (json.uniqueBeneficiaries !== undefined) setDistUniqueBeneficiaries(json.uniqueBeneficiaries);
+      if (json.todayCount !== undefined) setDistTodayCount(json.todayCount);
+      if (json.thisWeekCount !== undefined) setDistThisWeekCount(json.thisWeekCount);
+      if (json.barangayStats) setDistBarangayStats(json.barangayStats);
+      if (json.operatorStats) setDistOperatorStats(json.operatorStats);
+      if (json.timeline) setDistTimeline(json.timeline);
+      if (json.monthlyTimeline) setDistMonthlyTimeline(json.monthlyTimeline);
+      if (json.topBeneficiaries) setDistTopBeneficiaries(json.topBeneficiaries);
+      if (json.categoryRankings) setDistCategoryRankings(json.categoryRankings);
+      if (json.singleClaimCount !== undefined) setDistSingleClaimCount(json.singleClaimCount);
+      if (json.multiClaimCount !== undefined) setDistMultiClaimCount(json.multiClaimCount);
     } catch (err) {
       // silent
     } finally {
@@ -677,7 +708,7 @@ export default function AdminPage() {
   const [scannerMode, setScannerMode] = useState('select'); // select | scan | result
   const [showCreateEvent, setShowCreateEvent] = useState(false);
   const [editingScanEvent, setEditingScanEvent] = useState(null);
-  const [newEventForm, setNewEventForm] = useState({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] });
+  const [newEventForm, setNewEventForm] = useState({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [], aid_category: '' });
   const [allBarangays, setAllBarangays] = useState([]);
   const [eventScans, setEventScans] = useState([]);
   const [scanStats, setScanStats] = useState({ total: 0, duplicates: 0 });
@@ -873,6 +904,7 @@ export default function AdminPage() {
       fetchGrievances();
       fetchAllRegistrations();
       fetchOrganizations();
+      fetchDistributionRecords();
       if (userRole === 'admin') fetchAccounts();
     }
   }, [isLoggedIn, userRole]);
@@ -887,9 +919,11 @@ export default function AdminPage() {
     if (activeTab === 'residents') fetchAllResidents(residentsPage, residentSearch, resFilterBarangay, resFilterPrecinct, resFilterStatus);
     if (activeTab === 'eventScanner') fetchEvents();
     if (activeTab === 'events') fetchUpcomingEvents();
+    if (activeTab === 'distributionScanner') fetchDistributionRecords();
+    if (activeTab === 'dashboard' && dashTab === 'distributions') fetchDistributionRecords();
     if (activeTab === 'accounts') fetchAccounts();
     if (activeTab === 'adminLogs') { fetchAdminLogs(); if (accounts.length === 0) fetchAccounts(); }
-  }, [isLoggedIn, activeTab]);
+  }, [isLoggedIn, activeTab, dashTab]);
 
   useEffect(() => {
     if (toast && !toast.sticky) {
@@ -4791,12 +4825,79 @@ export default function AdminPage() {
       )}
 
       {dashTab === 'distributions' && (() => {
-        const totalDist = Object.values(distStats).reduce((a, b) => a + b, 0);
+        const totalDist = distTotalCount || Object.values(distStats).reduce((a, b) => a + b, 0);
         const maxCatCount = Math.max(...Object.values(distStats), 1);
+        const reachPct = totalApprovedMembers > 0 ? Math.min(100, Math.round((distUniqueBeneficiaries / totalApprovedMembers) * 100)) : 0;
+        
+        // Find top category
+        const sortedCats = [...DISTRIBUTION_CATEGORIES].sort((a, b) => (distStats[b.id] || 0) - (distStats[a.id] || 0));
+        const topCat = sortedCats[0];
+        const topCatCount = distStats[topCat?.id] || 0;
+
+        // Filter recent records for dashboard table
+        const filteredDashRecords = distRecentRecords.filter(r => {
+          if (distDashFilterCat && r.category !== distDashFilterCat) return false;
+          if (distDashFilterBrgy && r.barangay !== distDashFilterBrgy) return false;
+          if (distDashSearch) {
+            const q = distDashSearch.toLowerCase();
+            const reg = r.registrations || {};
+            const val = reg.ValidResidents || {};
+            const name = `${reg.first_name || val.first_name || ''} ${reg.last_name || val.last_name || ''}`.toLowerCase();
+            const cardNo = (reg.em_card_no || '').toLowerCase();
+            const token = (reg.qr_token || '').toLowerCase();
+            const brgy = (r.barangay || reg.barangay || val.barangay || '').toLowerCase();
+            return name.includes(q) || cardNo.includes(q) || token.includes(q) || brgy.includes(q);
+          }
+          return true;
+        });
+
+        // Unique barangays from records or stats
+        const allBarangays = [...new Set([
+          ...distBarangayStats.map(b => b.barangay),
+          ...allResidents.map(r => r.barangay).filter(Boolean)
+        ])].sort();
+
+        // Max timeline count for chart scaling
+        const maxTimelineCount = Math.max(...distTimeline.map(t => t.count), 1);
 
         return (
           <>
-            {/* KPI Stat Cards for Distributions */}
+            {/* Dashboard Sub-header & Quick Action Controls */}
+            <div className="dist-dash-header-ribbon">
+              <div className="dist-dash-title-wrap">
+                <div className="dist-dash-icon-badge">
+                  <Gift size={22} />
+                </div>
+                <div>
+                  <h3 className="dist-dash-main-title">Official Aid &amp; Benefits Distribution Telemetry</h3>
+                  <span className="dist-dash-subtitle">
+                    Real-time municipal welfare analytics, beneficiary coverage, and distribution ledger across Balagtas
+                  </span>
+                </div>
+              </div>
+              <div className="dist-dash-actions">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => fetchDistributionRecords(distDashFilterCat, distDashFilterBrgy)}
+                  disabled={distRecordsLoading}
+                  title="Refresh Telemetry"
+                >
+                  <RotateCw size={14} className={distRecordsLoading ? 'spin' : ''} />
+                  <span>Refresh Data</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  onClick={() => setActiveTab('distributionScanner')}
+                >
+                  <ScanLine size={14} />
+                  <span>Launch Scanner</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 1. KPI Stat Cards for Distributions */}
             <div className="kpi-grid">
               <div className="kpi-card">
                 <div className="kpi-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
@@ -4805,7 +4906,9 @@ export default function AdminPage() {
                 <div className="kpi-body">
                   <span className="kpi-label">Total Aid Distributed</span>
                   <span className="kpi-value">{totalDist.toLocaleString()}</span>
-                  <span className="kpi-change up">Across 8 Categories</span>
+                  <span className="kpi-change up" style={{ color: '#059669' }}>
+                    ✓ {distTodayCount.toLocaleString()} today · {distThisWeekCount.toLocaleString()} this week
+                  </span>
                 </div>
               </div>
 
@@ -4814,51 +4917,50 @@ export default function AdminPage() {
                   <Users size={20} strokeWidth={1.5} />
                 </div>
                 <div className="kpi-body">
-                  <span className="kpi-label">Active Categories</span>
-                  <span className="kpi-value">8 of 8</span>
-                  <span className="kpi-change up">Rainbow Program Active</span>
+                  <span className="kpi-label">Unique Beneficiaries</span>
+                  <span className="kpi-value">{distUniqueBeneficiaries.toLocaleString()}</span>
+                  <span className="kpi-change up" style={{ color: '#2563eb' }}>
+                    {reachPct}% citizen coverage
+                  </span>
                 </div>
               </div>
 
               <div className="kpi-card">
-                <div className="kpi-icon" style={{ background: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }}>
-                  <Sparkles size={20} strokeWidth={1.5} />
+                <div className="kpi-icon" style={{ background: 'rgba(217, 119, 6, 0.1)', color: '#d97706' }}>
+                  <Activity size={20} strokeWidth={1.5} />
                 </div>
                 <div className="kpi-body">
-                  <span className="kpi-label">yourEM Distribution</span>
-                  <span className="kpi-value">{(distStats.your_em || 0).toLocaleString()}</span>
-                  <span className="kpi-change up" style={{ color: '#059669' }}>Reserved Green Tier</span>
+                  <span className="kpi-label">Multi-Claim / Repeat Aid</span>
+                  <span className="kpi-value">{distMultiClaimCount.toLocaleString()}</span>
+                  <span className="kpi-change up" style={{ color: '#d97706' }}>
+                    {distSingleClaimCount.toLocaleString()} first-time claims
+                  </span>
                 </div>
               </div>
 
               <div className="kpi-card">
-                <div className="kpi-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
-                  <ShoppingBag size={20} strokeWidth={1.5} />
+                <div className="kpi-icon" style={{ background: `${topCat.color}18`, color: topCat.color }}>
+                  {getCategoryIcon(topCat.icon, 20)}
                 </div>
                 <div className="kpi-body">
-                  <span className="kpi-label">Food &amp; Groceries</span>
-                  <span className="kpi-value">{((distStats.groceries || 0) + (distStats.food_packs || 0)).toLocaleString()}</span>
-                  <span className="kpi-change up">Packs Issued</span>
+                  <span className="kpi-label">Top Assistance Program</span>
+                  <span className="kpi-value" style={{ fontSize: '1.25rem' }}>{topCat.name}</span>
+                  <span className="kpi-change up" style={{ color: topCat.color }}>
+                    {topCatCount.toLocaleString()} claims ({totalDist > 0 ? Math.round((topCatCount / totalDist) * 100) : 0}%)
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* 8 Rainbow Categories Telemetry Grid */}
-            <div className="admin-panel" style={{ marginTop: 24 }}>
+            {/* 2. 8 Rainbow Categories Telemetry Grid */}
+            <div className="admin-panel" style={{ marginTop: 20 }}>
               <div className="panel-header">
                 <div className="panel-header-left">
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Gift size={20} style={{ color: '#10b981' }} /> Official 8-Category Rainbow Aid Telemetry
+                    <Sparkles size={18} style={{ color: '#059669' }} /> 8 Official Rainbow Program Telemetry
                   </h3>
-                  <span className="panel-subtitle">Real-time breakdown across all 8 assistance programs</span>
+                  <span className="panel-subtitle">Real-time breakdown and quick dispatch for all 8 welfare entitlements</span>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-primary"
-                  onClick={() => setActiveTab('distributionScanner')}
-                >
-                  <ScanLine size={14} /> Open Distribution Scanner
-                </button>
               </div>
 
               <div className="dist-dashboard-cards-grid">
@@ -4876,6 +4978,7 @@ export default function AdminPage() {
                         setSelectedDistCategory(cat.id);
                         setActiveTab('distributionScanner');
                       }}
+                      title={`Click to launch scanner for ${cat.name}`}
                     >
                       <div className="dist-dash-cat-top">
                         <div className="dist-dash-cat-icon" style={{ color: cat.color }}>
@@ -4903,12 +5006,429 @@ export default function AdminPage() {
                       </div>
 
                       <div className="dist-dash-cat-action">
-                        <span>Click to scan {cat.name} →</span>
+                        <span>Launch Scanner →</span>
                       </div>
                     </div>
                   );
                 })}
               </div>
+            </div>
+
+            {/* 3. Advanced Telemetry Row 1: Most Aid Category Distributed + Monthly Distribution Velocity */}
+            <div className="dist-analytics-grid-2col" style={{ marginTop: 20 }}>
+              {/* Most Aid Category Distributed (Ranked Leaderboard) */}
+              <div className="admin-panel dist-analytics-subpanel">
+                <div className="panel-header">
+                  <div className="panel-header-left">
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Award size={18} style={{ color: '#eab308' }} /> Most Aid Categories Distributed
+                    </h3>
+                    <span className="panel-subtitle">Ranking of 8 welfare programs by total issuance volume</span>
+                  </div>
+                </div>
+
+                <div className="dist-category-rankings-list">
+                  {distCategoryRankings.length === 0 ? (
+                    <div className="dist-dash-empty-notice">
+                      <Gift size={24} color="#94a3b8" />
+                      <p>No distribution category telemetry recorded yet.</p>
+                    </div>
+                  ) : (
+                    distCategoryRankings.map((cat, idx) => {
+                      const maxCount = Math.max(...distCategoryRankings.map(c => c.count), 1);
+                      const barPct = Math.round((cat.count / maxCount) * 100);
+                      return (
+                        <div key={cat.id || idx} className="dist-cat-rank-row">
+                          <div className={`dist-cat-rank-badge rank-${idx + 1}`}>#{idx + 1}</div>
+                          <div className="dist-cat-rank-icon" style={{ color: cat.color, background: `${cat.color}18` }}>
+                            {getCategoryIcon(cat.icon, 16)}
+                          </div>
+                          <div className="dist-cat-rank-info">
+                            <div className="dist-cat-rank-title-line">
+                              <strong className="dist-cat-rank-name" style={{ color: cat.color }}>{cat.name}</strong>
+                              <span className="dist-cat-rank-count">
+                                {cat.count.toLocaleString()} claims ({cat.percentage}%)
+                              </span>
+                            </div>
+                            <div className="dist-cat-rank-track">
+                              <div 
+                                className="dist-cat-rank-fill" 
+                                style={{ width: `${barPct}%`, background: cat.color }} 
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Monthly Distribution Velocity Timeline (Jan - Dec) */}
+              <div className="admin-panel dist-analytics-subpanel">
+                <div className="panel-header">
+                  <div className="panel-header-left">
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <TrendingUp size={18} style={{ color: '#059669' }} /> Monthly Distribution Velocity ({new Date().getFullYear()})
+                    </h3>
+                    <span className="panel-subtitle">Month-by-month welfare issuance volume &amp; seasonal trends</span>
+                  </div>
+                </div>
+
+                <div className="dist-timeline-chart-wrap">
+                  {distMonthlyTimeline.length === 0 ? (
+                    <div className="dist-dash-empty-notice">
+                      <TrendingUp size={24} color="#94a3b8" />
+                      <p>Monthly distribution timeline will populate as QR cards are scanned.</p>
+                    </div>
+                  ) : (() => {
+                    const maxMonthly = Math.max(...distMonthlyTimeline.map(m => m.count), 1);
+                    return (
+                      <div className="dist-timeline-bars">
+                        {distMonthlyTimeline.map((item, idx) => {
+                          const heightPct = Math.max(6, Math.round((item.count / maxMonthly) * 100));
+                          const isPeak = item.count > 0 && item.count === maxMonthly;
+                          const isCurrentMonth = item.monthIndex === new Date().getMonth();
+                          return (
+                            <div 
+                              key={item.month || idx} 
+                              className={`dist-timeline-bar-col ${isCurrentMonth ? 'current-month-col' : ''}`}
+                              title={`${item.month} ${item.year}: ${item.count} disbursements`}
+                            >
+                              <span className="dist-timeline-bar-count">{item.count > 0 ? item.count : ''}</span>
+                              <div className="dist-timeline-bar-track">
+                                <div 
+                                  className={`dist-timeline-bar-fill ${isPeak ? 'peak' : ''} ${isCurrentMonth ? 'current-month-fill' : ''}`}
+                                  style={{ height: `${heightPct}%` }}
+                                />
+                              </div>
+                              <span className={`dist-timeline-bar-label ${isCurrentMonth ? 'current-month-label' : ''}`}>
+                                {item.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Advanced Telemetry Row 2: Most Aid Received Residents + Barangay Geographic Leaderboard */}
+            <div className="dist-analytics-grid-2col" style={{ marginTop: 20 }}>
+              {/* Most Aid Received Residents (Top Beneficiaries Leaderboard) */}
+              <div className="admin-panel dist-analytics-subpanel">
+                <div className="panel-header dist-beneficiaries-panel-header">
+                  <div className="panel-header-left">
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Users size={18} style={{ color: '#059669' }} /> Top 10 Most Aid Received Residents
+                    </h3>
+                    <span className="panel-subtitle">Top 10 citizens by total welfare assistance packages received</span>
+                  </div>
+                  {distTopBeneficiaries.length > 10 && (
+                    <button 
+                      type="button" 
+                      className="dist-see-more-btn"
+                      onClick={() => setShowAllTopBeneficiariesModal(true)}
+                      title={`View all ${distTopBeneficiaries.length} ranked aid beneficiaries`}
+                    >
+                      <span>See All ({distTopBeneficiaries.length})</span>
+                      <ArrowRight size={13} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="dist-top-residents-list">
+                  {distTopBeneficiaries.length === 0 ? (
+                    <div className="dist-dash-empty-notice">
+                      <Users size={24} color="#94a3b8" />
+                      <p>No multi-claim resident records recorded yet.</p>
+                    </div>
+                  ) : (
+                    distTopBeneficiaries.slice(0, 10).map((resident, idx) => {
+                      const catEntries = Object.entries(resident.categories || {});
+                      return (
+                        <div 
+                          key={resident.registration_id || idx}
+                          className="dist-top-resident-row clickable"
+                          onClick={() => {
+                            if (resident.registration) {
+                              setSelectedMember(resident.registration);
+                              fetchMemberAidHistory(resident.registration_id);
+                            }
+                          }}
+                          title="Click to view full citizen dossier & aid history"
+                        >
+                          <div className={`dist-resident-rank-badge rank-${idx + 1}`}>#{idx + 1}</div>
+                          <div className="dist-resident-avatar">
+                            {resident.photo ? (
+                              <img src={resident.photo} alt="" />
+                            ) : (
+                              <User size={16} />
+                            )}
+                          </div>
+                          <div className="dist-resident-info">
+                            <div className="dist-resident-name-line">
+                              <strong>{resident.name}</strong>
+                              <span className="dist-resident-claims-pill">
+                                {resident.totalClaims} Total Claim{resident.totalClaims === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                            <div className="dist-resident-sub-line">
+                              <span className="dist-resident-brgy"><MapPin size={11} /> {resident.barangay}</span>
+                              <span className="dist-resident-cardno">{resident.em_card_no}</span>
+                            </div>
+                            {/* Category Pills Breakdown */}
+                            {catEntries.length > 0 && (
+                              <div className="dist-resident-cat-dots-wrap">
+                                {catEntries.map(([catId, catCount]) => {
+                                  const catMeta = DISTRIBUTION_CATEGORIES.find(c => c.id === catId);
+                                  if (!catMeta) return null;
+                                  return (
+                                    <span 
+                                      key={catId} 
+                                      className="dist-resident-cat-dot-badge" 
+                                      style={{ background: `${catMeta.color}15`, color: catMeta.color, borderColor: `${catMeta.color}40` }}
+                                      title={`${catMeta.name}: ${catCount}x`}
+                                    >
+                                      <span className="dist-mini-dot" style={{ background: catMeta.color }} />
+                                      {catMeta.name} {catCount > 1 ? `(${catCount}x)` : ''}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          <div className="dist-resident-row-arrow" title="View Full Details">
+                            <ChevronRight size={16} />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {distTopBeneficiaries.length > 10 && (
+                  <div className="dist-leaderboard-footer">
+                    <button 
+                      type="button" 
+                      className="dist-view-more-link"
+                      onClick={() => setShowAllTopBeneficiariesModal(true)}
+                    >
+                      <Users size={14} /> See more ({distTopBeneficiaries.length} total beneficiaries) →
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Geographic Barangay Distribution Leaderboard */}
+              <div className="admin-panel dist-analytics-subpanel">
+                <div className="panel-header">
+                  <div className="panel-header-left">
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <MapPin size={18} style={{ color: '#3b82f6' }} /> Barangay Geographic Distribution
+                    </h3>
+                    <span className="panel-subtitle">Assistance distribution volume per municipality sector</span>
+                  </div>
+                </div>
+
+                <div className="dist-brgy-leaderboard">
+                  {distBarangayStats.length === 0 ? (
+                    <div className="dist-dash-empty-notice">
+                      <MapPin size={24} color="#94a3b8" />
+                      <p>No barangay distribution telemetry recorded yet.</p>
+                    </div>
+                  ) : (
+                    distBarangayStats.slice(0, 8).map((b, idx) => {
+                      const maxBCount = Math.max(...distBarangayStats.map(item => item.count), 1);
+                      const barPct = Math.round((b.count / maxBCount) * 100);
+                      return (
+                        <div key={b.barangay || idx} className="dist-brgy-row">
+                          <div className="dist-brgy-rank">#{idx + 1}</div>
+                          <div className="dist-brgy-info">
+                            <div className="dist-brgy-title-line">
+                              <strong>{b.barangay}</strong>
+                              <span className="dist-brgy-count-badge">
+                                {b.count.toLocaleString()} claims ({b.percentage}%)
+                              </span>
+                            </div>
+                            <div className="dist-brgy-progress-track">
+                              <div className="dist-brgy-progress-fill" style={{ width: `${barPct}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Live Disbursal Feed & Ledger */}
+            <div className="admin-panel" style={{ marginTop: 20 }}>
+              <div className="panel-header dist-ledger-panel-header">
+                <div className="panel-header-left">
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Activity size={18} style={{ color: '#059669' }} /> Live Aid Distribution Ledger Feed
+                  </h3>
+                  <span className="panel-subtitle">
+                    Showing {filteredDashRecords.length} recorded distribution transaction{filteredDashRecords.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+
+                {/* Ledger Filters */}
+                <div className="dist-ledger-filters">
+                  <div className="dist-ledger-search-box">
+                    <Search size={14} />
+                    <input 
+                      type="text" 
+                      placeholder="Filter by resident name, card no, barangay..." 
+                      value={distDashSearch}
+                      onChange={e => setDistDashSearch(e.target.value)}
+                    />
+                  </div>
+
+                  <select
+                    className="dist-ledger-select"
+                    value={distDashFilterCat}
+                    onChange={e => {
+                      setDistDashFilterCat(e.target.value);
+                      fetchDistributionRecords(e.target.value, distDashFilterBrgy);
+                    }}
+                  >
+                    <option value="">All 8 Programs</option>
+                    {DISTRIBUTION_CATEGORIES.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="dist-ledger-select"
+                    value={distDashFilterBrgy}
+                    onChange={e => {
+                      setDistDashFilterBrgy(e.target.value);
+                      fetchDistributionRecords(distDashFilterCat, e.target.value);
+                    }}
+                  >
+                    <option value="">All Barangays</option>
+                    {allBarangays.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {distRecordsLoading ? (
+                <div className="gov-scan-status" style={{ padding: '30px 0' }}>
+                  <RotateCw className="spin" size={20} /> Loading live distribution ledger...
+                </div>
+              ) : filteredDashRecords.length === 0 ? (
+                <div className="dist-dash-empty-notice" style={{ padding: '40px 0' }}>
+                  <Gift size={32} color="#94a3b8" />
+                  <p>No aid distribution records found matching your filters.</p>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-secondary" 
+                    style={{ marginTop: 8 }}
+                    onClick={() => {
+                      setDistDashSearch('');
+                      setDistDashFilterCat('');
+                      setDistDashFilterBrgy('');
+                      fetchDistributionRecords();
+                    }}
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              ) : (
+                <div className="table-responsive dist-ledger-table-wrap">
+                  <table className="admin-table dist-ledger-table">
+                    <thead>
+                      <tr>
+                        <th>Resident / Beneficiary</th>
+                        <th>Barangay</th>
+                        <th>Assistance Program</th>
+                        <th>Claim #</th>
+                        <th>Disbursing Officer</th>
+                        <th>Date &amp; Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDashRecords.slice(0, 30).map((r, idx) => {
+                        const reg = r.registrations || {};
+                        const val = reg.ValidResidents || {};
+                        const firstName = reg.first_name || val.first_name || '';
+                        const lastName = reg.last_name || val.last_name || '';
+                        const fullName = `${firstName} ${lastName}`.trim() || 'Balagtas Resident';
+                        const brgy = r.barangay || reg.barangay || val.barangay || 'Municipality of Balagtas';
+                        const emCardNo = reg.em_card_no || 'EM-CARD';
+                        const photo = reg.photo_url || reg.photo_base64;
+                        const catMeta = DISTRIBUTION_CATEGORIES.find(c => c.id === r.category) || {
+                          name: r.category_name || r.category,
+                          color: '#059669',
+                          icon: 'Gift'
+                        };
+
+                        return (
+                          <tr 
+                            key={r.id || idx}
+                            className="dist-ledger-row clickable"
+                            onClick={() => {
+                              if (reg.id) {
+                                setSelectedMember(reg);
+                                fetchMemberAidHistory(reg.id);
+                              }
+                            }}
+                            title="Click to view citizen dossier"
+                          >
+                            <td>
+                              <div className="dist-beneficiary-cell">
+                                <div className="dist-beneficiary-photo">
+                                  {photo ? <img src={photo} alt="" /> : <User size={16} />}
+                                </div>
+                                <div>
+                                  <strong className="dist-beneficiary-name">{fullName}</strong>
+                                  <span className="dist-beneficiary-cardno">{emCardNo}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <span className="dist-ledger-brgy">{brgy}</span>
+                            </td>
+                            <td>
+                              <span 
+                                className="dist-ledger-cat-pill"
+                                style={{
+                                  background: `${catMeta.color}15`,
+                                  color: catMeta.color,
+                                  borderColor: `${catMeta.color}40`,
+                                }}
+                              >
+                                {getCategoryIcon(catMeta.icon, 13)}
+                                <span>{catMeta.name}</span>
+                              </span>
+                            </td>
+                            <td>
+                              <span className="dist-claim-badge">
+                                #{r.claim_number || 1}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="dist-ledger-officer">{r.scanned_by || 'Admin / Staff'}</span>
+                            </td>
+                            <td>
+                              <span className="dist-ledger-timestamp">
+                                {new Date(r.distributed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(r.distributed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         );
@@ -9501,13 +10021,14 @@ export default function AdminPage() {
         location: newEventForm.location.trim() || null,
         household_mode: newEventForm.household_mode || false,
         selected_barangays: newEventForm.selected_barangays.length > 0 ? newEventForm.selected_barangays : null,
+        aid_category: newEventForm.aid_category || null,
         status: 'Active',
         created_by: username,
       }).select().single();
       if (error) throw error;
       showToast('Event created: ' + data.event_name, 'success');
       setShowCreateEvent(false);
-      setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] });
+      setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [], aid_category: '' });
       setEvents(prev => [data, ...prev]);
     } catch (err) {
       showToast('Failed to create event: ' + err.message, 'error');
@@ -9524,12 +10045,13 @@ export default function AdminPage() {
         location: newEventForm.location.trim() || null,
         household_mode: newEventForm.household_mode || false,
         selected_barangays: newEventForm.selected_barangays.length > 0 ? newEventForm.selected_barangays : null,
+        aid_category: newEventForm.aid_category || null,
       }).eq('id', editingScanEvent.id).select().single();
       if (error) throw error;
       showToast('Event updated: ' + data.event_name, 'success');
       setShowCreateEvent(false);
       setEditingScanEvent(null);
-      setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] });
+      setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [], aid_category: '' });
       setEvents(prev => prev.map(evt => evt.id === data.id ? data : evt));
     } catch (err) {
       showToast('Failed to update event: ' + err.message, 'error');
@@ -9574,6 +10096,7 @@ export default function AdminPage() {
         location: evt.location || '',
         household_mode: evt.household_mode || false,
         selected_barangays: evt.selected_barangays || [],
+        aid_category: evt.aid_category || '',
       });
       setShowCreateEvent(true);
       await fetchBarangays();
@@ -9848,6 +10371,31 @@ export default function AdminPage() {
                             <Home size={11} /> HH Mode
                           </span>
                         )}
+                        {evt.aid_category && (() => {
+                          const catMeta = DISTRIBUTION_CATEGORIES.find(c => c.id === evt.aid_category);
+                          if (!catMeta) return null;
+                          return (
+                            <span 
+                              className="event-badge-aid" 
+                              style={{ 
+                                background: `${catMeta.color}15`, 
+                                color: catMeta.color, 
+                                borderColor: `${catMeta.color}40`,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                                fontSize: '0.70rem',
+                                fontWeight: 700,
+                                border: '1px solid',
+                              }}
+                              title={`Linked to Aid Distribution: ${catMeta.name}`}
+                            >
+                              <Gift size={11} /> {catMeta.name}
+                            </span>
+                          );
+                        })()}
                         {evt.selected_barangays && evt.selected_barangays.length > 0 ? (
                           <span className="event-badge-restricted" title={`${evt.selected_barangays.length} barangays allowed`}>
                             <MapPin size={11} /> {evt.selected_barangays.length} Brgy
@@ -9996,9 +10544,56 @@ export default function AdminPage() {
                       <span className="toggle-label"><Home size={16} /> Household Mode — One aid per household (same address only)</span>
                     </label>
                   </div>
+
+                  {/* Optional Aid Distribution Program Tagging */}
+                  <div className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                        <Gift size={16} style={{ color: '#059669' }} /> Tag to Aid Distribution Program (Optional)
+                      </span>
+                      {newEventForm.aid_category && (
+                        <span style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 800, background: '#ecfdf5', padding: '2px 8px', borderRadius: 999, border: '1px solid #a7f3d0' }}>
+                          ✓ Linked to Aid Ledger
+                        </span>
+                      )}
+                    </label>
+                    <select
+                      value={newEventForm.aid_category || ''}
+                      onChange={e => setNewEventForm(p => ({ ...p, aid_category: e.target.value }))}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        border: newEventForm.aid_category ? '1.5px solid #059669' : '1px solid #e2e8f0',
+                        background: newEventForm.aid_category ? '#f0fdf4' : '#ffffff',
+                        color: newEventForm.aid_category ? '#065f46' : '#1e293b',
+                        fontWeight: 600,
+                        fontSize: '0.86rem',
+                        cursor: 'pointer',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="">None (Standard Event / Attendance Only)</option>
+                      {DISTRIBUTION_CATEGORIES.map(cat => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name} ({cat.code})
+                        </option>
+                      ))}
+                    </select>
+                    {newEventForm.aid_category ? (
+                      <div style={{ marginTop: 6, fontSize: '0.76rem', color: '#059669', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Gift size={13} />
+                        <span>Every verified attendee will automatically be credited with <strong>{DISTRIBUTION_CATEGORIES.find(c => c.id === newEventForm.aid_category)?.name}</strong> in the Aid Distribution ledger.</span>
+                      </div>
+                    ) : (
+                      <small style={{ display: 'block', color: '#6b7280', fontSize: '0.75rem', marginTop: 4 }}>
+                        Tag this event to automatically record aid claims &amp; increment volume in the Aid Distribution Dashboard for each attendee.
+                      </small>
+                    )}
+                  </div>
                   
                   <div className="modal-footer">
-                    <button type="button" className="btn btn-modal-secondary" onClick={() => { setShowCreateEvent(false); setEditingScanEvent(null); setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [] }); }}>Cancel</button>
+                    <button type="button" className="btn btn-modal-secondary" onClick={() => { setShowCreateEvent(false); setEditingScanEvent(null); setNewEventForm({ event_name: '', event_date: '', location: '', household_mode: false, selected_barangays: [], aid_category: '' }); }}>Cancel</button>
                     <button type="submit" className="btn btn-modal-primary">{editingScanEvent ? 'Save Changes' : 'Create Event'}</button>
                   </div>
                 </form>
@@ -10015,7 +10610,36 @@ export default function AdminPage() {
         {/* Scanner Header */}
         <div className="event-scanner-header">
           <div>
-            <h3><ScanLine size={22} /> {selectedEvent.event_name} {selectedEvent.household_mode && <span className="event-badge-hh">🏠 Household</span>}</h3>
+            <h3>
+              <ScanLine size={22} /> {selectedEvent.event_name} 
+              {selectedEvent.household_mode && <span className="event-badge-hh">🏠 Household</span>}
+              {selectedEvent.aid_category && (() => {
+                const catMeta = DISTRIBUTION_CATEGORIES.find(c => c.id === selectedEvent.aid_category);
+                if (!catMeta) return null;
+                return (
+                  <span 
+                    className="event-badge-aid" 
+                    style={{ 
+                      background: `${catMeta.color}15`, 
+                      color: catMeta.color, 
+                      borderColor: `${catMeta.color}40`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '3px 10px',
+                      borderRadius: 999,
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      border: '1px solid',
+                      marginLeft: 8,
+                      verticalAlign: 'middle',
+                    }}
+                  >
+                    <Gift size={12} /> {catMeta.name} (Aid Counted)
+                  </span>
+                );
+              })()}
+            </h3>
             <p>{selectedEvent.location || ''} {selectedEvent.event_date ? '• ' + new Date(selectedEvent.event_date).toLocaleDateString() : ''}</p>
           </div>
           <div className="event-scanner-actions">
@@ -10044,6 +10668,26 @@ export default function AdminPage() {
                         <span><Phone size={14} /> {scanResult.contact}</span>
                         <span><CreditCard size={14} /> {scanResult.emCardNo}</span>
                       </div>
+                      {scanResult.aidInfo && (
+                        <div 
+                          style={{
+                            marginTop: 10,
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            background: `${scanResult.aidInfo.categoryColor}15`,
+                            color: scanResult.aidInfo.categoryColor,
+                            border: `1px solid ${scanResult.aidInfo.categoryColor}40`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            fontSize: '0.80rem',
+                            fontWeight: 700,
+                          }}
+                        >
+                          <Gift size={14} />
+                          <span>Aid Distribution Counted: <strong>{scanResult.aidInfo.categoryName}</strong> (Claim #{scanResult.aidInfo.claimNumber})</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="scan-result-footer">
@@ -10233,6 +10877,26 @@ export default function AdminPage() {
                                 <span><Phone size={14} /> {scanResult.contact}</span>
                                 <span><CreditCard size={14} /> {scanResult.emCardNo}</span>
                               </div>
+                              {scanResult.aidInfo && (
+                                <div 
+                                  style={{
+                                    marginTop: 10,
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    background: `${scanResult.aidInfo.categoryColor}15`,
+                                    color: scanResult.aidInfo.categoryColor,
+                                    border: `1px solid ${scanResult.aidInfo.categoryColor}40`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    fontSize: '0.80rem',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  <Gift size={14} />
+                                  <span>Aid Distribution Counted: <strong>{scanResult.aidInfo.categoryName}</strong> (Claim #{scanResult.aidInfo.claimNumber})</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                           <div className="scan-result-footer">
@@ -12174,6 +12838,148 @@ export default function AdminPage() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ALL TOP BENEFICIARIES MODAL */}
+      {showAllTopBeneficiariesModal && (
+        <div className="modal-overlay" onClick={() => setShowAllTopBeneficiariesModal(false)}>
+          <div className="modal-card dist-all-beneficiaries-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-header gov-modal-header">
+              <div className="gov-modal-header-brand">
+                <div className="gov-modal-header-seal">
+                  <Award size={20} style={{ color: '#059669' }} />
+                </div>
+                <div className="gov-modal-header-titles">
+                  <span className="gov-modal-header-pre">Republic of the Philippines · Municipality of Balagtas</span>
+                  <h3 className="gov-modal-header-main">All Aid Beneficiaries Ranking</h3>
+                  <span className="gov-modal-header-sub">
+                    Showing {distTopBeneficiaries.length} registered beneficiaries ranked by aid volume
+                  </span>
+                </div>
+              </div>
+              <button className="modal-close-x" onClick={() => setShowAllTopBeneficiariesModal(false)}>✕</button>
+            </div>
+
+            <div className="modal-body dist-all-beneficiaries-body">
+              <div className="dist-modal-search-wrap">
+                <Search size={16} color="#64748b" />
+                <input 
+                  type="text" 
+                  placeholder="Search beneficiaries by name, card number, or barangay..." 
+                  value={topBeneficiariesSearch}
+                  onChange={e => setTopBeneficiariesSearch(e.target.value)}
+                  autoFocus
+                />
+                {topBeneficiariesSearch && (
+                  <button 
+                    type="button" 
+                    className="dist-search-clear-btn" 
+                    onClick={() => setTopBeneficiariesSearch('')}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="dist-all-beneficiaries-list">
+                {(() => {
+                  const query = topBeneficiariesSearch.trim().toLowerCase();
+                  const filtered = distTopBeneficiaries.filter(b => {
+                    if (!query) return true;
+                    return (
+                      (b.name && b.name.toLowerCase().includes(query)) ||
+                      (b.em_card_no && b.em_card_no.toLowerCase().includes(query)) ||
+                      (b.barangay && b.barangay.toLowerCase().includes(query))
+                    );
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="dist-dash-empty-notice" style={{ padding: '40px 0' }}>
+                        <Users size={32} color="#94a3b8" />
+                        <p>No beneficiaries found matching &quot;{topBeneficiariesSearch}&quot;.</p>
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((resident, idx) => {
+                    const catEntries = Object.entries(resident.categories || {});
+                    return (
+                      <div 
+                        key={resident.registration_id || idx}
+                        className="dist-top-resident-row clickable"
+                        onClick={() => {
+                          setShowAllTopBeneficiariesModal(false);
+                          if (resident.registration) {
+                            setSelectedMember(resident.registration);
+                            fetchMemberAidHistory(resident.registration_id);
+                          }
+                        }}
+                        title="Click to view citizen dossier & full aid history"
+                      >
+                        <div className={`dist-resident-rank-badge ${idx < 3 ? `rank-${idx + 1}` : ''}`}>
+                          #{idx + 1}
+                        </div>
+                        <div className="dist-resident-avatar">
+                          {resident.photo ? (
+                            <img src={resident.photo} alt="" />
+                          ) : (
+                            <User size={16} />
+                          )}
+                        </div>
+                        <div className="dist-resident-info">
+                          <div className="dist-resident-name-line">
+                            <strong>{resident.name}</strong>
+                            <span className="dist-resident-claims-pill">
+                              {resident.totalClaims} Total Claim{resident.totalClaims === 1 ? '' : 's'}
+                            </span>
+                          </div>
+                          <div className="dist-resident-sub-line">
+                            <span className="dist-resident-brgy"><MapPin size={11} /> {resident.barangay}</span>
+                            <span className="dist-resident-cardno">{resident.em_card_no}</span>
+                            <div className="dist-resident-cat-dots-wrap">
+                              {catEntries.map(([catId, catCount]) => {
+                                const catMeta = DISTRIBUTION_CATEGORIES.find(c => c.id === catId);
+                                if (!catMeta) return null;
+                                return (
+                                  <span 
+                                    key={catId} 
+                                    className="dist-resident-cat-dot-badge" 
+                                    style={{ background: `${catMeta.color}15`, color: catMeta.color, borderColor: `${catMeta.color}40` }}
+                                    title={`${catMeta.name}: ${catCount}x`}
+                                  >
+                                    <span className="dist-mini-dot" style={{ background: catMeta.color }} />
+                                    {catMeta.name} {catCount > 1 ? `(${catCount}x)` : ''}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="dist-resident-row-arrow" title="View Full Details">
+                          <ChevronRight size={16} />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                Tip: Click any resident to open their complete citizen dossier and aid distribution logs.
+              </span>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowAllTopBeneficiariesModal(false)}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

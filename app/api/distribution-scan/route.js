@@ -52,7 +52,7 @@ async function logAdminAction(action_type, target_table, target_id, target_name,
   }
 }
 
-// GET: Fetch distribution history & category stats
+// GET: Fetch distribution history & category stats with advanced analytics
 export async function GET(request) {
   try {
     const user = await requireAuth(request);
@@ -64,7 +64,156 @@ export async function GET(request) {
     const category = searchParams.get('category');
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const registrationId = searchParams.get('registrationId');
+    const barangay = searchParams.get('barangay');
 
+    // 1. Fetch system-wide lightweight distribution aggregate rows
+    const { data: allDistRows } = await supabaseAdmin
+      .from('aid_distributions')
+      .select('id, registration_id, category, barangay, scanned_by, claim_number, distributed_at');
+
+    const allRows = allDistRows || [];
+    const totalDistributions = allRows.length;
+    const uniqueResidentsSet = new Set(allRows.map(d => d.registration_id));
+    const uniqueBeneficiaries = uniqueResidentsSet.size;
+
+    // Time-based calculations
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
+
+    const todayCount = allRows.filter(d => d.distributed_at >= startOfToday).length;
+    const thisWeekCount = allRows.filter(d => d.distributed_at >= startOfWeek).length;
+
+    // Category distribution counts
+    const stats = {};
+    Object.keys(DISTRIBUTION_CATEGORIES).forEach((key) => {
+      stats[key] = 0;
+    });
+    allRows.forEach((r) => {
+      if (stats[r.category] !== undefined) {
+        stats[r.category] += 1;
+      }
+    });
+
+    // Barangay distribution breakdown
+    const brgyMap = {};
+    allRows.forEach((r) => {
+      const b = (r.barangay || 'Unspecified').trim();
+      brgyMap[b] = (brgyMap[b] || 0) + 1;
+    });
+    const barangayStats = Object.entries(brgyMap)
+      .map(([brgy, count]) => ({
+        barangay: brgy,
+        count,
+        percentage: totalDistributions > 0 ? Math.round((count / totalDistributions) * 100) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // Operator leaderboard
+    const opMap = {};
+    allRows.forEach((r) => {
+      const op = (r.scanned_by || 'Admin / Staff').trim();
+      opMap[op] = (opMap[op] || 0) + 1;
+    });
+    const operatorStats = Object.entries(opMap)
+      .map(([operator, count]) => ({ operator, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Monthly Distribution Velocity (12 Months of current year)
+    const currentYear = now.getFullYear();
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyTimeline = monthNames.map((m, idx) => ({
+      month: m,
+      monthIndex: idx,
+      year: currentYear,
+      label: m,
+      count: 0,
+    }));
+
+    allRows.forEach((r) => {
+      if (r.distributed_at) {
+        const d = new Date(r.distributed_at);
+        if (d.getFullYear() === currentYear) {
+          const mIdx = d.getMonth();
+          if (monthlyTimeline[mIdx]) {
+            monthlyTimeline[mIdx].count += 1;
+          }
+        }
+      }
+    });
+
+    // Most Aid Category Distributed (Sorted category rankings)
+    const categoryRankings = Object.entries(stats)
+      .map(([catId, count]) => {
+        const meta = DISTRIBUTION_CATEGORIES[catId] || { id: catId, name: catId, color: '#059669', colorName: 'Green' };
+        return {
+          ...meta,
+          count,
+          percentage: totalDistributions > 0 ? Math.round((count / totalDistributions) * 100) : 0,
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+
+    // Multi-claim breakdown per resident & Most Received Residents
+    const residentClaimCounts = {};
+    const residentMap = {};
+    allRows.forEach(r => {
+      if (!r.registration_id) return;
+      residentClaimCounts[r.registration_id] = (residentClaimCounts[r.registration_id] || 0) + 1;
+
+      if (!residentMap[r.registration_id]) {
+        residentMap[r.registration_id] = {
+          registration_id: r.registration_id,
+          totalClaims: 0,
+          categories: {},
+          barangay: r.barangay,
+          lastDistributedAt: r.distributed_at,
+        };
+      }
+      residentMap[r.registration_id].totalClaims += 1;
+      residentMap[r.registration_id].categories[r.category] = (residentMap[r.registration_id].categories[r.category] || 0) + 1;
+      if (r.distributed_at > residentMap[r.registration_id].lastDistributedAt) {
+        residentMap[r.registration_id].lastDistributedAt = r.distributed_at;
+      }
+    });
+
+    let singleClaimCount = 0;
+    let multiClaimCount = 0;
+    Object.values(residentClaimCounts).forEach(cnt => {
+      if (cnt === 1) singleClaimCount += 1;
+      else if (cnt > 1) multiClaimCount += 1;
+    });
+
+    // Top Beneficiaries (Most aid received residents)
+    const topResidentIds = Object.values(residentMap)
+      .sort((a, b) => b.totalClaims - a.totalClaims)
+      .slice(0, 100);
+
+    let topBeneficiaries = [];
+    if (topResidentIds.length > 0) {
+      const { data: topRegs } = await supabaseAdmin
+        .from('registrations')
+        .select('*, ValidResidents(*)')
+        .in('id', topResidentIds.map(t => t.registration_id));
+
+      topBeneficiaries = topResidentIds.map(item => {
+        const reg = (topRegs || []).find(rg => rg.id === item.registration_id) || {};
+        const val = reg.ValidResidents || {};
+        const firstName = reg.first_name || val.first_name || '';
+        const lastName = reg.last_name || val.last_name || '';
+        const name = `${firstName} ${lastName}`.trim() || 'Balagtas Resident';
+        return {
+          ...item,
+          name,
+          em_card_no: reg.em_card_no || 'EM-CARD',
+          photo: reg.photo_url || reg.photo_base64,
+          barangay: item.barangay || reg.barangay || val.barangay || 'Balagtas',
+          registration: reg,
+        };
+      });
+    }
+
+    // 2. Fetch requested detailed records
     let query = supabaseAdmin
       .from('aid_distributions')
       .select('*, registrations(id, first_name, last_name, middle_name, suffix, em_card_no, qr_token, house_no, purok, contact, photo_url, photo_base64, ValidResidents(first_name, last_name, middle_name, suffix, barangay))')
@@ -74,29 +223,47 @@ export async function GET(request) {
     if (category) {
       query = query.eq('category', category);
     }
+    if (barangay) {
+      query = query.eq('barangay', barangay);
+    }
     if (registrationId) {
       query = query.eq('registration_id', registrationId);
     }
 
     const { data: records, error } = await query;
     if (error) {
-      // Return empty if table not yet created in Supabase
-      return Response.json({ records: [], stats: {} });
+      return Response.json({
+        records: [],
+        stats,
+        totalDistributions,
+        uniqueBeneficiaries,
+        todayCount,
+        thisWeekCount,
+        barangayStats,
+        operatorStats,
+        monthlyTimeline,
+        categoryRankings,
+        topBeneficiaries,
+        singleClaimCount,
+        multiClaimCount,
+      });
     }
 
-    // Aggregate category counts
-    const stats = {};
-    Object.keys(DISTRIBUTION_CATEGORIES).forEach((key) => {
-      stats[key] = 0;
+    return Response.json({
+      records: records || [],
+      stats,
+      totalDistributions,
+      uniqueBeneficiaries,
+      todayCount,
+      thisWeekCount,
+      barangayStats,
+      operatorStats,
+      monthlyTimeline,
+      categoryRankings,
+      topBeneficiaries,
+      singleClaimCount,
+      multiClaimCount,
     });
-
-    (records || []).forEach((r) => {
-      if (stats[r.category] !== undefined) {
-        stats[r.category] += 1;
-      }
-    });
-
-    return Response.json({ records: records || [], stats });
   } catch (err) {
     return Response.json({ error: err.message || 'Server error' }, { status: 500 });
   }
