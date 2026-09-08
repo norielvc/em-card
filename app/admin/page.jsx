@@ -10138,8 +10138,66 @@ export default function AdminPage() {
     }
   };
 
-  // Server-side QR decoder: uploads photo to /api/scan-photo-qr so iOS never
-  // has to decode a full-resolution bitmap in the WebKit process (no crash).
+  // Safe photo downscaler: uses native hardware downscaling (createImageBitmap)
+  // to avoid allocating full-resolution 48MP textures on iOS Safari.
+  const downscalePhotoSafe = async (file, maxDim = 1200) => {
+    if (!file) return { blob: file, previewDataUrl: '' };
+
+    try {
+      if (typeof createImageBitmap !== 'undefined') {
+        let bitmap;
+        try {
+          bitmap = await createImageBitmap(file, {
+            resizeWidth: maxDim,
+            resizeQuality: 'medium',
+          });
+        } catch (_) {
+          bitmap = await createImageBitmap(file);
+        }
+
+        let w = bitmap.width;
+        let h = bitmap.height;
+        if (w > maxDim || h > maxDim) {
+          const ratio = maxDim / Math.max(w, h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (ctx) {
+          ctx.drawImage(bitmap, 0, 0, w, h);
+          bitmap.close();
+
+          let clientQR = null;
+          try {
+            if (typeof jsQR === 'function') {
+              const imgData = ctx.getImageData(0, 0, w, h);
+              const qr = jsQR(imgData.data, w, h, { inversionAttempts: 'attemptBoth' });
+              if (qr && qr.data) clientQR = qr.data.trim();
+            }
+          } catch (_) {}
+
+          const previewDataUrl = canvas.toDataURL('image/jpeg', 0.80);
+          const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+
+          // Clean canvas memory
+          canvas.width = 1;
+          canvas.height = 1;
+
+          return { blob: blob || file, previewDataUrl, clientQR, width: w, height: h };
+        }
+      }
+    } catch (e) {
+      console.warn('Safe downscale warning:', e);
+    }
+
+    return { blob: file, previewDataUrl: '', clientQR: null, width: 0, height: 0 };
+  };
+
+  // Hybrid QR decoder: client fast-path + server ZXing/Sharp deep-path
   const detectQRSimple = async (file) => {
     const meta = {
       name: file.name || 'captured_photo.jpg',
@@ -10152,14 +10210,33 @@ export default function AdminPage() {
     };
 
     try {
-      const form = new FormData();
-      form.append('photo', file);
+      // 1. Hardware downscale to 1200px max (produces tiny ~80KB JPEG)
+      const { blob, previewDataUrl, clientQR, width, height } = await downscalePhotoSafe(file, 1200);
+      if (width && height) {
+        meta.width = width;
+        meta.height = height;
+      }
+      if (previewDataUrl) {
+        meta.previewUrl = previewDataUrl;
+      }
 
-      // Use authFetch so the session cookie is included
+      // Fast-path: if client-side jsQR recognized it on the downscaled frame
+      if (clientQR) {
+        return {
+          data: clientQR,
+          thumbnail: previewDataUrl || null,
+          debug: 'client_instant',
+          meta,
+        };
+      }
+
+      // Deep-path: upload tiny 80KB payload to server ZXing + Sharp multi-pass engine
+      const form = new FormData();
+      form.append('photo', blob || file);
+
       const res = await authFetch('/api/scan-photo-qr', {
         method: 'POST',
         body: form,
-        // Do NOT set Content-Type — browser sets it with boundary automatically
       });
 
       const json = await res.json();
@@ -10168,14 +10245,14 @@ export default function AdminPage() {
       }
       return {
         data: json.qrText || null,
-        thumbnail: json.thumbnail || null,
+        thumbnail: json.thumbnail || previewDataUrl || null,
         debug: json.debug || '',
         meta,
       };
     } catch (err) {
       return {
         data: null,
-        thumbnail: null,
+        thumbnail: meta.previewUrl || null,
         debug: `upload_err:${err.message}`,
         meta,
       };
