@@ -10138,7 +10138,7 @@ export default function AdminPage() {
     }
   };
 
-  const detectQRSimple = async (file, workerId = 'qr-capture-worker-event') => {
+  const detectQRSimple = async (file) => {
     const debug = [];
     let objectUrl = null;
     try {
@@ -10162,133 +10162,172 @@ export default function AdminPage() {
         }
       };
 
-      // Hard safety timer: 4.5 seconds max
+      // Hard safety timer: 3.5 seconds max
       const timer = setTimeout(() => {
         debug.push('safety_timeout');
         safeResolve({ data: null, debug: debug.join(' | '), meta });
-      }, 4500);
+      }, 3500);
 
-      const runDetection = async () => {
+      if (!objectUrl) {
+        clearTimeout(timer);
+        debug.push('no_blob_url');
+        safeResolve({ data: null, debug: debug.join(' | '), meta });
+        return;
+      }
+
+      // Safe image loading: avoid calling Html5Qrcode.scanFile or createImageBitmap on raw camera files
+      const img = new Image();
+
+      img.onload = async () => {
         let qrData = null;
-
-        // 1. Primary engine: Html5Qrcode.scanFile (ZXing multi-scale robust engine, same as camera mode)
         try {
-          const { Html5Qrcode } = await import('html5-qrcode');
-          const workerEl = document.getElementById(workerId);
-          if (workerEl) {
-            const qrScanner = new Html5Qrcode(workerId, { verbose: false });
-            try {
-              const text = await qrScanner.scanFile(file, false);
-              if (text && typeof text === 'string' && text.trim()) {
-                qrData = text.trim();
-                debug.push('zxing:found');
-              }
-            } catch (_) {
-              debug.push('zxing:miss');
-            } finally {
-              try { await qrScanner.clear(); } catch (_) {}
-            }
+          const origW = img.naturalWidth || img.width || 800;
+          const origH = img.naturalHeight || img.height || 600;
+          meta.width = origW;
+          meta.height = origH;
+          debug.push(`dims:${origW}x${origH}`);
+
+          // Scale to 1000px max dimension (preserves sharp QR modules while consuming < 3.5MB RAM, 100% safe on iOS Safari)
+          const maxDim = 1000;
+          let w = origW;
+          let h = origH;
+          if (w > maxDim || h > maxDim) {
+            const ratio = Math.min(maxDim / w, maxDim / h);
+            w = Math.max(1, Math.round(w * ratio));
+            h = Math.max(1, Math.round(h * ratio));
           }
-        } catch (zxingErr) {
-          debug.push(`zxingErr:${zxingErr.message}`);
-        }
 
-        // 2. Load image onto canvas to get dimensions, compressed preview thumbnail, and jsQR fallback
-        if (objectUrl) {
-          try {
-            await new Promise((imgRes) => {
-              const img = new Image();
-              img.onload = () => {
-                try {
-                  const origW = img.naturalWidth || img.width || 800;
-                  const origH = img.naturalHeight || img.height || 600;
-                  meta.width = origW;
-                  meta.height = origH;
-                  debug.push(`dims:${origW}x${origH}`);
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-                  // Scale to 1200px (preserves fine QR modules while using only ~5MB RAM, safe on iOS)
-                  const maxDim = 1200;
-                  let w = origW;
-                  let h = origH;
-                  if (w > maxDim || h > maxDim) {
-                    const ratio = Math.min(maxDim / w, maxDim / h);
-                    w = Math.max(1, Math.round(w * ratio));
-                    h = Math.max(1, Math.round(h * ratio));
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+
+            // Free high-res source image texture immediately to release mobile RAM
+            img.src = '';
+
+            // Generate compressed lightweight preview JPEG for inspector (< 50 KB)
+            try {
+              const compressed = canvas.toDataURL('image/jpeg', 0.8);
+              if (compressed && compressed.length > 100) {
+                meta.previewUrl = compressed;
+              }
+            } catch (_) {}
+
+            // 1. Native BarcodeDetector on safe downscaled canvas (fast native decoding where supported)
+            if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+              try {
+                const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+                const detected = await detector.detect(canvas);
+                if (detected && detected.length > 0 && detected[0].rawValue) {
+                  qrData = detected[0].rawValue.trim();
+                  debug.push('nativeBD:found');
+                }
+              } catch (_) {}
+            }
+
+            // 2. Robust multi-pass jsQR engine
+            const decodeQR = typeof jsQR === 'function' ? jsQR : (jsQR?.default || (typeof window !== 'undefined' && window.jsQR));
+
+            if (!qrData && typeof decodeQR === 'function') {
+              // Pass 1: Full frame scan
+              const fullImgData = ctx.getImageData(0, 0, w, h);
+              for (const inv of ['dontInvert', 'attemptBoth']) {
+                const code = decodeQR(fullImgData.data, fullImgData.width, fullImgData.height, { inversionAttempts: inv });
+                if (code && code.data) {
+                  qrData = code.data.trim();
+                  debug.push('jsQR_full:found');
+                  break;
+                }
+              }
+
+              // Pass 2: Center crop 70% (card target area)
+              let crop70Data = null;
+              if (!qrData && w > 200 && h > 200) {
+                const cw = Math.round(w * 0.70);
+                const ch = Math.round(h * 0.70);
+                const cx = Math.round((w - cw) / 2);
+                const cy = Math.round((h - ch) / 2);
+                crop70Data = ctx.getImageData(cx, cy, cw, ch);
+                for (const inv of ['dontInvert', 'attemptBoth']) {
+                  const code = decodeQR(crop70Data.data, crop70Data.width, crop70Data.height, { inversionAttempts: inv });
+                  if (code && code.data) {
+                    qrData = code.data.trim();
+                    debug.push('jsQR_crop70:found');
+                    break;
                   }
+                }
+              }
 
-                  const canvas = document.createElement('canvas');
-                  canvas.width = w;
-                  canvas.height = h;
-                  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+              // Pass 3: Center crop 50% (closer shot)
+              if (!qrData && w > 200 && h > 200) {
+                const cw2 = Math.round(w * 0.50);
+                const ch2 = Math.round(h * 0.50);
+                const cx2 = Math.round((w - cw2) / 2);
+                const cy2 = Math.round((h - ch2) / 2);
+                const crop50Data = ctx.getImageData(cx2, cy2, cw2, ch2);
+                for (const inv of ['dontInvert', 'attemptBoth']) {
+                  const code = decodeQR(crop50Data.data, crop50Data.width, crop50Data.height, { inversionAttempts: inv });
+                  if (code && code.data) {
+                    qrData = code.data.trim();
+                    debug.push('jsQR_crop50:found');
+                    break;
+                  }
+                }
+              }
 
-                  if (ctx) {
-                    ctx.drawImage(img, 0, 0, w, h);
-
-                    // Create lightweight compressed JPEG thumbnail for inspector (< 50 KB)
-                    try {
-                      const compressed = canvas.toDataURL('image/jpeg', 0.8);
-                      if (compressed && compressed.length > 100) {
-                        meta.previewUrl = compressed;
-                      }
-                    } catch (_) {}
-
-                    // If ZXing didn't find the QR, run jsQR fallback
-                    if (!qrData && typeof jsQR === 'function') {
-                      // Attempt 1: Full frame scan
-                      const imgData = ctx.getImageData(0, 0, w, h);
-                      for (const inv of ['dontInvert', 'attemptBoth']) {
-                        const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: inv });
-                        if (code && code.data) {
-                          qrData = code.data;
-                          debug.push('jsQR_full:found');
-                          break;
-                        }
-                      }
-
-                      // Attempt 2: Center 65% crop (where residents position the card)
-                      if (!qrData && w > 250 && h > 250) {
-                        const cw = Math.round(w * 0.65);
-                        const ch = Math.round(h * 0.65);
-                        const cx = Math.round((w - cw) / 2);
-                        const cy = Math.round((h - ch) / 2);
-                        const cropData = ctx.getImageData(cx, cy, cw, ch);
-                        for (const inv of ['dontInvert', 'attemptBoth']) {
-                          const code = jsQR(cropData.data, cropData.width, cropData.height, { inversionAttempts: inv });
-                          if (code && code.data) {
-                            qrData = code.data;
-                            debug.push('jsQR_crop:found');
-                            break;
-                          }
-                        }
-                      }
+              // Pass 4: Contrast stretch on crop to recover low-light or reflected card photos
+              if (!qrData && crop70Data) {
+                try {
+                  const d = crop70Data.data;
+                  const len = d.length;
+                  let min = 255;
+                  let max = 0;
+                  for (let i = 0; i < len; i += 4) {
+                    const lum = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
+                    if (lum < min) min = lum;
+                    if (lum > max) max = lum;
+                  }
+                  const range = max - min;
+                  if (range >= 35) {
+                    const stretched = new Uint8ClampedArray(len);
+                    for (let i = 0; i < len; i += 4) {
+                      const lum = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
+                      const s = Math.round(((lum - min) * 255) / range);
+                      stretched[i] = s;
+                      stretched[i + 1] = s;
+                      stretched[i + 2] = s;
+                      stretched[i + 3] = 255;
+                    }
+                    const code = decodeQR(stretched, crop70Data.width, crop70Data.height, { inversionAttempts: 'dontInvert' });
+                    if (code && code.data) {
+                      qrData = code.data.trim();
+                      debug.push('jsQR_contrast:found');
                     }
                   }
-                } catch (procErr) {
-                  debug.push(`procErr:${procErr.message}`);
-                } finally {
-                  img.src = '';
-                  imgRes();
-                }
-              };
-
-              img.onerror = () => {
-                img.src = '';
-                debug.push('img_err');
-                imgRes();
-              };
-
-              img.src = objectUrl;
-            });
-          } catch (loadErr) {
-            debug.push(`loadErr:${loadErr.message}`);
+                } catch (_) {}
+              }
+            }
           }
+        } catch (procErr) {
+          debug.push(`procErr:${procErr.message}`);
+        } finally {
+          img.src = '';
+          clearTimeout(timer);
+          safeResolve({ data: qrData, debug: debug.join(' | '), meta });
         }
-
-        clearTimeout(timer);
-        safeResolve({ data: qrData, debug: debug.join(' | '), meta });
       };
 
-      runDetection();
+      img.onerror = () => {
+        img.src = '';
+        clearTimeout(timer);
+        debug.push('img_err');
+        safeResolve({ data: null, debug: debug.join(' | '), meta });
+      };
+
+      img.src = objectUrl;
     });
   };
 
@@ -11131,9 +11170,6 @@ export default function AdminPage() {
             {/* ── CAPTURE MODE ── */}
             {scannerInputMode === 'capture' && (
               <>
-                {/* Hidden ZXing scanning worker for captured photos */}
-                <div id="qr-capture-worker-event" style={{ position: 'fixed', top: -9999, left: -9999, width: 400, height: 400, opacity: 0, pointerEvents: 'none' }}></div>
-
                 <input
                   type="file"
                   name="event_scanner_photo"
@@ -11168,7 +11204,7 @@ export default function AdminPage() {
                     setCapturedScanStatus('analyzing');
 
                     try {
-                      const { data: decodedText, debug, meta } = await detectQRSimple(file, 'qr-capture-worker-event');
+                      const { data: decodedText, debug, meta } = await detectQRSimple(file);
                       const activePhoto = meta?.previewUrl || immediatePhotoUrl;
                       if (activePhoto) {
                         setCapturedImagePreview(activePhoto);
@@ -12033,9 +12069,6 @@ export default function AdminPage() {
           {/* 2. PHOTO CAPTURE MODE */}
           {distScannerMode === 'capture' && (
             <>
-              {/* Hidden ZXing scanning worker for captured photos */}
-              <div id="qr-capture-worker-dist" style={{ position: 'fixed', top: -9999, left: -9999, width: 400, height: 400, opacity: 0, pointerEvents: 'none' }}></div>
-
               <input
                 type="file"
                 name="dist_scanner_photo"
@@ -12070,7 +12103,7 @@ export default function AdminPage() {
                   setDistCapturedScanStatus('analyzing');
 
                   try {
-                    const { data: decodedText, debug, meta } = await detectQRSimple(file, 'qr-capture-worker-dist');
+                    const { data: decodedText, debug, meta } = await detectQRSimple(file);
                     const activePhoto = meta?.previewUrl || immediatePhotoUrl;
                     if (activePhoto) {
                       setDistCapturedImagePreview(activePhoto);
