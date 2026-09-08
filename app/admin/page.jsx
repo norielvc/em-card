@@ -10139,6 +10139,7 @@ export default function AdminPage() {
       sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
       width: 0,
       height: 0,
+      previewUrl: '',
     };
 
     return new Promise((resolve) => {
@@ -10150,11 +10151,11 @@ export default function AdminPage() {
         }
       };
 
-      // Hard safety timer: prevent any infinite hang on mobile browsers (max 3.5s)
+      // Hard safety timer: max 3 seconds
       const timer = setTimeout(() => {
         debug.push('safety_timeout');
         safeResolve({ data: null, debug: debug.join(' | '), meta });
-      }, 3500);
+      }, 3000);
 
       const objectUrl = URL.createObjectURL(file);
       const img = new Image();
@@ -10167,123 +10168,71 @@ export default function AdminPage() {
           meta.height = origH;
           debug.push(`dims:${origW}x${origH}`);
 
-          // 1. ENGINE 1: Native BarcodeDetector (with 1s timeout race)
+          // Downscale to a safe, lightweight max 800px canvas to prevent iOS Safari memory crashes
+          const maxDim = 800;
+          let w = origW;
+          let h = origH;
+          if (w > maxDim || h > maxDim) {
+            const ratio = Math.min(maxDim / w, maxDim / h);
+            w = Math.floor(w * ratio);
+            h = Math.floor(h * ratio);
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(img, 0, 0, w, h);
+
+          // Generate a lightweight compressed JPEG data URL for safe UI preview (< 60 KB)
           try {
-            if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-              const barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
-              const barcodes = await Promise.race([
-                barcodeDetector.detect(img),
-                new Promise((_, rej) => setTimeout(() => rej(new Error('native_timeout')), 1000))
-              ]);
-              if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+            meta.previewUrl = canvas.toDataURL('image/jpeg', 0.75);
+          } catch (_) {}
+
+          // Release raw high-res image from memory immediately
+          img.src = '';
+          URL.revokeObjectURL(objectUrl);
+
+          const imageData = ctx.getImageData(0, 0, w, h);
+
+          // Load jsQR safely
+          let jsQR;
+          try {
+            const jsQRModule = await import('jsqr');
+            jsQR = jsQRModule.default;
+          } catch (importError) {
+            if (typeof window !== 'undefined' && window.jsQR) {
+              jsQR = window.jsQR;
+            } else {
+              const script = document.createElement('script');
+              script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+              document.head.appendChild(script);
+              await new Promise((res, rej) => {
+                script.onload = () => res();
+                script.onerror = () => rej(new Error('CDN load failed'));
+              });
+              jsQR = window.jsQR;
+            }
+          }
+
+          if (typeof jsQR === 'function') {
+            for (const inv of ['dontInvert', 'attemptBoth']) {
+              const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: inv });
+              if (code && code.data) {
                 clearTimeout(timer);
-                URL.revokeObjectURL(objectUrl);
-                debug.push(`native:found:${barcodes[0].rawValue.substring(0, 20)}`);
-                safeResolve({ data: barcodes[0].rawValue, debug: debug.join(' | '), meta });
+                debug.push('jsQR:found');
+                safeResolve({ data: code.data, debug: debug.join(' | '), meta });
                 return;
               }
-              debug.push('native:none');
             }
-          } catch (nativeErr) {
-            debug.push(`native-err:${nativeErr.message}`);
+            debug.push('found:none');
           }
-
-          // 2. ENGINE 2: Multi-Scale jsQR
-          try {
-            let jsQR;
-            try {
-              const jsQRModule = await import('jsqr');
-              jsQR = jsQRModule.default;
-              debug.push('dyn:ok');
-            } catch (importError) {
-              if (typeof window !== 'undefined' && window.jsQR) {
-                jsQR = window.jsQR;
-                debug.push('win:ok');
-              } else {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-                document.head.appendChild(script);
-                await new Promise((res, rej) => {
-                  script.onload = () => res();
-                  script.onerror = () => rej(new Error('CDN load failed'));
-                });
-                jsQR = window.jsQR;
-                debug.push('cdn:ok');
-              }
-            }
-
-            if (typeof jsQR === 'function') {
-              const targetSizes = [1000, 600];
-              const canvas = document.createElement('canvas');
-              const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-              for (const targetSize of targetSizes) {
-                let w = origW;
-                let h = origH;
-
-                if (w > targetSize || h > targetSize) {
-                  const ratio = Math.min(targetSize / w, targetSize / h);
-                  w = Math.floor(w * ratio);
-                  h = Math.floor(h * ratio);
-                }
-
-                canvas.width = w;
-                canvas.height = h;
-                ctx.clearRect(0, 0, w, h);
-                ctx.drawImage(img, 0, 0, w, h);
-
-                const imageData = ctx.getImageData(0, 0, w, h);
-
-                for (const inv of ['dontInvert', 'attemptBoth']) {
-                  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: inv });
-                  if (code && code.data) {
-                    clearTimeout(timer);
-                    URL.revokeObjectURL(objectUrl);
-                    debug.push(`jsQR:${targetSize}px:found`);
-                    safeResolve({ data: code.data, debug: debug.join(' | '), meta });
-                    return;
-                  }
-                }
-              }
-
-              // Center Crop Analysis (focused on card area)
-              if (origW > 300 && origH > 300) {
-                const cropW = Math.floor(origW * 0.75);
-                const cropH = Math.floor(origH * 0.75);
-                const startX = Math.floor((origW - cropW) / 2);
-                const startY = Math.floor((origH - cropH) / 2);
-
-                canvas.width = Math.min(cropW, 800);
-                canvas.height = Math.min(cropH, 800);
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, startX, startY, cropW, cropH, 0, 0, canvas.width, canvas.height);
-
-                const cropData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const codeCrop = jsQR(cropData.data, cropData.width, cropData.height, { inversionAttempts: 'attemptBoth' });
-                if (codeCrop && codeCrop.data) {
-                  clearTimeout(timer);
-                  URL.revokeObjectURL(objectUrl);
-                  debug.push('jsQR:crop:found');
-                  safeResolve({ data: codeCrop.data, debug: debug.join(' | '), meta });
-                  return;
-                }
-              }
-
-              debug.push('found:none');
-            }
-          } catch (jsqrError) {
-            debug.push(`jsQR-err:${jsqrError.message}`);
-          }
-
-          clearTimeout(timer);
-          URL.revokeObjectURL(objectUrl);
-          safeResolve({ data: null, debug: debug.join(' | '), meta });
         } catch (err) {
-          clearTimeout(timer);
-          URL.revokeObjectURL(objectUrl);
           debug.push(`err:${err.message}`);
-          safeResolve({ data: null, debug: debug.join(' | '), meta });
         }
+
+        clearTimeout(timer);
+        safeResolve({ data: null, debug: debug.join(' | '), meta });
       };
 
       img.onerror = () => {
@@ -11092,22 +11041,15 @@ export default function AdminPage() {
                     const file = e.target.files?.[0];
                     if (!file) return;
 
-                    const previewUrl = URL.createObjectURL(file);
-                    setCapturedImagePreview(previewUrl);
-                    setCapturedImageMeta({
-                      name: file.name || 'captured_photo.jpg',
-                      sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
-                      width: 0,
-                      height: 0,
-                    });
                     setScanResult(null);
                     setScanLoading(true);
                     setCapturedScanStatus('analyzing');
 
                     try {
                       const { data: decodedText, debug, meta } = await detectQRSimple(file);
-                      if (meta) {
-                        setCapturedImageMeta(m => ({ ...m, width: meta.width || m.width, height: meta.height || m.height }));
+                      if (meta?.previewUrl) {
+                        setCapturedImagePreview(meta.previewUrl);
+                        setCapturedImageMeta(meta);
                       }
 
                       if (decodedText) {
@@ -11931,22 +11873,15 @@ export default function AdminPage() {
                   const file = e.target.files?.[0];
                   if (!file) return;
 
-                  const previewUrl = URL.createObjectURL(file);
-                  setDistCapturedImagePreview(previewUrl);
-                  setDistCapturedImageMeta({
-                    name: file.name || 'captured_photo.jpg',
-                    sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
-                    width: 0,
-                    height: 0,
-                  });
                   setDistScanResult(null);
                   setDistScanLoading(true);
                   setDistCapturedScanStatus('analyzing');
 
                   try {
                     const { data: decodedText, debug, meta } = await detectQRSimple(file);
-                    if (meta) {
-                      setDistCapturedImageMeta(m => ({ ...m, width: meta.width || m.width, height: meta.height || m.height }));
+                    if (meta?.previewUrl) {
+                      setDistCapturedImagePreview(meta.previewUrl);
+                      setDistCapturedImageMeta(meta);
                     }
 
                     if (decodedText) {
