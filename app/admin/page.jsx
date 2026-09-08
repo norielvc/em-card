@@ -10139,29 +10139,47 @@ export default function AdminPage() {
       sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
       width: 0,
       height: 0,
-      previewUrl: '',
     };
 
     return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = async (readerEvent) => {
-        const previewUrl = readerEvent.target?.result;
-        meta.previewUrl = previewUrl;
+      let isResolved = false;
+      const safeResolve = (result) => {
+        if (!isResolved) {
+          isResolved = true;
+          resolve(result);
+        }
+      };
 
-        const img = new Image();
-        img.onload = async () => {
-          meta.width = img.naturalWidth || img.width;
-          meta.height = img.naturalHeight || img.height;
-          debug.push(`dims:${meta.width}x${meta.height}`);
+      // Hard safety timer: prevent any infinite hang on mobile browsers (max 3.5s)
+      const timer = setTimeout(() => {
+        debug.push('safety_timeout');
+        safeResolve({ data: null, debug: debug.join(' | '), meta });
+      }, 3500);
 
-          // 1. ENGINE 1: Native BarcodeDetector (Modern Android Chrome / Desktop Chrome / Safari 17+)
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+
+      img.onload = async () => {
+        try {
+          const origW = img.naturalWidth || img.width;
+          const origH = img.naturalHeight || img.height;
+          meta.width = origW;
+          meta.height = origH;
+          debug.push(`dims:${origW}x${origH}`);
+
+          // 1. ENGINE 1: Native BarcodeDetector (with 1s timeout race)
           try {
             if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
               const barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
-              const barcodes = await barcodeDetector.detect(img);
+              const barcodes = await Promise.race([
+                barcodeDetector.detect(img),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('native_timeout')), 1000))
+              ]);
               if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                clearTimeout(timer);
+                URL.revokeObjectURL(objectUrl);
                 debug.push(`native:found:${barcodes[0].rawValue.substring(0, 20)}`);
-                resolve({ data: barcodes[0].rawValue, debug: debug.join(' | '), meta });
+                safeResolve({ data: barcodes[0].rawValue, debug: debug.join(' | '), meta });
                 return;
               }
               debug.push('native:none');
@@ -10170,36 +10188,7 @@ export default function AdminPage() {
             debug.push(`native-err:${nativeErr.message}`);
           }
 
-          // 2. ENGINE 2: Html5Qrcode scanFile (if loaded)
-          try {
-            if (typeof window !== 'undefined' && window.Html5Qrcode) {
-              const tempId = 'qr-temp-' + Math.random().toString(36).substring(2, 9);
-              const tempDiv = document.createElement('div');
-              tempDiv.id = tempId;
-              tempDiv.style.display = 'none';
-              document.body.appendChild(tempDiv);
-
-              const html5Qr = new window.Html5Qrcode(tempId, { verbose: false });
-              try {
-                const result = await html5Qr.scanFile(file, false);
-                try { await html5Qr.clear(); } catch (_) {}
-                tempDiv.remove();
-                if (result) {
-                  debug.push(`html5qr:found:${result.substring(0, 20)}`);
-                  resolve({ data: result, debug: debug.join(' | '), meta });
-                  return;
-                }
-              } catch (_) {
-                try { await html5Qr.clear(); } catch (_) {}
-                tempDiv.remove();
-                debug.push('html5qr:none');
-              }
-            }
-          } catch (h5Err) {
-            debug.push(`html5qr-err:${h5Err.message}`);
-          }
-
-          // 3. ENGINE 3: Multi-Scale jsQR with Contrast & Crop Filters
+          // 2. ENGINE 2: Multi-Scale jsQR
           try {
             let jsQR;
             try {
@@ -10207,26 +10196,30 @@ export default function AdminPage() {
               jsQR = jsQRModule.default;
               debug.push('dyn:ok');
             } catch (importError) {
-              debug.push('dyn:fail');
-              const script = document.createElement('script');
-              script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-              document.head.appendChild(script);
-              await new Promise((res, rej) => {
-                script.onload = () => res();
-                script.onerror = () => rej(new Error('CDN load failed'));
-              });
-              jsQR = window.jsQR;
-              debug.push('cdn:ok');
+              if (typeof window !== 'undefined' && window.jsQR) {
+                jsQR = window.jsQR;
+                debug.push('win:ok');
+              } else {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+                document.head.appendChild(script);
+                await new Promise((res, rej) => {
+                  script.onload = () => res();
+                  script.onerror = () => rej(new Error('CDN load failed'));
+                });
+                jsQR = window.jsQR;
+                debug.push('cdn:ok');
+              }
             }
 
             if (typeof jsQR === 'function') {
-              const targetSizes = [1600, 1000, 600];
+              const targetSizes = [1000, 600];
               const canvas = document.createElement('canvas');
               const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
               for (const targetSize of targetSizes) {
-                let w = img.naturalWidth || img.width;
-                let h = img.naturalHeight || img.height;
+                let w = origW;
+                let h = origH;
 
                 if (w > targetSize || h > targetSize) {
                   const ratio = Math.min(targetSize / w, targetSize / h);
@@ -10241,80 +10234,66 @@ export default function AdminPage() {
 
                 const imageData = ctx.getImageData(0, 0, w, h);
 
-                for (const inv of ['dontInvert', 'onlyInvert', 'attemptBoth']) {
+                for (const inv of ['dontInvert', 'attemptBoth']) {
                   const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: inv });
                   if (code && code.data) {
-                    debug.push(`jsQR:${targetSize}px:${inv}:found`);
-                    resolve({ data: code.data, debug: debug.join(' | '), meta });
-                    return;
-                  }
-                }
-
-                // High-contrast binarization filter at medium scale
-                if (targetSize === 1000) {
-                  const d = imageData.data;
-                  for (let i = 0; i < d.length; i += 4) {
-                    const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-                    const v = gray > 128 ? 255 : 0;
-                    d[i] = v;
-                    d[i + 1] = v;
-                    d[i + 2] = v;
-                  }
-                  const codeBinarized = jsQR(d, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
-                  if (codeBinarized && codeBinarized.data) {
-                    debug.push('jsQR:binarized:found');
-                    resolve({ data: codeBinarized.data, debug: debug.join(' | '), meta });
+                    clearTimeout(timer);
+                    URL.revokeObjectURL(objectUrl);
+                    debug.push(`jsQR:${targetSize}px:found`);
+                    safeResolve({ data: code.data, debug: debug.join(' | '), meta });
                     return;
                   }
                 }
               }
 
-              // Center Crop Analysis (if card is centered in photo)
-              const origW = img.naturalWidth || img.width;
-              const origH = img.naturalHeight || img.height;
-              if (origW > 400 && origH > 400) {
-                const cropW = Math.floor(origW * 0.7);
-                const cropH = Math.floor(origH * 0.7);
+              // Center Crop Analysis (focused on card area)
+              if (origW > 300 && origH > 300) {
+                const cropW = Math.floor(origW * 0.75);
+                const cropH = Math.floor(origH * 0.75);
                 const startX = Math.floor((origW - cropW) / 2);
                 const startY = Math.floor((origH - cropH) / 2);
 
-                canvas.width = cropW;
-                canvas.height = cropH;
-                ctx.clearRect(0, 0, cropW, cropH);
-                ctx.drawImage(img, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
+                canvas.width = Math.min(cropW, 800);
+                canvas.height = Math.min(cropH, 800);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, startX, startY, cropW, cropH, 0, 0, canvas.width, canvas.height);
 
-                const cropData = ctx.getImageData(0, 0, cropW, cropH);
+                const cropData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const codeCrop = jsQR(cropData.data, cropData.width, cropData.height, { inversionAttempts: 'attemptBoth' });
                 if (codeCrop && codeCrop.data) {
+                  clearTimeout(timer);
+                  URL.revokeObjectURL(objectUrl);
                   debug.push('jsQR:crop:found');
-                  resolve({ data: codeCrop.data, debug: debug.join(' | '), meta });
+                  safeResolve({ data: codeCrop.data, debug: debug.join(' | '), meta });
                   return;
                 }
               }
 
               debug.push('found:none');
-            } else {
-              debug.push(`jsQR:${typeof jsQR}`);
             }
           } catch (jsqrError) {
             debug.push(`jsQR-err:${jsqrError.message}`);
           }
 
-          resolve({ data: null, debug: debug.join(' | '), meta });
-        };
-
-        img.onerror = () => {
-          resolve({ data: null, debug: 'img:error', meta });
-        };
-
-        img.src = previewUrl;
+          clearTimeout(timer);
+          URL.revokeObjectURL(objectUrl);
+          safeResolve({ data: null, debug: debug.join(' | '), meta });
+        } catch (err) {
+          clearTimeout(timer);
+          URL.revokeObjectURL(objectUrl);
+          debug.push(`err:${err.message}`);
+          safeResolve({ data: null, debug: debug.join(' | '), meta });
+        }
       };
 
-      reader.onerror = () => {
-        resolve({ data: null, debug: 'filereader:error', meta });
+      img.onerror = () => {
+        clearTimeout(timer);
+        URL.revokeObjectURL(objectUrl);
+        debug.push('img:error');
+        safeResolve({ data: null, debug: debug.join(' | '), meta });
       };
 
-      reader.readAsDataURL(file);
+      img.src = objectUrl;
     });
   };
 
@@ -11113,15 +11092,22 @@ export default function AdminPage() {
                     const file = e.target.files?.[0];
                     if (!file) return;
 
+                    const previewUrl = URL.createObjectURL(file);
+                    setCapturedImagePreview(previewUrl);
+                    setCapturedImageMeta({
+                      name: file.name || 'captured_photo.jpg',
+                      sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
+                      width: 0,
+                      height: 0,
+                    });
                     setScanResult(null);
                     setScanLoading(true);
                     setCapturedScanStatus('analyzing');
 
                     try {
                       const { data: decodedText, debug, meta } = await detectQRSimple(file);
-                      if (meta?.previewUrl) {
-                        setCapturedImagePreview(meta.previewUrl);
-                        setCapturedImageMeta(meta);
+                      if (meta) {
+                        setCapturedImageMeta(m => ({ ...m, width: meta.width || m.width, height: meta.height || m.height }));
                       }
 
                       if (decodedText) {
@@ -11945,15 +11931,22 @@ export default function AdminPage() {
                   const file = e.target.files?.[0];
                   if (!file) return;
 
+                  const previewUrl = URL.createObjectURL(file);
+                  setDistCapturedImagePreview(previewUrl);
+                  setDistCapturedImageMeta({
+                    name: file.name || 'captured_photo.jpg',
+                    sizeFormatted: (file.size / 1024 / 1024) > 1 ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : `${Math.round(file.size / 1024)} KB`,
+                    width: 0,
+                    height: 0,
+                  });
                   setDistScanResult(null);
                   setDistScanLoading(true);
                   setDistCapturedScanStatus('analyzing');
 
                   try {
                     const { data: decodedText, debug, meta } = await detectQRSimple(file);
-                    if (meta?.previewUrl) {
-                      setDistCapturedImagePreview(meta.previewUrl);
-                      setDistCapturedImageMeta(meta);
+                    if (meta) {
+                      setDistCapturedImageMeta(m => ({ ...m, width: meta.width || m.width, height: meta.height || m.height }));
                     }
 
                     if (decodedText) {
