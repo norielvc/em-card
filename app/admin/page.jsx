@@ -10138,12 +10138,17 @@ export default function AdminPage() {
     }
   };
 
-  const detectQRSimple = async (file) => {
+  const detectQRSimple = async (file, existingObjectUrl = null) => {
     const debug = [];
-    let objectUrl = null;
-    try {
-      objectUrl = URL.createObjectURL(file);
-    } catch (_) {}
+    // Reuse the blob URL already created in onChange to avoid double allocation
+    let objectUrl = existingObjectUrl || null;
+    let ownObjectUrl = false; // track if WE created it (so we don't revoke a caller-owned URL)
+    if (!objectUrl) {
+      try {
+        objectUrl = URL.createObjectURL(file);
+        ownObjectUrl = true;
+      } catch (_) {}
+    }
 
     const meta = {
       name: file.name || 'captured_photo.jpg',
@@ -10167,6 +10172,13 @@ export default function AdminPage() {
         debug.push('safety_timeout');
         safeResolve({ data: null, debug: debug.join(' | '), meta });
       }, 3500);
+
+      const cleanup = () => {
+        // Only revoke if we were the ones who created the objectUrl
+        if (ownObjectUrl && objectUrl) {
+          try { URL.revokeObjectURL(objectUrl); } catch (_) {}
+        }
+      };
 
       if (!objectUrl) {
         clearTimeout(timer);
@@ -10316,6 +10328,7 @@ export default function AdminPage() {
         } finally {
           img.src = '';
           clearTimeout(timer);
+          cleanup();
           safeResolve({ data: qrData, debug: debug.join(' | '), meta });
         }
       };
@@ -10323,6 +10336,7 @@ export default function AdminPage() {
       img.onerror = () => {
         img.src = '';
         clearTimeout(timer);
+        cleanup();
         debug.push('img_err');
         safeResolve({ data: null, debug: debug.join(' | '), meta });
       };
@@ -11175,7 +11189,6 @@ export default function AdminPage() {
                   name="event_scanner_photo"
                   id="event-scanner-photo-input"
                   accept="image/*"
-                  capture="environment"
                   ref={fileInputRef}
                   style={{ display: 'none' }}
                   onChange={async (e) => {
@@ -11204,7 +11217,7 @@ export default function AdminPage() {
                     setCapturedScanStatus('analyzing');
 
                     try {
-                      const { data: decodedText, debug, meta } = await detectQRSimple(file);
+                      const { data: decodedText, debug, meta } = await detectQRSimple(file, immediatePhotoUrl);
                       const activePhoto = meta?.previewUrl || immediatePhotoUrl;
                       if (activePhoto) {
                         setCapturedImagePreview(activePhoto);
@@ -12074,7 +12087,6 @@ export default function AdminPage() {
                 name="dist_scanner_photo"
                 id="dist-scanner-photo-input"
                 accept="image/*"
-                capture="environment"
                 ref={distFileInputRef}
                 style={{ display: 'none' }}
                 onChange={async (e) => {
