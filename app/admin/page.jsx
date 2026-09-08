@@ -10937,23 +10937,59 @@ export default function AdminPage() {
                     <span>{scanResult.type === 'invalid' ? 'INVALID QR CARD' : 'SCAN ERROR'}</span>
                   </div>
 
-                  <div className="scan-result-body" style={{ textAlign: 'center', padding: '24px 20px' }}>
-                    <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#fee2e2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                      <X size={28} />
+                  <div className="scan-result-body" style={{ textAlign: 'center', padding: '20px 18px' }}>
+                    <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#fee2e2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                      <X size={26} />
                     </div>
-                    <p style={{ margin: '0 0 12px', color: '#1e293b', fontWeight: 600, fontSize: '0.95rem', lineHeight: 1.5 }}>
+                    <p style={{ margin: '0 0 10px', color: '#1e293b', fontWeight: 700, fontSize: '1rem', lineHeight: 1.4 }}>
                       {scanResult.message}
                     </p>
+
+                    {/* Display the Captured Photo directly inside the modal */}
+                    {(scanResult.capturedImage || capturedImagePreview) && (
+                      <div style={{ margin: '14px 0', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                          <Camera size={14} /> Captured Photo
+                        </div>
+                        <div 
+                          style={{ 
+                            position: 'relative', 
+                            maxWidth: 280, 
+                            margin: '0 auto', 
+                            borderRadius: 12, 
+                            overflow: 'hidden', 
+                            border: '2px solid #e2e8f0', 
+                            background: '#0f172a',
+                            cursor: 'pointer' 
+                          }}
+                          onClick={() => setInspectImageModal(scanResult.capturedImage || capturedImagePreview)}
+                          title="Tap to enlarge"
+                        >
+                          <img 
+                            src={scanResult.capturedImage || capturedImagePreview} 
+                            alt="Captured Photo" 
+                            style={{ width: '100%', maxHeight: 180, objectFit: 'contain', display: 'block' }} 
+                          />
+                          <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '0.72rem', padding: '3px 8px', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <ZoomIn size={11} /> Tap to zoom
+                          </div>
+                        </div>
+                        <small style={{ display: 'block', marginTop: 6, color: '#94a3b8', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                          💡 Check if the QR code is blurry, tilted, reflecting glare, or too far away.
+                        </small>
+                      </div>
+                    )}
+
                     {scanResult.rawText && (
                       <code style={{ fontSize: '0.75rem', background: '#f1f5f9', color: '#64748b', padding: '6px 10px', borderRadius: 6, display: 'block', wordBreak: 'break-all', marginTop: 8 }}>
-                        Raw: {scanResult.rawText}
+                        Diagnostics: {scanResult.rawText}
                       </code>
                     )}
                   </div>
 
                   <div className="scan-result-modal-footer">
                     <button className="btn btn-secondary scan-next-action-btn" onClick={resetScanState}>
-                      Try Again
+                      Try Again / Retake Photo
                     </button>
                   </div>
                 </>
@@ -11819,13 +11855,49 @@ export default function AdminPage() {
                     <X size={28} /> {distScanResult.type === 'invalid' ? 'INVALID QR CARD' : 'SCAN ERROR'}
                   </div>
                   <p className="scan-error-message">{distScanResult.message}</p>
+
+                  {/* Display the Captured Photo directly inside the modal */}
+                  {(distScanResult.capturedImage || distCapturedImagePreview) && (
+                    <div style={{ margin: '14px 0', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                        <Camera size={14} /> Captured Photo
+                      </div>
+                      <div 
+                        style={{ 
+                          position: 'relative', 
+                          maxWidth: 280, 
+                          margin: '0 auto', 
+                          borderRadius: 12, 
+                          overflow: 'hidden', 
+                          border: '2px solid #e2e8f0', 
+                          background: '#0f172a',
+                          cursor: 'pointer' 
+                        }}
+                        onClick={() => setInspectImageModal(distScanResult.capturedImage || distCapturedImagePreview)}
+                        title="Tap to enlarge"
+                      >
+                        <img 
+                          src={distScanResult.capturedImage || distCapturedImagePreview} 
+                          alt="Captured Photo" 
+                          style={{ width: '100%', maxHeight: 180, objectFit: 'contain', display: 'block' }} 
+                        />
+                        <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '0.72rem', padding: '3px 8px', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <ZoomIn size={11} /> Tap to zoom
+                        </div>
+                      </div>
+                      <small style={{ display: 'block', marginTop: 6, color: '#94a3b8', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                        💡 Check if the QR code is blurry, tilted, reflecting glare, or too far away.
+                      </small>
+                    </div>
+                  )}
+
                   {distScanResult.rawText && (
                     <code style={{ fontSize: '0.75rem', background: '#f3f4f6', padding: '4px 8px', borderRadius: 4, marginTop: 8, display: 'block', wordBreak: 'break-all' }}>
-                      Decoded: {distScanResult.rawText}
+                      Diagnostics: {distScanResult.rawText}
                     </code>
                   )}
                   <div style={{ textAlign: 'center', marginTop: 16 }}>
-                    <button className="btn btn-secondary" onClick={resetDistScanState}>Try Again</button>
+                    <button className="btn btn-secondary" onClick={resetDistScanState}>Try Again / Retake Photo</button>
                   </div>
                 </>
               )}
