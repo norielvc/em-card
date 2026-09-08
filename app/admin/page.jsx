@@ -11029,16 +11029,9 @@ export default function AdminPage() {
                       {distScanResult.scannedBy && <p>Operator: <strong>{distScanResult.scannedBy}</strong></p>}
                       <p className="duplicate-stop"><Ban size={14} /> Strict Policy Notice: This resident already claimed this assistance.</p>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 10 }}>
-                      <button className="btn btn-secondary" onClick={resetDistScanState}>
-                        Cancel &amp; Scan Next
-                      </button>
-                      <button
-                        className="btn btn-primary"
-                        style={{ background: '#059669', borderColor: '#059669', color: '#ffffff', fontWeight: 700 }}
-                        onClick={() => handleDistributionScan(distScanResult.qrToken, true)}
-                      >
-                        <Check size={15} /> Distribute Anyway (Multi-Claim)
+                    <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'center', marginTop: 10 }}>
+                      <button className="btn btn-secondary" style={{ width: '100%' }} onClick={resetDistScanState}>
+                        Scan Next Citizen
                       </button>
                     </div>
                   </div>
