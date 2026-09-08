@@ -10,9 +10,8 @@ import {
   GlobalHistogramBinarizer,
 } from "@zxing/library";
 
-// Server-side Dual-Engine QR Decoder (ZXing MultiFormat + jsQR + Sharp)
-// Runs on Node.js server with unlimited memory. 
-// Generates lightweight 25KB thumbnail so iOS Safari never crashes from raw 48MP textures.
+// Server-side High-Performance QR Decoder (ZXing MultiFormat + jsQR + Sharp)
+// Standardizes image in 1 step, then runs dual engines across multi-scale passes in memory.
 
 function decodeWithZXing(rgbaBuffer, width, height) {
   try {
@@ -30,22 +29,18 @@ function decodeWithZXing(rgbaBuffer, width, height) {
 
     const luminanceSource = new RGBLuminanceSource(luminances, width, height);
 
-    // 1. Hybrid Binarizer (handles shadows and uneven lighting)
+    // 1. Hybrid Binarizer (best for shadows, card glare, uneven lighting)
     try {
       const bitmapHybrid = new BinaryBitmap(new HybridBinarizer(luminanceSource));
       const res = reader.decode(bitmapHybrid);
-      if (res && res.getText()) {
-        return res.getText().trim();
-      }
+      if (res && res.getText()) return res.getText().trim();
     } catch (_) {}
 
-    // 2. Global Histogram Binarizer (handles low contrast / faded QR codes)
+    // 2. Global Histogram Binarizer (best for low-contrast / faded QR codes)
     try {
       const bitmapGlobal = new BinaryBitmap(new GlobalHistogramBinarizer(luminanceSource));
       const res = reader.decode(bitmapGlobal);
-      if (res && res.getText()) {
-        return res.getText().trim();
-      }
+      if (res && res.getText()) return res.getText().trim();
     } catch (_) {}
   } catch (_) {}
 
@@ -56,29 +51,23 @@ function decodeWithJsQR(rgbaBuffer, width, height) {
   try {
     for (const inv of ["dontInvert", "attemptBoth"]) {
       const res = jsQR(rgbaBuffer, width, height, { inversionAttempts: inv });
-      if (res && res.data) {
-        return res.data.trim();
-      }
+      if (res && res.data) return res.data.trim();
     }
   } catch (_) {}
   return null;
 }
 
-function dualEngineDecode(rgbaBuffer, width, height, label, debugList) {
-  // Try ZXing first (best at angle and tilted cards)
-  const zxResult = decodeWithZXing(rgbaBuffer, width, height);
-  if (zxResult) {
+function dualDecode(rgbaBuffer, width, height, label, debugList) {
+  const zx = decodeWithZXing(rgbaBuffer, width, height);
+  if (zx) {
     debugList.push(`${label}:zxing`);
-    return zxResult;
+    return zx;
   }
-
-  // Try jsQR second (fast and resilient on direct alignment)
-  const jsResult = decodeWithJsQR(rgbaBuffer, width, height);
-  if (jsResult) {
+  const js = decodeWithJsQR(rgbaBuffer, width, height);
+  if (js) {
     debugList.push(`${label}:jsqr`);
-    return jsResult;
+    return js;
   }
-
   return null;
 }
 
@@ -88,125 +77,95 @@ export async function POST(request) {
     const formData = await request.formData();
     const file = formData.get("photo");
     if (!file || typeof file === "string") {
-      return NextResponse.json({ qrText: null, thumbnail: null, debug: "no_file" }, { status: 400 });
+      return NextResponse.json({ qrText: null, debug: "no_file" }, { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const inputBuffer = Buffer.from(arrayBuffer);
-    debug.push(`recv:${Math.round(inputBuffer.length / 1024)}KB`);
+    debug.push(`size:${Math.round(inputBuffer.length / 1024)}KB`);
 
     const sharp = (await import("sharp")).default;
 
-    // 1. Generate ultra-lightweight thumbnail (~20-25 KB) for safe client UI preview
-    let thumbnail = "";
-    try {
-      const thumbBuf = await sharp(inputBuffer)
-        .rotate()
-        .resize(450, 450, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 75 })
-        .toBuffer();
-      thumbnail = `data:image/jpeg;base64,${thumbBuf.toString("base64")}`;
-    } catch (_) {}
-
-    let qrText = null;
-
-    // ── PASS 1: Standard Frame (1200px max) ──
-    const pass1 = await sharp(inputBuffer)
+    // Single step: Auto-rotate EXIF orientation and resize to 1200px max in RGBA
+    const { data: rawData, info } = await sharp(inputBuffer)
       .rotate()
       .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
 
-    const p1Rgba = new Uint8ClampedArray(pass1.data.buffer, pass1.data.byteOffset, pass1.data.byteLength);
-    const { width: w1, height: h1 } = pass1.info;
-    debug.push(`dims:${w1}x${h1}`);
+    const width = info.width;
+    const height = info.height;
+    debug.push(`res:${width}x${height}`);
 
-    qrText = dualEngineDecode(p1Rgba, w1, h1, "full_1200", debug);
+    const rgba = new Uint8ClampedArray(rawData.buffer, rawData.byteOffset, rawData.byteLength);
 
-    // ── PASS 2: High-Resolution Frame (1800px max) for small QR in distance shots ──
-    if (!qrText && (w1 >= 1000 || h1 >= 1000)) {
-      try {
-        const pass2 = await sharp(inputBuffer)
-          .rotate()
-          .resize(1800, 1800, { fit: "inside", withoutEnlargement: true })
-          .ensureAlpha()
-          .raw()
-          .toBuffer({ resolveWithObject: true });
+    // Pass 1: Full Frame
+    let qrText = dualDecode(rgba, width, height, "full", debug);
 
-        const p2Rgba = new Uint8ClampedArray(pass2.data.buffer, pass2.data.byteOffset, pass2.data.byteLength);
-        qrText = dualEngineDecode(p2Rgba, pass2.info.width, pass2.info.height, "high_1800", debug);
-      } catch (_) {}
-    }
+    // Pass 2: Center Crop 70% (in-memory pixel extraction - instant)
+    if (!qrText && width > 100 && height > 100) {
+      const cw = Math.round(width * 0.70);
+      const ch = Math.round(height * 0.70);
+      const ox = Math.round((width - cw) / 2);
+      const oy = Math.round((height - ch) / 2);
 
-    // ── PASS 3: Center Crop 70% (Focus on card center) ──
-    if (!qrText) {
-      const cw = Math.round(w1 * 0.70);
-      const ch = Math.round(h1 * 0.70);
-      const ox = Math.round((w1 - cw) / 2);
-      const oy = Math.round((h1 - ch) / 2);
+      const crop70 = new Uint8ClampedArray(cw * ch * 4);
+      for (let row = 0; row < ch; row++) {
+        const srcOffset = ((oy + row) * width + ox) * 4;
+        const dstOffset = row * cw * 4;
+        crop70.set(rgba.subarray(srcOffset, srcOffset + cw * 4), dstOffset);
+      }
 
-      const pass3 = await sharp(inputBuffer)
-        .rotate()
-        .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
-        .extract({ left: ox, top: oy, width: cw, height: ch })
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true });
+      qrText = dualDecode(crop70, cw, ch, "crop70", debug);
 
-      const p3Rgba = new Uint8ClampedArray(pass3.data.buffer, pass3.data.byteOffset, pass3.data.byteLength);
-      qrText = dualEngineDecode(p3Rgba, pass3.info.width, pass3.info.height, "crop70", debug);
-
-      // ── PASS 4: Contrast Stretch on 70% Crop (Removes glare/shadows) ──
+      // Pass 3: Contrast stretch on 70% crop
       if (!qrText) {
         try {
-          const len = p3Rgba.length;
+          const len = crop70.length;
           let min = 255, max = 0;
           for (let i = 0; i < len; i += 4) {
-            const lum = (p3Rgba[i] * 299 + p3Rgba[i + 1] * 587 + p3Rgba[i + 2] * 114) / 1000;
+            const lum = (crop70[i] * 299 + crop70[i + 1] * 587 + crop70[i + 2] * 114) / 1000;
             if (lum < min) min = lum;
             if (lum > max) max = lum;
           }
           const range = max - min;
-          if (range >= 25) {
+          if (range >= 20) {
             const stretched = new Uint8ClampedArray(len);
             for (let i = 0; i < len; i += 4) {
-              const lum = (p3Rgba[i] * 299 + p3Rgba[i + 1] * 587 + p3Rgba[i + 2] * 114) / 1000;
+              const lum = (crop70[i] * 299 + crop70[i + 1] * 587 + crop70[i + 2] * 114) / 1000;
               const s = Math.round(((lum - min) * 255) / range);
               stretched[i] = s;
               stretched[i + 1] = s;
               stretched[i + 2] = s;
               stretched[i + 3] = 255;
             }
-            qrText = dualEngineDecode(stretched, pass3.info.width, pass3.info.height, "contrast70", debug);
+            qrText = dualDecode(stretched, cw, ch, "contrast70", debug);
           }
         } catch (_) {}
       }
     }
 
-    // ── PASS 5: Center Crop 50% (Close-up) ──
-    if (!qrText) {
-      const cw2 = Math.round(w1 * 0.50);
-      const ch2 = Math.round(h1 * 0.50);
-      const ox2 = Math.round((w1 - cw2) / 2);
-      const oy2 = Math.round((h1 - ch2) / 2);
+    // Pass 4: Center Crop 50% (Close-up)
+    if (!qrText && width > 100 && height > 100) {
+      const cw2 = Math.round(width * 0.50);
+      const ch2 = Math.round(height * 0.50);
+      const ox2 = Math.round((width - cw2) / 2);
+      const oy2 = Math.round((height - ch2) / 2);
 
-      const pass5 = await sharp(inputBuffer)
-        .rotate()
-        .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
-        .extract({ left: ox2, top: oy2, width: cw2, height: ch2 })
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true });
+      const crop50 = new Uint8ClampedArray(cw2 * ch2 * 4);
+      for (let row = 0; row < ch2; row++) {
+        const srcOffset = ((oy2 + row) * width + ox2) * 4;
+        const dstOffset = row * cw2 * 4;
+        crop50.set(rgba.subarray(srcOffset, srcOffset + cw2 * 4), dstOffset);
+      }
 
-      const p5Rgba = new Uint8ClampedArray(pass5.data.buffer, pass5.data.byteOffset, pass5.data.byteLength);
-      qrText = dualEngineDecode(p5Rgba, pass5.info.width, pass5.info.height, "crop50", debug);
+      qrText = dualDecode(crop50, cw2, ch2, "crop50", debug);
     }
 
     debug.push(qrText ? "decoded" : "no_qr");
     return NextResponse.json({
       qrText: qrText || null,
-      thumbnail: thumbnail || null,
       debug: debug.join(" | "),
     });
 
@@ -214,7 +173,6 @@ export async function POST(request) {
     debug.push(`err:${err.message}`);
     return NextResponse.json({
       qrText: null,
-      thumbnail: null,
       debug: debug.join(" | "),
     }, { status: 500 });
   }
