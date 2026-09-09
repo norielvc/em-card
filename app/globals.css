@@ -28289,3 +28289,206 @@ html, body {
   }
 }
 
+/* ==========================================================
+   COMMUNITY ORGANIZATIONS & AID TRACKING STYLES
+   ========================================================== */
+.org-desktop-view {
+  display: block;
+}
+.org-mobile-view {
+  display: none;
+}
+
+.org-member-table-row {
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.org-member-table-row:hover {
+  background: #f0fdf4 !important;
+}
+
+.member-detail-overlay {
+  z-index: 100050 !important;
+}
+
+.org-aid-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.80rem;
+  font-weight: 700;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.org-aid-pill.zero {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #e2e8f0;
+  font-weight: 600;
+}
+
+.org-modal-summary-banner {
+  background: linear-gradient(135deg, #062b1e 0%, #041f15 100%);
+  border-radius: 12px;
+  padding: 16px;
+  color: #ffffff;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(6, 43, 30, 0.2);
+}
+
+.org-modal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.org-modal-stat-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.org-modal-stat-label {
+  font-size: 0.70rem;
+  color: #a7f3d0;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.org-modal-stat-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.org-modal-cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.org-modal-cat-chip {
+  font-size: 0.70rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@media (max-width: 768px) {
+  .org-desktop-view {
+    display: none !important;
+  }
+  .org-mobile-view {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .org-modal-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .org-mobile-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+  }
+
+  .org-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .org-card-icon-wrap {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #059669;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .org-card-title-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .org-card-name {
+    font-size: 0.96rem;
+    font-weight: 800;
+    color: #0f172a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .org-card-meta-sub {
+    font-size: 0.70rem;
+    color: #64748b;
+  }
+
+  .org-card-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 10px;
+  }
+
+  .org-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 10px;
+  }
+
+  .org-card-actions .btn {
+    flex: 1;
+    justify-content: center;
+    height: 36px;
+    font-size: 0.80rem;
+  }
+
+  .org-btn-icon {
+    flex: 0 0 36px !important;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+

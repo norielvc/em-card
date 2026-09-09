@@ -842,6 +842,7 @@ export default function AdminPage() {
   // Organizations Management
   const [organizations, setOrganizations] = useState([]);
   const [organizationsLoading, setOrganizationsLoading] = useState(false);
+  const [allOrgAidRecords, setAllOrgAidRecords] = useState([]);
   const [showOrgDetailsModal, setShowOrgDetailsModal] = useState(null);
   const [showAddOrgMemberModal, setShowAddOrgMemberModal] = useState(null);
   const [orgMemberSearch, setOrgMemberSearch] = useState('');
@@ -2289,8 +2290,12 @@ export default function AdminPage() {
   const fetchOrganizations = async () => {
     setOrganizationsLoading(true);
     try {
-      const { data } = await supabase.from('organizations').select('*').order('name');
-      setOrganizations(data || []);
+      const [orgsRes, aidRes] = await Promise.all([
+        supabase.from('organizations').select('*').order('name'),
+        supabase.from('aid_distributions').select('id, registration_id, category, category_name, distributed_at, amount, notes, barangay').order('distributed_at', { ascending: false })
+      ]);
+      setOrganizations(orgsRes.data || []);
+      setAllOrgAidRecords(aidRes.data || []);
     } catch (err) {
       // silent
     } finally {
@@ -10309,6 +10314,11 @@ export default function AdminPage() {
   };
 
   const renderOrganizations = () => {
+    // Total enrolled members across all organizations
+    const totalAllOrgMembers = allRegs.filter(r => Boolean(r.organization)).length;
+    const allOrgMemberIds = new Set(allRegs.filter(r => Boolean(r.organization)).map(r => r.id));
+    const totalAllOrgAid = allOrgAidRecords.filter(a => allOrgMemberIds.has(a.registration_id)).length;
+
     return (
       <div className="admin-panel org-panel">
         <div className="panel-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
@@ -10325,6 +10335,34 @@ export default function AdminPage() {
             <button className="btn btn-sm btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => setShowCreateOrgModal(true)}>
               <Plus size={15} /> Create Organization
             </button>
+          </div>
+        </div>
+
+        {/* ─── Top KPI Metric Cards for Organizations ─── */}
+        <div className="kpi-grid" style={{ marginTop: 16 }}>
+          <div className="kpi-card">
+            <div className="kpi-icon" style={{ background: '#ecfdf5', color: '#059669' }}><Building size={20} strokeWidth={1.8} /></div>
+            <div className="kpi-body">
+              <span className="kpi-label">Organizations</span>
+              <span className="kpi-value">{organizations.length}</span>
+              <span className="kpi-change up">Accredited partners</span>
+            </div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-icon" style={{ background: '#eff6ff', color: '#2563eb' }}><Users size={20} strokeWidth={1.8} /></div>
+            <div className="kpi-body">
+              <span className="kpi-label">Enrolled Members</span>
+              <span className="kpi-value">{totalAllOrgMembers.toLocaleString()}</span>
+              <span className="kpi-change up">Across all organizations</span>
+            </div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-icon" style={{ background: '#fef3c7', color: '#d97706' }}><Gift size={20} strokeWidth={1.8} /></div>
+            <div className="kpi-body">
+              <span className="kpi-label">Total Aid Received</span>
+              <span className="kpi-value">{totalAllOrgAid.toLocaleString()}</span>
+              <span className="kpi-change up">Claims received by members</span>
+            </div>
           </div>
         </div>
 
@@ -10350,14 +10388,21 @@ export default function AdminPage() {
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th style={{ width: '45%' }}>Organization Name</th>
-                        <th style={{ width: '20%', textAlign: 'center' }}>Members</th>
-                        <th style={{ width: '35%', textAlign: 'right' }}>Actions</th>
+                        <th style={{ width: '32%' }}>Organization Name</th>
+                        <th style={{ width: '18%', textAlign: 'center' }}>Members</th>
+                        <th style={{ width: '25%', textAlign: 'center' }}>Aid Received</th>
+                        <th style={{ width: '25%', textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {organizations.map(org => {
-                        const memberCount = allRegs.filter(r => r.organization === org.name).length;
+                        const orgMembers = allRegs.filter(r => r.organization === org.name && r.status === 'Approved');
+                        const memberCount = orgMembers.length;
+                        const orgMemberIds = new Set(orgMembers.map(r => r.id));
+                        const orgAidRecords = allOrgAidRecords.filter(a => orgMemberIds.has(a.registration_id));
+                        const totalAidClaims = orgAidRecords.length;
+                        const uniqueBeneficiaries = new Set(orgAidRecords.map(a => a.registration_id)).size;
+
                         return (
                           <tr 
                             key={org.id}
@@ -10368,16 +10413,33 @@ export default function AdminPage() {
                           >
                             <td>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                  <Building size={16} />
+                                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <Building size={18} />
                                 </div>
-                                <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>{org.name}</strong>
+                                <div>
+                                  <strong style={{ color: '#0f172a', fontSize: '0.92rem', display: 'block' }}>{org.name}</strong>
+                                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Accredited Partner</span>
+                                </div>
                               </div>
                             </td>
                             <td style={{ textAlign: 'center' }}>
                               <span className="status-badge status-approved" style={{ fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                <Users size={12} /> {memberCount} member{memberCount !== 1 ? 's' : ''}
+                                <Users size={12} /> {memberCount} approved member{memberCount !== 1 ? 's' : ''}
                               </span>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {totalAidClaims > 0 ? (
+                                <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                  <span className="org-aid-pill">
+                                    <Gift size={13} style={{ color: '#059669' }} /> {totalAidClaims} Claim{totalAidClaims !== 1 ? 's' : ''} Received
+                                  </span>
+                                  <span style={{ fontSize: '0.70rem', color: '#64748b' }}>{uniqueBeneficiaries} recipient{uniqueBeneficiaries !== 1 ? 's' : ''}</span>
+                                </div>
+                              ) : (
+                                <span className="org-aid-pill zero">
+                                  <Gift size={13} style={{ color: '#94a3b8' }} /> 0 Claims Received
+                                </span>
+                              )}
                             </td>
                             <td style={{ textAlign: 'right' }}>
                               <button className="btn btn-sm btn-primary" style={{ marginRight: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={(e) => {
@@ -10406,7 +10468,12 @@ export default function AdminPage() {
               {/* ─── 2. MOBILE CARDS VIEW (Screen <= 768px) ─── */}
               <div className="org-mobile-view">
                 {organizations.map(org => {
-                  const memberCount = allRegs.filter(r => r.organization === org.name).length;
+                  const orgMembers = allRegs.filter(r => r.organization === org.name && r.status === 'Approved');
+                  const memberCount = orgMembers.length;
+                  const orgMemberIds = new Set(orgMembers.map(r => r.id));
+                  const orgAidRecords = allOrgAidRecords.filter(a => orgMemberIds.has(a.registration_id));
+                  const totalAidClaims = orgAidRecords.length;
+
                   return (
                     <div
                       key={org.id}
@@ -10421,9 +10488,21 @@ export default function AdminPage() {
                           <strong className="org-card-name">{org.name}</strong>
                           <span className="org-card-meta-sub">Accredited Partner Organization</span>
                         </div>
-                        <span className="status-badge status-approved" style={{ fontSize: '0.70rem', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
-                          <Users size={11} /> {memberCount}
-                        </span>
+                      </div>
+
+                      <div className="org-card-stats-grid">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Members</span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Users size={13} style={{ color: '#059669' }} /> {memberCount} member{memberCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Aid Received</span>
+                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: totalAidClaims > 0 ? '#059669' : '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Gift size={13} style={{ color: totalAidClaims > 0 ? '#059669' : '#94a3b8' }} /> {totalAidClaims} Claim{totalAidClaims !== 1 ? 's' : ''}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="org-card-actions" onClick={e => e.stopPropagation()}>
@@ -10432,7 +10511,7 @@ export default function AdminPage() {
                           className="btn btn-sm btn-outline-primary org-btn-view"
                           onClick={() => setShowOrgDetailsModal(org.name)}
                         >
-                          <Users size={13} /> View ({memberCount})
+                          <Users size={13} /> View Members & Aid
                         </button>
                         <button
                           type="button"
@@ -10442,7 +10521,7 @@ export default function AdminPage() {
                             setOrgMemberSearch('');
                           }}
                         >
-                          <UserPlus size={13} /> Add Member
+                          <UserPlus size={13} /> Add
                         </button>
                         <button
                           type="button"
@@ -13902,7 +13981,7 @@ export default function AdminPage() {
         const hasCardNo = !!selectedMember.em_card_no;
         const sectorOptions = ['Senior Citizens','PWD','Solo Parent','Youth','Women','Farmers','Fisherfolk','Workers / Labor','Religious','Transport','Indigenous People','Education','Business / Entrepreneurs','Health','Other'];
         return (
-          <div className="modal-overlay" onClick={() => { setSelectedMember(null); setMemberEditMode(false); }}>
+          <div className="modal-overlay member-detail-overlay" style={{ zIndex: 100050 }} onClick={() => { setSelectedMember(null); setMemberEditMode(false); }}>
             <div className={`modal-card member-detail-card${showMemberNetwork ? ' network-open' : ''}`} onClick={(e) => e.stopPropagation()}>
               <div className="modal-header gov-modal-header">
                 <div className="gov-modal-header-brand">
@@ -14918,7 +14997,7 @@ export default function AdminPage() {
       })()}
 
       {/* ADD MEMBER TO ORG MODAL */}
-      {showAddOrgMemberModal && typeof document !== 'undefined' && createPortal(
+      {showAddOrgMemberModal && !selectedMember && typeof document !== 'undefined' && createPortal(
         <div className="modal-overlay" onClick={() => { setShowAddOrgMemberModal(null); setOrgMemberSearch(''); }}>
           <div className="modal-card" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
@@ -14927,43 +15006,51 @@ export default function AdminPage() {
             </div>
             <div className="modal-form" style={{ padding: '20px 24px', flex: 1, overflowY: 'auto' }}>
               <div className="form-group" style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: 8, display: 'block' }}>Search Existing Member</label>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', marginBottom: 8, display: 'block' }}>Search Approved Members <span style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 500 }}>(Only approved EM Card members can be added)</span></label>
                 <div className="search-bar" style={{ marginBottom: 12 }}>
                   <Search size={18} />
-                  <input type="text" placeholder="Search by name..." value={orgMemberSearch} onChange={e => setOrgMemberSearch(e.target.value)} autoFocus style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none' }} />
+                  <input type="text" placeholder="Search approved member by name..." value={orgMemberSearch} onChange={e => setOrgMemberSearch(e.target.value)} autoFocus style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none' }} />
                 </div>
               </div>
               <div className="org-member-search-results" style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
                 {orgMemberSearch.length < 2 ? (
-                  <p style={{ color: '#64748b', fontSize: '0.9rem', textAlign: 'center', padding: '30px 0', margin: 0 }}>Type at least 2 characters to search...</p>
+                  <p style={{ color: '#64748b', fontSize: '0.9rem', textAlign: 'center', padding: '30px 0', margin: 0 }}>Type at least 2 characters to search approved members...</p>
                 ) : (
                   (() => {
                     const q = orgMemberSearch.toLowerCase();
                     const results = allRegs.filter(r => 
+                      r.status === 'Approved' &&
                       ((r.first_name || '') + ' ' + (r.last_name || '')).toLowerCase().includes(q) &&
                       r.organization !== showAddOrgMemberModal
                     ).slice(0, 20);
                     
-                    if (results.length === 0) return <p style={{ color: '#64748b', fontSize: '0.9rem', textAlign: 'center', padding: '30px 0', margin: 0 }}>No available members found.</p>;
+                    if (results.length === 0) return <p style={{ color: '#64748b', fontSize: '0.9rem', textAlign: 'center', padding: '30px 0', margin: 0 }}>No approved members found.</p>;
                     
                     return results.map(reg => (
                       <div key={reg.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
                         <div>
-                          <strong style={{ display: 'block', color: '#1e293b', fontSize: '0.95rem' }}>{`${reg.last_name || ''}, ${reg.first_name || ''}`}</strong>
-                          <span style={{ color: '#64748b', fontSize: '0.8rem' }}>{reg.barangay || 'No Barangay'} {reg.organization ? `(Currently: ${reg.organization})` : ''}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <strong style={{ color: '#1e293b', fontSize: '0.92rem' }}>{`${reg.last_name || ''}, ${reg.first_name || ''}`}</strong>
+                            <span className="status-badge status-approved" style={{ fontSize: '0.68rem', padding: '2px 6px' }}>✓ Approved</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                            {reg.em_card_no && <span style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: '#059669', fontWeight: 600 }}>{reg.em_card_no}</span>}
+                            <span style={{ color: '#64748b', fontSize: '0.78rem' }}>{reg.barangay || 'No Barangay'} {reg.organization ? `(Currently: ${reg.organization})` : ''}</span>
+                          </div>
                         </div>
                         <button className="btn btn-sm btn-primary" onClick={async () => {
                           try {
                             const { error } = await supabase.from('registrations').update({ organization: showAddOrgMemberModal }).eq('id', reg.id);
                             if (error) throw error;
-                            showToast('Member assigned to organization', 'success');
+                            showToast('Approved member assigned to organization', 'success');
                             fetchAllRegistrations(); // refresh
+                            fetchOrganizations();
                             setOrgMemberSearch('');
                             setShowAddOrgMemberModal(null);
                           } catch (err) {
                             showToast('Failed to assign member', 'error');
                           }
-                        }}>Add</button>
+                        }}>+ Add to Org</button>
                       </div>
                     ));
                   })()
@@ -14978,53 +15065,155 @@ export default function AdminPage() {
       )}
 
       {/* ORG DETAILS MODAL */}
-      {showOrgDetailsModal && typeof document !== 'undefined' && createPortal(
+      {showOrgDetailsModal && !selectedMember && typeof document !== 'undefined' && createPortal(
         <div className="modal-overlay" onClick={() => setShowOrgDetailsModal(null)}>
-          <div className="modal-card modal-lg" onClick={e => e.stopPropagation()}>
+          <div className="modal-card modal-lg" onClick={e => e.stopPropagation()} style={{ maxWidth: 820 }}>
             <div className="modal-header">
-              <h3 style={{ margin: 0 }}>{showOrgDetailsModal} Members</h3>
+              <div>
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Building size={20} style={{ color: '#059669' }} /> {showOrgDetailsModal}
+                </h3>
+                <p style={{ margin: '3px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                  Enrolled organization members and aid distribution tracking
+                </p>
+              </div>
               <button className="modal-close-x" onClick={() => setShowOrgDetailsModal(null)}><X size={20} /></button>
             </div>
-            <div className="modal-form" style={{ padding: '0', flex: 1, overflowY: 'auto', maxHeight: '60vh' }}>
+            <div className="modal-form" style={{ padding: '16px 20px', flex: 1, overflowY: 'auto', maxHeight: '68vh' }}>
               {(() => {
-                const orgMembers = allRegs.filter(r => r.organization === showOrgDetailsModal);
-                if (orgMembers.length === 0) {
-                  return <div className="table-empty" style={{ margin: 20 }}>No members in this organization yet.</div>;
-                }
+                const orgMembers = allRegs.filter(r => r.organization === showOrgDetailsModal && r.status === 'Approved');
+                const orgMemberIds = new Set(orgMembers.map(r => r.id));
+                const orgAidRecords = allOrgAidRecords.filter(a => orgMemberIds.has(a.registration_id));
+                const totalOrgAid = orgAidRecords.length;
+                const uniqueBeneficiaries = new Set(orgAidRecords.map(a => a.registration_id)).size;
+
+                // Category breakdown map
+                const catCounts = {};
+                orgAidRecords.forEach(a => {
+                  const catName = a.category_name || a.category || 'General Aid';
+                  catCounts[catName] = (catCounts[catName] || 0) + 1;
+                });
+
                 return (
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Barangay</th>
-                        <th>Status</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orgMembers.map(reg => (
-                        <tr key={reg.id}>
-                          <td><strong>{`${reg.last_name || ''}, ${reg.first_name || ''}`}</strong></td>
-                          <td>{reg.barangay}</td>
-                          <td>
-                            <span className={`status-badge status-${reg.status.toLowerCase()}`}>{reg.status}</span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <button className="btn btn-sm btn-danger" onClick={async () => {
-                              try {
-                                const { error } = await supabase.from('registrations').update({ organization: null }).eq('id', reg.id);
-                                if (error) throw error;
-                                showToast('Member removed from organization', 'success');
-                                fetchAllRegistrations();
-                              } catch(err) {
-                                showToast('Failed to remove member', 'error');
-                              }
-                            }}>Remove</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <>
+                    {/* Organization Aid & Membership Summary Banner */}
+                    <div className="org-modal-summary-banner">
+                      <div className="org-modal-summary-grid">
+                        <div className="org-modal-stat-card">
+                          <span className="org-modal-stat-label">Total Members</span>
+                          <span className="org-modal-stat-val">{orgMembers.length}</span>
+                        </div>
+                        <div className="org-modal-stat-card">
+                          <span className="org-modal-stat-label">Total Aid Received</span>
+                          <span className="org-modal-stat-val" style={{ color: '#34d399' }}>{totalOrgAid}</span>
+                        </div>
+                        <div className="org-modal-stat-card">
+                          <span className="org-modal-stat-label">Members Benefited</span>
+                          <span className="org-modal-stat-val">{uniqueBeneficiaries}</span>
+                        </div>
+                      </div>
+
+                      {Object.keys(catCounts).length > 0 && (
+                        <div className="org-modal-cat-chips">
+                          {Object.entries(catCounts).map(([cat, count]) => (
+                            <span key={cat} className="org-modal-cat-chip">
+                              <Gift size={11} style={{ color: '#34d399' }} /> {cat}: <strong>{count}</strong>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {orgMembers.length === 0 ? (
+                      <div className="table-empty" style={{ margin: 20 }}>No members enrolled in this organization yet.</div>
+                    ) : (
+                      <div className="table-wrap">
+                        <table className="admin-table">
+                          <thead>
+                            <tr>
+                              <th>Member Name & Card</th>
+                              <th>Barangay</th>
+                              <th style={{ textAlign: 'center' }}>Aid Received</th>
+                              <th style={{ textAlign: 'center' }}>Status</th>
+                              <th style={{ textAlign: 'right' }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {orgMembers.map(reg => {
+                              const memberAidList = orgAidRecords.filter(a => a.registration_id === reg.id);
+                              const memberAidCount = memberAidList.length;
+
+                              // Unique category breakdown for this member
+                              const mCatMap = {};
+                              memberAidList.forEach(a => {
+                                const cName = a.category_name || a.category || 'Aid';
+                                mCatMap[cName] = (mCatMap[cName] || 0) + 1;
+                              });
+
+                              return (
+                                <tr 
+                                  key={reg.id}
+                                  className="org-member-table-row"
+                                  style={{ cursor: 'pointer' }}
+                                  onClick={() => setSelectedMember(reg)}
+                                  title="Click to view full citizen details, photo, and aid distribution history"
+                                >
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 700, fontSize: '0.78rem' }}>
+                                        {reg.first_name ? reg.first_name[0] : 'M'}
+                                      </div>
+                                      <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                          <strong style={{ color: '#0f172a', fontSize: '0.88rem' }}>{`${reg.last_name || ''}, ${reg.first_name || ''}${reg.middle_name ? ' ' + reg.middle_name : ''}`}</strong>
+                                          <Eye size={13} style={{ color: '#059669', opacity: 0.8 }} />
+                                        </div>
+                                        {reg.em_card_no && (
+                                          <div style={{ fontSize: '0.72rem', color: '#059669', fontFamily: 'monospace', fontWeight: 600 }}>{reg.em_card_no}</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td><span style={{ fontSize: '0.82rem', color: '#334155' }}>{reg.barangay || '—'}</span></td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    {memberAidCount > 0 ? (
+                                      <div>
+                                        <span className="status-badge" style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', fontSize: '0.74rem', fontWeight: 700, padding: '3px 8px' }}>
+                                          <Gift size={11} /> {memberAidCount} Claim{memberAidCount !== 1 ? 's' : ''}
+                                        </span>
+                                        <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: 2 }}>
+                                          {Object.entries(mCatMap).map(([c, cnt]) => `${c} (x${cnt})`).join(', ')}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>0 Claims</span>
+                                    )}
+                                  </td>
+                                  <td style={{ textAlign: 'center' }}>
+                                    <span className={`status-badge status-${(reg.status || 'pending').toLowerCase()}`}>{reg.status}</span>
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    <button className="btn btn-sm btn-danger" style={{ padding: '4px 8px', fontSize: '0.74rem' }} onClick={async (e) => {
+                                      e.stopPropagation();
+                                      try {
+                                        const { error } = await supabase.from('registrations').update({ organization: null }).eq('id', reg.id);
+                                        if (error) throw error;
+                                        showToast('Member removed from organization', 'success');
+                                        fetchAllRegistrations();
+                                        fetchOrganizations();
+                                      } catch(err) {
+                                        showToast('Failed to remove member', 'error');
+                                      }
+                                    }}>Remove</button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
                 );
               })()}
             </div>
