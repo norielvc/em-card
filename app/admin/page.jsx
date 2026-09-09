@@ -12786,7 +12786,9 @@ export default function AdminPage() {
                   Member application review and verification
                 </p>
               </div>
-              <button className="modal-close-x" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>✕</button>
+              <button className="modal-close-x" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }} title="Close">
+                <X size={16} strokeWidth={2.2} />
+              </button>
             </div>
 
             <div className="modal-body">
@@ -12795,7 +12797,9 @@ export default function AdminPage() {
                 {(selectedRegDetail.photo_url || selectedRegDetail.photo_base64) ? (
                   <img src={selectedRegDetail.photo_url || selectedRegDetail.photo_base64} alt="Portrait" className="reg-detail-avatar" />
                 ) : (
-                  <div className="reg-detail-avatar-placeholder">👤</div>
+                  <div className="reg-detail-avatar-placeholder">
+                    <User size={28} strokeWidth={1.8} style={{ color: '#059669' }} />
+                  </div>
                 )}
                 <div className="reg-detail-hero-info">
                   <h4 className="reg-detail-hero-name">{getResidentName(selectedRegDetail)}</h4>
@@ -12804,7 +12808,14 @@ export default function AdminPage() {
                       {selectedRegDetail.status || 'Pending'}
                     </span>
                     <span className={`reg-detail-badge ${selectedRegDetail.is_valid_resident !== false ? 'badge-voter' : 'badge-nonvoter'}`}>
-                      {selectedRegDetail.is_valid_resident !== false ? '✓ Registered Voter' : 'Non-Valid Resident'}
+                      {selectedRegDetail.is_valid_resident !== false ? (
+                        <>
+                          <Check size={12} strokeWidth={2.5} />
+                          <span>Registered Voter</span>
+                        </>
+                      ) : (
+                        'Non-Valid Resident'
+                      )}
                     </span>
                     {selectedRegDetail.reference_no && (
                       <span className="reg-detail-badge badge-ref">
@@ -12837,8 +12848,9 @@ export default function AdminPage() {
                     {regEditMode ? (
                       <input className="reg-edit-input" value={regEditForm.contact} onChange={e => setRegEditForm(f => ({...f, contact: e.target.value}))} />
                     ) : selectedRegDetail.contact ? (
-                      <a href={`tel:${selectedRegDetail.contact}`} style={{ color: '#0284c7', textDecoration: 'none', fontWeight: 700, fontFamily: 'monospace', fontSize: '0.82rem' }}>
-                        📞 {selectedRegDetail.contact}
+                      <a href={`tel:${selectedRegDetail.contact}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#0284c7', textDecoration: 'none', fontWeight: 700, fontFamily: 'monospace', fontSize: '0.82rem' }}>
+                        <Phone size={13} strokeWidth={2.2} style={{ color: '#0284c7' }} />
+                        <span>{selectedRegDetail.contact}</span>
                       </a>
                     ) : (
                       <span className="reg-detail-value">-</span>
@@ -12988,9 +13000,12 @@ export default function AdminPage() {
                           top: '10px',
                           color: '#059669',
                           fontSize: '0.78rem',
-                          fontWeight: 700
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4
                         }}>
-                          ✓ Node Verified
+                          <Check size={13} strokeWidth={2.5} /> Node Verified
                         </span>
                       )}
                       {!adminReferralValid && adminReferralResults.length > 0 && (
@@ -13073,25 +13088,29 @@ export default function AdminPage() {
                         if (success) setSelectedRegDetail(null);
                       }}
                       disabled={!adminReferralValid}
-                      style={{ flex: 2, padding: '10px 14px', opacity: adminReferralValid ? 1 : 0.5, cursor: adminReferralValid ? 'pointer' : 'not-allowed' }}
+                      style={{ flex: 2, padding: '10px 14px', opacity: adminReferralValid ? 1 : 0.5, cursor: adminReferralValid ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                       title={!adminReferralValid ? "Please verify an Authorized Referral Node before approving" : "Approve registration"}
                     >
-                      ✓ Approve Registration
+                      <Check size={15} strokeWidth={2.5} />
+                      <span>Approve Registration</span>
                     </button>
-                    <button type="button" className="btn btn-reject" style={{ flex: 1, padding: '10px 14px' }} onClick={() => { rejectRegistration(selectedRegDetail.id); setSelectedRegDetail(null); }}>
-                      ✕ Reject
+                    <button type="button" className="btn btn-reject" style={{ flex: 1, padding: '10px 14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => { rejectRegistration(selectedRegDetail.id); setSelectedRegDetail(null); }}>
+                      <X size={15} strokeWidth={2.5} />
+                      <span>Reject</span>
                     </button>
                   </>
                 )}
                 {!regEditMode && selectedRegDetail.status === 'Approved' && (
-                  <button type="button" className="btn btn-print" onClick={() => setSelectedRegDetail(null)} style={{ width: '100%', background: '#059669', color: '#ffffff' }}>
-                    🖨️ Print Card
+                  <button type="button" className="btn btn-print" onClick={() => setSelectedRegDetail(null)} style={{ width: '100%', background: '#059669', color: '#ffffff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <Printer size={15} strokeWidth={2} />
+                    <span>Print Member Card</span>
                   </button>
                 )}
                 {regEditMode && (
                   <>
-                    <button type="button" className="btn btn-modal-primary" onClick={handleSaveRegEdit} disabled={regEditLoading} style={{ flex: 1, background: '#059669', color: '#ffffff' }}>
-                      {regEditLoading ? 'Saving...' : 'Save Changes'}
+                    <button type="button" className="btn btn-modal-primary" onClick={handleSaveRegEdit} disabled={regEditLoading} style={{ flex: 1, background: '#059669', color: '#ffffff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <Check size={15} strokeWidth={2.5} />
+                      <span>{regEditLoading ? 'Saving...' : 'Save Changes'}</span>
                     </button>
                     <button type="button" className="btn btn-modal-secondary" style={{ flex: 1 }} onClick={() => setRegEditMode(false)}>Cancel</button>
                   </>
@@ -13101,7 +13120,10 @@ export default function AdminPage() {
               <div className="reg-detail-footer-secondary-actions">
                 {!regEditMode && (
                   <>
-                    <button type="button" className="btn reg-foot-close-btn" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>Close</button>
+                    <button type="button" className="btn reg-foot-close-btn" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>
+                      <X size={13} strokeWidth={2} />
+                      <span>Close</span>
+                    </button>
                     <button type="button" className="btn reg-foot-edit-btn" onClick={() => {
                       setRegEditForm({
                         house_no: selectedRegDetail.house_no || '',
@@ -13117,9 +13139,13 @@ export default function AdminPage() {
                         phase: selectedRegDetail.phase || '',
                       });
                       setRegEditMode(true);
-                    }}>✏️ Edit Details</button>
+                    }}>
+                      <Edit3 size={13} strokeWidth={2} />
+                      <span>Edit Details</span>
+                    </button>
                     <button type="button" className="btn reg-foot-del-btn" onClick={() => { setDeleteRegId(selectedRegDetail.id); setDeleteRegName(getResidentName(selectedRegDetail)); setShowDeleteRegModal(true); }} title="Delete registration">
-                      🗑️ Delete
+                      <Trash2 size={13} strokeWidth={2} />
+                      <span>Delete</span>
                     </button>
                   </>
                 )}

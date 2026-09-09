@@ -11152,8 +11152,8 @@ p {
 
 @media (max-width: 640px) {
   .modal-overlay {
-    padding: 16px 12px !important;
-    align-items: center !important;
+    padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 10px) 8px !important;
+    align-items: flex-start !important;
     justify-content: center !important;
     overflow-y: auto !important;
   }
@@ -11161,10 +11161,10 @@ p {
   .reg-detail-card {
     width: 100% !important;
     max-width: 440px !important;
-    max-height: min(640px, calc(100dvh - 32px)) !important;
-    height: min(580px, calc(100dvh - 36px)) !important;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px) !important;
+    height: calc(94dvh - env(safe-area-inset-bottom, 0px)) !important;
     border-radius: 18px !important;
-    margin: auto !important;
+    margin: 4px auto 0 !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
