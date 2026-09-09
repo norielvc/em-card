@@ -484,6 +484,8 @@ export default function AdminPage() {
       if (json.type === 'success') {
         showToast(`Aid distributed: ${json.categoryName} to ${json.name}`, 'success');
         fetchDistributionRecords(distFilterCategory);
+        fetchOrganizations();
+        fetchAllRegistrations();
       } else if (json.type === 'duplicate') {
         showToast(json.message || 'Already claimed in this category', 'error');
       } else if (json.type === 'invalid' || json.type === 'error') {
@@ -975,7 +977,10 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isLoggedIn) return;
     if (activeTab === 'registrations') fetchAllRegistrations();
-    if (activeTab === 'organizations' && organizations.length === 0) fetchOrganizations();
+    if (activeTab === 'organizations') {
+      fetchOrganizations();
+      fetchAllRegistrations();
+    }
     if (activeTab === 'members' && allRegs.length === 0) fetchAllRegistrations();
     if (activeTab === 'network' && allRegs.length === 0) fetchAllRegistrations();
     if (activeTab === 'residents') fetchAllResidents(residentsPage, residentSearch, resFilterBarangay, resFilterPrecinct, resFilterStatus);
@@ -986,6 +991,14 @@ export default function AdminPage() {
     if (activeTab === 'accounts') fetchAccounts();
     if (activeTab === 'adminLogs') { fetchAdminLogs(); if (accounts.length === 0) fetchAccounts(); }
   }, [isLoggedIn, activeTab, dashTab]);
+
+  // Always fetch latest organization members and aid distributions when org details modal is opened
+  useEffect(() => {
+    if (showOrgDetailsModal) {
+      fetchOrganizations();
+      fetchAllRegistrations();
+    }
+  }, [showOrgDetailsModal]);
 
   useEffect(() => {
     if (toast && !toast.sticky) {
@@ -2292,7 +2305,7 @@ export default function AdminPage() {
     try {
       const [orgsRes, aidRes] = await Promise.all([
         supabase.from('organizations').select('*').order('name'),
-        supabase.from('aid_distributions').select('id, registration_id, category, category_name, distributed_at, amount, notes, barangay').order('distributed_at', { ascending: false })
+        supabase.from('aid_distributions').select('id, registration_id, category, category_name, distributed_at, notes, barangay, claim_number, scanned_by').order('distributed_at', { ascending: false })
       ]);
       setOrganizations(orgsRes.data || []);
       setAllOrgAidRecords(aidRes.data || []);
@@ -10315,9 +10328,9 @@ export default function AdminPage() {
 
   const renderOrganizations = () => {
     // Total enrolled members across all organizations
-    const totalAllOrgMembers = allRegs.filter(r => Boolean(r.organization)).length;
-    const allOrgMemberIds = new Set(allRegs.filter(r => Boolean(r.organization)).map(r => r.id));
-    const totalAllOrgAid = allOrgAidRecords.filter(a => allOrgMemberIds.has(a.registration_id)).length;
+    const totalAllOrgMembers = allRegs.filter(r => Boolean(r.organization) && r.status === 'Approved').length;
+    const allOrgMemberIds = new Set(allRegs.filter(r => Boolean(r.organization) && r.status === 'Approved').map(r => String(r.id).toLowerCase()));
+    const totalAllOrgAid = allOrgAidRecords.filter(a => a.registration_id && allOrgMemberIds.has(String(a.registration_id).toLowerCase())).length;
 
     return (
       <div className="admin-panel org-panel">
@@ -10398,10 +10411,10 @@ export default function AdminPage() {
                       {organizations.map(org => {
                         const orgMembers = allRegs.filter(r => r.organization === org.name && r.status === 'Approved');
                         const memberCount = orgMembers.length;
-                        const orgMemberIds = new Set(orgMembers.map(r => r.id));
-                        const orgAidRecords = allOrgAidRecords.filter(a => orgMemberIds.has(a.registration_id));
+                        const orgMemberIds = new Set(orgMembers.map(r => String(r.id).toLowerCase()));
+                        const orgAidRecords = allOrgAidRecords.filter(a => a.registration_id && orgMemberIds.has(String(a.registration_id).toLowerCase()));
                         const totalAidClaims = orgAidRecords.length;
-                        const uniqueBeneficiaries = new Set(orgAidRecords.map(a => a.registration_id)).size;
+                        const uniqueBeneficiaries = new Set(orgAidRecords.map(a => String(a.registration_id).toLowerCase())).size;
 
                         return (
                           <tr 
@@ -10413,36 +10426,27 @@ export default function AdminPage() {
                           >
                             <td>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                   <Building size={18} />
                                 </div>
                                 <div>
                                   <strong style={{ color: '#0f172a', fontSize: '0.92rem', display: 'block' }}>{org.name}</strong>
-                                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Accredited Partner</span>
+                                  <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Accredited Partner</span>
                                 </div>
                               </div>
                             </td>
                             <td style={{ textAlign: 'center' }}>
-                              <span className="status-badge status-approved" style={{ fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                                <Users size={12} /> {memberCount} approved member{memberCount !== 1 ? 's' : ''}
+                              <span className="org-member-badge">
+                                <Users size={12} /> {memberCount} member{memberCount !== 1 ? 's' : ''}
                               </span>
                             </td>
                             <td style={{ textAlign: 'center' }}>
-                              {totalAidClaims > 0 ? (
-                                <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                                  <span className="org-aid-pill">
-                                    <Gift size={13} style={{ color: '#059669' }} /> {totalAidClaims} Claim{totalAidClaims !== 1 ? 's' : ''} Received
-                                  </span>
-                                  <span style={{ fontSize: '0.70rem', color: '#64748b' }}>{uniqueBeneficiaries} recipient{uniqueBeneficiaries !== 1 ? 's' : ''}</span>
-                                </div>
-                              ) : (
-                                <span className="org-aid-pill zero">
-                                  <Gift size={13} style={{ color: '#94a3b8' }} /> 0 Claims Received
-                                </span>
-                              )}
+                              <span className={`org-aid-pill ${totalAidClaims === 0 ? 'zero' : ''}`}>
+                                <Gift size={13} /> {totalAidClaims} Claim{totalAidClaims !== 1 ? 's' : ''} {uniqueBeneficiaries > 0 ? `(${uniqueBeneficiaries} pax)` : ''}
+                              </span>
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              <button className="btn btn-sm btn-primary" style={{ marginRight: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={(e) => {
+                              <button className="btn btn-sm btn-primary" style={{ marginRight: 8, padding: '6px 12px', fontSize: '0.78rem' }} onClick={(e) => {
                                 e.stopPropagation();
                                 setShowAddOrgMemberModal(org.name);
                                 setOrgMemberSearch('');
@@ -10470,8 +10474,8 @@ export default function AdminPage() {
                 {organizations.map(org => {
                   const orgMembers = allRegs.filter(r => r.organization === org.name && r.status === 'Approved');
                   const memberCount = orgMembers.length;
-                  const orgMemberIds = new Set(orgMembers.map(r => r.id));
-                  const orgAidRecords = allOrgAidRecords.filter(a => orgMemberIds.has(a.registration_id));
+                  const orgMemberIds = new Set(orgMembers.map(r => String(r.id).toLowerCase()));
+                  const orgAidRecords = allOrgAidRecords.filter(a => a.registration_id && orgMemberIds.has(String(a.registration_id).toLowerCase()));
                   const totalAidClaims = orgAidRecords.length;
 
                   return (
@@ -15082,10 +15086,10 @@ export default function AdminPage() {
             <div className="modal-form" style={{ padding: '16px 20px', flex: 1, overflowY: 'auto', maxHeight: '68vh' }}>
               {(() => {
                 const orgMembers = allRegs.filter(r => r.organization === showOrgDetailsModal && r.status === 'Approved');
-                const orgMemberIds = new Set(orgMembers.map(r => r.id));
-                const orgAidRecords = allOrgAidRecords.filter(a => orgMemberIds.has(a.registration_id));
+                const orgMemberIds = new Set(orgMembers.map(r => String(r.id).toLowerCase()));
+                const orgAidRecords = allOrgAidRecords.filter(a => a.registration_id && orgMemberIds.has(String(a.registration_id).toLowerCase()));
                 const totalOrgAid = orgAidRecords.length;
-                const uniqueBeneficiaries = new Set(orgAidRecords.map(a => a.registration_id)).size;
+                const uniqueBeneficiaries = new Set(orgAidRecords.map(a => String(a.registration_id).toLowerCase())).size;
 
                 // Category breakdown map
                 const catCounts = {};
@@ -15140,7 +15144,7 @@ export default function AdminPage() {
                           </thead>
                           <tbody>
                             {orgMembers.map(reg => {
-                              const memberAidList = orgAidRecords.filter(a => a.registration_id === reg.id);
+                              const memberAidList = orgAidRecords.filter(a => a.registration_id && String(a.registration_id).toLowerCase() === String(reg.id).toLowerCase());
                               const memberAidCount = memberAidList.length;
 
                               // Unique category breakdown for this member
