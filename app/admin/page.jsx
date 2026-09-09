@@ -13101,8 +13101,8 @@ export default function AdminPage() {
               <div className="reg-detail-footer-secondary-actions">
                 {!regEditMode && (
                   <>
-                    <button type="button" className="btn btn-modal-secondary" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>Close</button>
-                    <button type="button" className="btn btn-modal-primary" style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1' }} onClick={() => {
+                    <button type="button" className="btn reg-foot-close-btn" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>Close</button>
+                    <button type="button" className="btn reg-foot-edit-btn" onClick={() => {
                       setRegEditForm({
                         house_no: selectedRegDetail.house_no || '',
                         purok: selectedRegDetail.purok || '',
@@ -13118,8 +13118,8 @@ export default function AdminPage() {
                       });
                       setRegEditMode(true);
                     }}>✏️ Edit Details</button>
-                    <button type="button" className="btn-delete-ghost" onClick={() => { setDeleteRegId(selectedRegDetail.id); setDeleteRegName(getResidentName(selectedRegDetail)); setShowDeleteRegModal(true); }} title="Delete registration" style={{ color: '#ef4444' }}>
-                      Delete
+                    <button type="button" className="btn reg-foot-del-btn" onClick={() => { setDeleteRegId(selectedRegDetail.id); setDeleteRegName(getResidentName(selectedRegDetail)); setShowDeleteRegModal(true); }} title="Delete registration">
+                      🗑️ Delete
                     </button>
                   </>
                 )}
