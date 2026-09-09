@@ -12519,13 +12519,257 @@ body:has(.modal-overlay) {
   border-radius: 999px;
 }
 
-@media (max-width: 900px) {
-  .leader-cards-row {
-    grid-template-columns: 1fr;
+@media (max-width: 768px) {
+  .network-page-container {
+    padding: 0 0 16px !important;
+    gap: 10px !important;
   }
+
+  .network-top-header {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .network-title-row {
+    gap: 6px !important;
+  }
+
+  .network-page-title {
+    font-size: 1.12rem !important;
+  }
+
+  .network-status-chip {
+    font-size: 0.68rem !important;
+    padding: 2px 8px !important;
+  }
+
+  .network-page-subtitle {
+    font-size: 0.76rem !important;
+    line-height: 1.35 !important;
+  }
+
+  .network-header-actions {
+    display: flex !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .network-header-actions .btn,
+  .network-header-actions .btn-outline-emerald {
+    flex: 1 !important;
+    justify-content: center !important;
+    height: 34px !important;
+    font-size: 0.78rem !important;
+    padding: 0 8px !important;
+  }
+
+  /* 2x2 Compact Metric Grid on Mobile */
+  .network-metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+    padding: 0 12px !important;
+  }
+
+  .network-metric-card {
+    padding: 10px 12px !important;
+    border-radius: 10px !important;
+    gap: 4px !important;
+  }
+
+  .network-metric-label {
+    font-size: 0.62rem !important;
+  }
+
+  .network-metric-icon {
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 6px !important;
+  }
+
+  .network-metric-icon svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+
+  .network-metric-val {
+    font-size: 1.3rem !important;
+  }
+
+  .network-metric-sub {
+    font-size: 0.65rem !important;
+  }
+
+  /* Level Pills & Sort Controls */
   .network-controls-bar {
-    flex-direction: column;
-    align-items: stretch;
+    padding: 8px 10px !important;
+    margin: 0 12px !important;
+    gap: 8px !important;
+    border-radius: 10px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .network-level-pills {
+    display: flex !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+    padding-bottom: 2px !important;
+  }
+
+  .network-level-pill {
+    padding: 4px 8px !important;
+    font-size: 0.70rem !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    gap: 4px !important;
+  }
+
+  .network-level-pill .count-tag {
+    font-size: 0.62rem !important;
+    padding: 1px 4px !important;
+  }
+
+  .network-sort-wrap {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+
+  .network-sort-label {
+    font-size: 0.72rem !important;
+    white-space: nowrap !important;
+  }
+
+  .network-sort-select {
+    flex: 1 !important;
+    height: 34px !important;
+    font-size: 0.76rem !important;
+    padding: 4px 8px !important;
+  }
+
+  /* Leaderboards */
+  .leader-cards-row {
+    padding: 0 12px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .leader-card {
+    padding: 12px 14px !important;
+    border-radius: 12px !important;
+  }
+
+  .leader-card-title {
+    font-size: 0.90rem !important;
+  }
+
+  .leader-mini-row {
+    padding: 6px 8px !important;
+    gap: 6px !important;
+  }
+
+  .leader-mini-name {
+    font-size: 0.78rem !important;
+  }
+
+  .leader-mini-badges {
+    gap: 3px !important;
+  }
+
+  .lm-badge {
+    font-size: 0.62rem !important;
+    padding: 1px 4px !important;
+  }
+
+  /* Search Section */
+  .network-search-section {
+    padding: 0 12px !important;
+  }
+
+  .network-search-input {
+    height: 38px !important;
+    font-size: 0.80rem !important;
+    padding: 8px 30px 8px 34px !important;
+  }
+
+  /* Tree Forest */
+  .network-forest-container {
+    padding: 0 12px 16px !important;
+  }
+
+  .tree-root-card-header {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .tree-root-left {
+    min-width: 0 !important;
+    gap: 8px !important;
+  }
+
+  .tree-root-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 0.68rem !important;
+  }
+
+  .tree-root-name {
+    font-size: 0.86rem !important;
+  }
+
+  .tree-root-right {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding-top: 4px !important;
+    border-top: 1px dashed #e2e8f0 !important;
+  }
+
+  .tree-branch {
+    margin-left: 8px !important;
+  }
+
+  .tree-node {
+    padding: 7px 9px !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .tree-node-avatar {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 0.65rem !important;
+  }
+
+  .tree-node-name {
+    font-size: 0.80rem !important;
+  }
+
+  .tree-node-meta {
+    font-size: 0.65rem !important;
+  }
+
+  .tree-node-count {
+    font-size: 0.65rem !important;
+  }
+
+  /* Network History Trace */
+  .network-history-view {
+    padding: 0 12px 16px !important;
+  }
+
+  .network-history-section {
+    padding: 12px 14px !important;
   }
 }
 
