@@ -1612,9 +1612,13 @@ export default function AdminPage() {
   const fetchGeographicDistributionAnalytics = async () => {
     try {
       // Fetch resident counts by barangay using RPC (accurate count)
-      const { data: votersByBarangay, error: vErr } = await supabase
+      const { data: votersRaw, error: vErr } = await supabase
         .rpc('get_voters_by_barangay');
       if (vErr) throw vErr;
+
+      const votersByBarangay = (votersRaw || [])
+        .filter(v => v.barangay && v.barangay.trim().toUpperCase() !== 'UNKNOWN')
+        .map(v => ({ barangay: v.barangay.trim().toUpperCase(), count: Number(v.count) }));
 
       // Fetch approved registration counts by barangay
       const { data: regsRaw, error: rErr } = await supabase
@@ -1624,8 +1628,10 @@ export default function AdminPage() {
       if (rErr) throw rErr;
       const regMap = {};
       (regsRaw || []).forEach(r => {
-        const b = (r.barangay || 'Unknown').trim();
-        regMap[b] = (regMap[b] || 0) + 1;
+        const b = (r.barangay || '').trim().toUpperCase();
+        if (b && b !== 'UNKNOWN') {
+          regMap[b] = (regMap[b] || 0) + 1;
+        }
       });
       const regsByBarangay = Object.entries(regMap)
         .map(([barangay, count]) => ({ barangay, count: Number(count) }))

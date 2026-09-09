@@ -39,12 +39,16 @@ export async function GET(request) {
       .gte('created_at', lastMonthStart)
       .lt('created_at', thisMonthStart);
 
-    // Use PostgreSQL GROUP BY via RPC — single query, no pagination
-    const { data: votersByBarangay, error: vErr } = await supabase
+    // Use PostgreSQL GROUP BY via RPC — single query, no pagination (filter out non-canonical)
+    const { data: votersRaw, error: vErr } = await supabase
       .rpc('get_voters_by_barangay');
     if (vErr) throw vErr;
 
-    // Approved registrations by barangay
+    const votersByBarangay = (votersRaw || [])
+      .filter(v => v.barangay && v.barangay.trim().toUpperCase() !== 'UNKNOWN')
+      .map(v => ({ barangay: v.barangay.trim().toUpperCase(), count: Number(v.count) }));
+
+    // Approved registrations by barangay (strictly uppercase-normalized)
     const { data: regsRaw, error: rErr } = await supabase
       .from('registrations')
       .select('barangay')
@@ -53,8 +57,10 @@ export async function GET(request) {
 
     const regMap = {};
     (regsRaw || []).forEach(r => {
-      const b = (r.barangay || 'Unknown').trim();
-      regMap[b] = (regMap[b] || 0) + 1;
+      const b = (r.barangay || '').trim().toUpperCase();
+      if (b && b !== 'UNKNOWN') {
+        regMap[b] = (regMap[b] || 0) + 1;
+      }
     });
     const regsByBarangay = Object.entries(regMap)
       .map(([barangay, count]) => ({ barangay, count: Number(count) }))
@@ -70,8 +76,10 @@ export async function GET(request) {
 
     const aidMap = {};
     (aidData || []).forEach(r => {
-      const b = (r.barangay || 'Unknown').trim();
-      aidMap[b] = (aidMap[b] || 0) + 1;
+      const b = (r.barangay || '').trim().toUpperCase();
+      if (b && b !== 'UNKNOWN') {
+        aidMap[b] = (aidMap[b] || 0) + 1;
+      }
     });
     const aidByBarangay = Object.entries(aidMap)
       .map(([barangay, count]) => ({ barangay, count: Number(count) }))
@@ -109,8 +117,10 @@ export async function GET(request) {
           if (distributionStats.categoryCounts[d.category] !== undefined) {
             distributionStats.categoryCounts[d.category] += 1;
           }
-          const brgy = (d.barangay || 'Unknown').trim();
-          distBrgyMap[brgy] = (distBrgyMap[brgy] || 0) + 1;
+          const brgy = (d.barangay || '').trim().toUpperCase();
+          if (brgy && brgy !== 'UNKNOWN') {
+            distBrgyMap[brgy] = (distBrgyMap[brgy] || 0) + 1;
+          }
         });
 
         distributionStats.distributionsByBarangay = Object.entries(distBrgyMap)
