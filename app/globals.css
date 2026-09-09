@@ -11152,7 +11152,7 @@ p {
 
 @media (max-width: 640px) {
   .modal-overlay {
-    padding: 10px !important;
+    padding: 10px 10px calc(env(safe-area-inset-bottom, 0px) + 16px) 10px !important;
     align-items: center !important;
     justify-content: center !important;
   }
@@ -11160,10 +11160,13 @@ p {
   .reg-detail-card {
     width: 100% !important;
     max-width: 440px !important;
-    max-height: calc(100dvh - 20px) !important;
-    height: auto !important;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 32px) !important;
+    height: calc(84dvh - env(safe-area-inset-bottom, 0px)) !important;
     border-radius: 16px !important;
     margin: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
   }
 
   .reg-detail-card .modal-header {
@@ -11172,7 +11175,7 @@ p {
   }
 
   .reg-detail-card .modal-header h3 {
-    font-size: 1.0rem !important;
+    font-size: 0.98rem !important;
   }
 
   .reg-detail-card .modal-body {
@@ -11181,7 +11184,7 @@ p {
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
     padding: 10px 12px !important;
-    gap: 10px !important;
+    gap: 8px !important;
   }
 
   .reg-detail-profile-hero {
@@ -11194,20 +11197,20 @@ p {
   }
 
   .reg-detail-avatar {
-    width: 54px !important;
-    height: 54px !important;
+    width: 50px !important;
+    height: 50px !important;
     border-radius: 8px !important;
   }
 
   .reg-detail-avatar-placeholder {
-    width: 54px !important;
-    height: 54px !important;
+    width: 50px !important;
+    height: 50px !important;
     border-radius: 8px !important;
-    font-size: 1.35rem !important;
+    font-size: 1.3rem !important;
   }
 
   .reg-detail-hero-name {
-    font-size: 0.94rem !important;
+    font-size: 0.92rem !important;
   }
 
   .reg-detail-badges-row {
@@ -11216,7 +11219,7 @@ p {
   }
 
   .reg-detail-badge {
-    font-size: 0.66rem !important;
+    font-size: 0.65rem !important;
     padding: 2px 6px !important;
   }
 
@@ -11226,20 +11229,20 @@ p {
   }
 
   .reg-detail-item-v2 {
-    padding: 6px 8px !important;
+    padding: 5px 8px !important;
   }
 
   .reg-detail-label {
-    font-size: 0.62rem !important;
+    font-size: 0.60rem !important;
   }
 
   .reg-detail-value {
-    font-size: 0.80rem !important;
+    font-size: 0.78rem !important;
   }
 
   .reg-detail-card .modal-footer {
     flex-shrink: 0 !important;
-    padding: 10px 12px !important;
+    padding: 8px 12px !important;
     gap: 6px !important;
     flex-direction: column !important;
     background: #ffffff !important;
@@ -11263,8 +11266,8 @@ p {
 
   .reg-detail-card .modal-footer .btn {
     justify-content: center !important;
-    padding: 8px 10px !important;
-    font-size: 0.82rem !important;
+    padding: 7px 10px !important;
+    font-size: 0.80rem !important;
   }
 }
 
