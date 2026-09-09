@@ -9017,9 +9017,23 @@ p {
   color: var(--green-deep);
 }
 
-/* Modal Popup Styles */
+/* Universal Background Scroll Lock for ALL modals and mobile drawer menu */
+html.modal-open,
 body.modal-open,
-body:has(.modal-overlay) {
+html:has(.modal-overlay),
+body:has(.modal-overlay),
+html:has(.card-modal-overlay),
+body:has(.card-modal-overlay),
+html:has(.event-modal-overlay),
+body:has(.event-modal-overlay),
+html:has(.print-modal-overlay),
+body:has(.print-modal-overlay),
+html:has(.scan-result-overlay),
+body:has(.scan-result-overlay),
+html:has(.sidebar-overlay),
+body:has(.sidebar-overlay),
+html:has(.admin-sidebar.open),
+body:has(.admin-sidebar.open) {
   overflow: hidden !important;
   touch-action: none !important;
   overscroll-behavior: contain !important;
@@ -21463,7 +21477,42 @@ html, body {
   margin-left: 250px;
 }
 @media (max-width: 1024px) {
-  .admin-main { margin-left: 0; }
+  .admin-main { 
+    margin-left: 0; 
+  }
+
+  .admin-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    z-index: 99999 !important;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    box-shadow: none;
+    overscroll-behavior: contain !important;
+  }
+
+  .admin-sidebar.open {
+    transform: translateX(0) !important;
+    box-shadow: 10px 0 40px rgba(0, 0, 0, 0.6) !important;
+  }
+
+  .sidebar-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: rgba(0, 0, 0, 0.65) !important;
+    backdrop-filter: blur(4px) !important;
+    z-index: 99998 !important;
+    touch-action: none !important;
+    overscroll-behavior: contain !important;
+  }
 }
 
 /* Sidebar brand: sleek gold/emerald */

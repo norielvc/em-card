@@ -1,5 +1,6 @@
 import './globals.css';
 import DevErrorSuppressor from './components/DevErrorSuppressor';
+import GlobalScrollLocker from './components/GlobalScrollLocker';
 
 export const viewport = {
   width: 'device-width',
@@ -36,6 +37,7 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <DevErrorSuppressor />
+        <GlobalScrollLocker />
         {children}
       </body>
     </html>
