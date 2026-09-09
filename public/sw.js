@@ -1,5 +1,5 @@
 // EM Card Admin Service Worker
-const CACHE_NAME = 'em-card-admin-v1';
+const CACHE_NAME = 'em-card-admin-v2';
 const STATIC_ASSETS = [
   '/',
   '/admin',

@@ -503,21 +503,36 @@ export default function AdminPage() {
   };
 
   const stopDistScanner = async () => {
-    if (distScannerRef.current) {
+    const instance = distScannerRef.current;
+    if (instance) {
       try {
-        await distScannerRef.current.stop();
+        if (instance.isScanning) {
+          await instance.stop();
+        }
       } catch (_) {}
       distScannerRef.current = null;
     }
+    // Hard-stop all physical media tracks from <video> element
+    try {
+      const container = document.getElementById('dist-scanner-camera');
+      if (container) {
+        const video = container.querySelector('video');
+        if (video && video.srcObject) {
+          const stream = video.srcObject;
+          if (stream && stream.getTracks) {
+            stream.getTracks().forEach(track => track.stop());
+          }
+          video.srcObject = null;
+        }
+        container.innerHTML = '';
+      }
+    } catch (_) {}
     setDistCameraActive(false);
-    distScanInProgressRef.current = false;
   };
 
   const startDistCamera = async () => {
-    if (distScannerRef.current) {
-      try { await distScannerRef.current.stop(); } catch (_) {}
-      distScannerRef.current = null;
-    }
+    if (distScanResult) return;
+    await stopDistScanner();
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
       const qr = new Html5Qrcode('dist-scanner-camera');
@@ -529,6 +544,7 @@ export default function AdminPage() {
         async (decodedText) => {
           if (distScanInProgressRef.current) return;
           distScanInProgressRef.current = true;
+          try { qr.pause(true); } catch (_) {}
           await stopDistScanner();
           handleDistributionScan(decodedText);
         },
@@ -1271,9 +1287,28 @@ export default function AdminPage() {
   const stopScanner = async () => {
     const instance = scannerRef.current;
     if (instance) {
-      try { await instance.stop(); } catch (_) {}
+      try {
+        if (instance.isScanning) {
+          await instance.stop();
+        }
+      } catch (_) {}
       scannerRef.current = null;
     }
+    // Hard-stop all physical media tracks from <video> element
+    try {
+      const container = document.getElementById('event-scanner-camera');
+      if (container) {
+        const video = container.querySelector('video');
+        if (video && video.srcObject) {
+          const stream = video.srcObject;
+          if (stream && stream.getTracks) {
+            stream.getTracks().forEach(track => track.stop());
+          }
+          video.srcObject = null;
+        }
+        container.innerHTML = '';
+      }
+    } catch (_) {}
     setCameraActive(false);
   };
 
@@ -1311,10 +1346,8 @@ export default function AdminPage() {
 
   // Define startCamera at component level so resetScanState can call it
   const startCamera = async () => {
-    if (scannerRef.current) {
-      try { await scannerRef.current.stop(); } catch (_) {}
-      scannerRef.current = null;
-    }
+    if (scanResult) return;
+    await stopScanner();
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
       const qr = new Html5Qrcode('event-scanner-camera');
@@ -1326,7 +1359,7 @@ export default function AdminPage() {
         async (decodedText) => {
           if (scanInProgressRef.current) return;
           scanInProgressRef.current = true;
-          // Stop scanner immediately to prevent multiple detections
+          try { qr.pause(true); } catch (_) {}
           await stopScanner();
           handleEventScan(decodedText);
         },
