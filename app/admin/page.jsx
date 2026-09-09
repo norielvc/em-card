@@ -134,6 +134,39 @@ export default function AdminPage() {
   const [monthlyPrintingTrend, setMonthlyPrintingTrend] = useState([]);
   const [avgDaysToPrint, setAvgDaysToPrint] = useState(0);
 
+  // PWA Service Worker & Install Prompt
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch((err) => {
+          console.warn('SW registration failed:', err);
+        });
+      }
+      if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+        setIsStandalone(true);
+      }
+      const handleBeforeInstall = (e) => {
+        e.preventDefault();
+        setDeferredPrompt(e);
+      };
+      window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+      return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    }
+  }, []);
+
+  const handleInstallPwa = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') setDeferredPrompt(null);
+    } else {
+      alert('To install EM Card Admin App:\n\n• On iPhone (Safari): Tap the Share icon at the bottom, then tap "Add to Home Screen".\n• On Android (Chrome): Tap the 3 dots menu at the top-right, then tap "Install app" or "Add to Home Screen".');
+    }
+  };
+
   // Member Source Analytics
   const [validResidentMembers, setValidResidentMembers] = useState(0);
   const [nonValidResidentMembers, setNonValidResidentMembers] = useState(0);
@@ -12821,6 +12854,11 @@ export default function AdminPage() {
               <span className="sidebar-user-role" style={{ textTransform: 'capitalize' }}>{userRole}</span>
             </div>
           </div>
+          {!isStandalone && (
+            <button type="button" className="sidebar-logout btn-install-app" onClick={handleInstallPwa} title="Install as home screen app">
+              <Smartphone size={14} /><span>Install Mobile App</span>
+            </button>
+          )}
           {userRole !== 'staff' && (
             <button className="sidebar-logout" onClick={() => setShowCreateAccount(true)}>
               <UserPlus size={14} /><span>Create Account</span>
@@ -12981,6 +13019,63 @@ export default function AdminPage() {
           {activeTab === 'adminLogs' && renderAdminLogs()}
           {activeTab === 'system' && renderSystem()}
         </div>
+
+        {/* ─── MOBILE BOTTOM NAVIGATION BAR (Screen <= 768px) ─── */}
+        <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
+          <button 
+            type="button" 
+            className={`mobile-nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('dashboard'); setSidebarOpen(false); }}
+          >
+            <LayoutDashboard size={19} />
+            <span>Overview</span>
+          </button>
+          
+          <button 
+            type="button" 
+            className={`mobile-nav-btn ${activeTab === 'residents' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('residents'); setSidebarOpen(false); }}
+          >
+            <Users size={19} />
+            <span>Voters</span>
+          </button>
+          
+          {/* Floating Center Scan FAB */}
+          <button 
+            type="button" 
+            className={`mobile-nav-fab ${activeTab === 'distributionScanner' || activeTab === 'eventScanner' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('distributionScanner'); setSidebarOpen(false); }}
+            title="Fast QR Code Scanner"
+          >
+            <div className="mobile-nav-fab-inner">
+              <QrCode size={22} />
+            </div>
+            <span className="mobile-fab-label">Scan QR</span>
+          </button>
+
+          <button 
+            type="button" 
+            className={`mobile-nav-btn ${activeTab === 'registrations' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('registrations'); setSidebarOpen(false); }}
+          >
+            <div className="mobile-nav-icon-wrap">
+              <ClipboardList size={19} />
+              {pendingRegCount > 0 && (
+                <span className="mobile-nav-badge-dot">{pendingRegCount}</span>
+              )}
+            </div>
+            <span>Requests</span>
+          </button>
+
+          <button 
+            type="button" 
+            className={`mobile-nav-btn ${sidebarOpen ? 'active' : ''}`}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            <Menu size={19} />
+            <span>Menu</span>
+          </button>
+        </nav>
       </main>
 
       {/* ADD RESIDENT MODAL */}
