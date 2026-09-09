@@ -20331,8 +20331,237 @@ html, body {
 
 
 
+.members-desktop-view {
+  display: block;
+}
 
-/* ===== Dashboard Layout Grid ===== */
+.members-mobile-view {
+  display: none;
+}
+
+/* Mobile Member Cards */
+.member-mobile-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.member-mobile-card:active {
+  transform: scale(0.99);
+}
+
+.member-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.member-card-chk-avatar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.member-card-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #059669;
+  cursor: pointer;
+}
+
+.member-card-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1.5px solid #e2e8f0;
+}
+
+.member-card-avatar-placeholder {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  border: 1.5px solid #a7f3d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.member-card-header-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.member-card-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.member-card-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.member-card-badges-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.member-card-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  background: #f8fafc;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid #edf2f7;
+}
+
+.member-card-bottom-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.member-action-btn {
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+  height: 30px;
+  box-sizing: border-box;
+}
+
+.member-action-btn.btn-print-quick {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  flex: 1;
+}
+
+.member-action-btn.btn-edit-quick {
+  background: #f0f9ff;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+  flex: 1;
+}
+
+.member-action-btn.btn-promote-quick {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  flex: 1;
+}
+
+.member-action-btn.btn-del-quick {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  padding: 6px 9px;
+}
+
+@media (max-width: 768px) {
+  .members-desktop-view {
+    display: none !important;
+  }
+
+  .members-mobile-view {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .members-toolbar {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+    border-radius: 12px !important;
+  }
+
+  .members-toolbar-top {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .members-search-wrap {
+    min-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .members-search-input {
+    height: 38px !important;
+    font-size: 0.84rem !important;
+  }
+
+  .members-toolbar-actions {
+    display: flex !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+
+  .members-toolbar-actions .btn {
+    flex: 1 !important;
+    justify-content: center !important;
+    height: 36px !important;
+    padding: 0 10px !important;
+    font-size: 0.80rem !important;
+  }
+
+  .members-toolbar-filters {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    padding-top: 8px !important;
+  }
+
+  .members-toolbar-filters > span {
+    grid-column: 1 / -1 !important;
+    margin-bottom: 2px !important;
+  }
+
+  .members-filter-select {
+    width: 100% !important;
+    height: 34px !important;
+    font-size: 0.76rem !important;
+    padding: 4px 6px !important;
+  }
+
+  .members-filter-reset {
+    grid-column: 1 / -1 !important;
+    justify-content: center !important;
+    height: 32px !important;
+  }
+}
 .dashboard-layout-grid {
   display: grid;
   grid-template-columns: 1fr;

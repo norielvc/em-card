@@ -6399,184 +6399,324 @@ export default function AdminPage() {
           <div className="table-empty">{memberSearch ? 'No members match your search.' : 'No approved members yet.'}</div>
         ) : membersTab === 'all' ? (
           <>
-            <div className="members-table-wrap">
-              <div className="members-table-container">
-                <table className="members-table">
-                  <thead>
-                    <tr>
-                      <th className="col-chk">
+            {/* ─── 1. DESKTOP TABLE VIEW (Screen > 768px) ─── */}
+            <div className="members-desktop-view">
+              <div className="members-table-wrap">
+                <div className="members-table-container">
+                  <table className="members-table">
+                    <thead>
+                      <tr>
+                        <th className="col-chk">
+                          <input
+                            type="checkbox"
+                            checked={selectedMemberIds.length === pageMembers.length && pageMembers.length > 0}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMemberIds(pageMembers.map(m => m.id));
+                              } else {
+                                setSelectedMemberIds([]);
+                              }
+                            }}
+                            title="Select all on this page"
+                          />
+                        </th>
+                        <th className="col-name">Name</th>
+                        <th className="col-barangay">Barangay</th>
+                        <th className="col-voter">Voter Status</th>
+                        <th className="col-precinct">Precinct</th>
+                        <th className="col-org">Organization</th>
+                        <th className="col-emcard">EM Card No</th>
+                        <th className="col-print">Print</th>
+                        <th className="col-date">Date</th>
+                        <th className="col-actions">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageMembers.map((reg) => {
+                        const r = reg.ValidResidents || {};
+                        const name = memberFullName(reg);
+                        const isSelected = selectedMemberIds.includes(reg.id);
+                        const precinct = r.precinct || reg.precinct;
+                        return (
+                          <tr 
+                            key={reg.id} 
+                            className="member-row-clickable" 
+                            style={{ background: isSelected ? 'rgba(16, 185, 129, 0.08)' : undefined }}
+                          >
+                            <td className="col-chk" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedMemberIds(prev => [...prev, reg.id]);
+                                  } else {
+                                    setSelectedMemberIds(prev => prev.filter(id => id !== reg.id));
+                                  }
+                                }}
+                              />
+                            </td>
+                            <td className="col-name member-cell-name" onClick={() => setSelectedMember(reg)} title={name}>
+                              <strong>{name}</strong>
+                            </td>
+                            <td className="col-barangay member-cell-barangay" onClick={() => setSelectedMember(reg)}>
+                              {reg.barangay || r.barangay || '-'}
+                            </td>
+                            <td className="col-voter member-cell-voter" onClick={() => setSelectedMember(reg)}>
+                              {reg.is_valid_resident ? (
+                                <span className="status-badge status-approved">Registered</span>
+                              ) : (
+                                <span className="status-badge status-pending">Non-registered</span>
+                              )}
+                            </td>
+                            <td className="col-precinct member-cell-precinct" onClick={() => setSelectedMember(reg)}>
+                              {precinct ? (
+                                <span className="member-precinct-tag">
+                                  {precinct}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontSize: 11 }}>-</span>
+                              )}
+                            </td>
+                            <td className="col-org member-cell-org" onClick={() => setSelectedMember(reg)}>
+                              {reg.organization ? <span className="member-org-tag" style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4, border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#475569' }}>{reg.organization}</span> : <span style={{ color: '#94a3b8', fontSize: 11 }}>-</span>}
+                            </td>
+                            <td className="col-emcard member-cell-emcard" onClick={() => setSelectedMember(reg)}>
+                              {reg.em_card_no ? (
+                                <code className="member-emcard-code">{reg.em_card_no}</code>
+                              ) : (
+                                <span className="qr-token-missing" style={{ fontSize: 9.5 }}>Needs QR</span>
+                              )}
+                            </td>
+                            <td className="col-print member-cell-print" onClick={() => setSelectedMember(reg)}>
+                              {reg.printed_at ? (
+                                <span className="print-status printed" title={`Printed on ${new Date(reg.printed_at).toLocaleDateString()}`}>
+                                  <Printer size={10} /> Printed
+                                </span>
+                              ) : (
+                                <span className="print-status not-printed">Unprinted</span>
+                              )}
+                            </td>
+                            <td className="col-date member-cell-date" onClick={() => setSelectedMember(reg)}>
+                              {new Date(reg.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="col-actions member-cell-actions">
+                              <div className="resident-actions-compact">
+                                {!reg.is_valid_resident && (
+                                  <button className="action-btn action-promote" onClick={(e) => { e.stopPropagation(); setPromoteReg(reg); setShowPromoteModal(true); }} title="Move to Registered Voters">
+                                    <ArrowRight size={11} />
+                                  </button>
+                                )}
+                                <button className="action-btn action-edit" onClick={(e) => { e.stopPropagation(); setSelectedMember(reg); openEditMember(reg); }} title="Edit member">
+                                  <Pencil size={11} />
+                                </button>
+                                <button className="action-btn action-delete" onClick={(e) => { e.stopPropagation(); setDeleteMemberId(reg.id); setDeleteMemberName(name); setShowDeleteMemberModal(true); }} title="Delete member">
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* ─── 2. MOBILE CARDS VIEW (Screen <= 768px) ─── */}
+            <div className="members-mobile-view">
+              {pageMembers.map((reg) => {
+                const r = reg.ValidResidents || {};
+                const name = memberFullName(reg);
+                const isSelected = selectedMemberIds.includes(reg.id);
+                const precinct = r.precinct || reg.precinct;
+                return (
+                  <div
+                    key={reg.id}
+                    className="member-mobile-card"
+                    onClick={() => setSelectedMember(reg)}
+                    style={{ background: isSelected ? '#f0fdf4' : '#ffffff', borderLeft: isSelected ? '4px solid #059669' : '1px solid #e2e8f0' }}
+                  >
+                    <div className="member-card-top">
+                      <div className="member-card-chk-avatar" onClick={e => e.stopPropagation()}>
                         <input
                           type="checkbox"
-                          checked={selectedMemberIds.length === pageMembers.length && pageMembers.length > 0}
+                          checked={isSelected}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedMemberIds(pageMembers.map(m => m.id));
+                              setSelectedMemberIds(prev => [...prev, reg.id]);
                             } else {
-                              setSelectedMemberIds([]);
+                              setSelectedMemberIds(prev => prev.filter(id => id !== reg.id));
                             }
                           }}
-                          title="Select all on this page"
+                          className="member-card-checkbox"
                         />
-                      </th>
-                      <th className="col-name">Name</th>
-                      <th className="col-barangay">Barangay</th>
-                      <th className="col-voter">Voter Status</th>
-                      <th className="col-precinct">Precinct</th>
-                      <th className="col-org">Organization</th>
-                      <th className="col-emcard">EM Card No</th>
-                      <th className="col-print">Print</th>
-                      <th className="col-date">Date</th>
-                      <th className="col-actions">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageMembers.map((reg) => {
-                      const r = reg.ValidResidents || {};
-                      const name = memberFullName(reg);
-                      const isSelected = selectedMemberIds.includes(reg.id);
-                      const precinct = r.precinct || reg.precinct;
-                      return (
-                        <tr 
-                          key={reg.id} 
-                          className="member-row-clickable" 
-                          style={{ background: isSelected ? 'rgba(16, 185, 129, 0.08)' : undefined }}
-                        >
-                          <td className="col-chk" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedMemberIds(prev => [...prev, reg.id]);
-                                } else {
-                                  setSelectedMemberIds(prev => prev.filter(id => id !== reg.id));
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="col-name member-cell-name" onClick={() => setSelectedMember(reg)} title={name}>
-                            <strong>{name}</strong>
-                          </td>
-                          <td className="col-barangay member-cell-barangay" onClick={() => setSelectedMember(reg)}>
-                            {reg.barangay || r.barangay || '-'}
-                          </td>
-                          <td className="col-voter member-cell-voter" onClick={() => setSelectedMember(reg)}>
-                            {reg.is_valid_resident ? (
-                              <span className="status-badge status-approved">Registered</span>
-                            ) : (
-                              <span className="status-badge status-pending">Non-registered</span>
-                            )}
-                          </td>
-                          <td className="col-precinct member-cell-precinct" onClick={() => setSelectedMember(reg)}>
-                            {precinct ? (
-                              <span className="member-precinct-tag">
-                                {precinct}
-                              </span>
-                            ) : (
-                              <span style={{ color: '#94a3b8', fontSize: 11 }}>-</span>
-                            )}
-                          </td>
-                          <td className="col-org member-cell-org" onClick={() => setSelectedMember(reg)}>
-                            {reg.organization ? <span className="member-org-tag" style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4, border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#475569' }}>{reg.organization}</span> : <span style={{ color: '#94a3b8', fontSize: 11 }}>-</span>}
-                          </td>
-                          <td className="col-emcard member-cell-emcard" onClick={() => setSelectedMember(reg)}>
-                            {reg.em_card_no ? (
-                              <code className="member-emcard-code">{reg.em_card_no}</code>
-                            ) : (
-                              <span className="qr-token-missing" style={{ fontSize: 9.5 }}>Needs QR</span>
-                            )}
-                          </td>
-                          <td className="col-print member-cell-print" onClick={() => setSelectedMember(reg)}>
-                            {reg.printed_at ? (
-                              <span className="print-status printed" title={`Printed on ${new Date(reg.printed_at).toLocaleDateString()}`}>
-                                <Printer size={10} /> Printed
-                              </span>
-                            ) : (
-                              <span className="print-status not-printed">Unprinted</span>
-                            )}
-                          </td>
-                          <td className="col-date member-cell-date" onClick={() => setSelectedMember(reg)}>
-                            {new Date(reg.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="col-actions member-cell-actions">
-                            <div className="resident-actions-compact">
-                              {!reg.is_valid_resident && (
-                                <button className="action-btn action-promote" onClick={(e) => { e.stopPropagation(); setPromoteReg(reg); setShowPromoteModal(true); }} title="Move to Registered Voters">
-                                  <ArrowRight size={11} />
-                                </button>
-                              )}
-                              <button className="action-btn action-edit" onClick={(e) => { e.stopPropagation(); setSelectedMember(reg); openEditMember(reg); }} title="Edit member">
-                                <Pencil size={11} />
-                              </button>
-                              <button className="action-btn action-delete" onClick={(e) => { e.stopPropagation(); setDeleteMemberId(reg.id); setDeleteMemberName(name); setShowDeleteMemberModal(true); }} title="Delete member">
-                                <Trash2 size={11} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="residents-pagination">
-                  <span className="pagination-info">
-                    Showing <strong>{startIndex + 1}–{Math.min(startIndex + membersPerPage, totalFiltered)}</strong> of <strong>{totalFiltered}</strong> members
-                  </span>
-                  <div className="pagination-buttons">
-                    <button
-                      className="page-btn page-btn-nav"
-                      onClick={() => goToPage(1)}
-                      disabled={safePage <= 1}
-                      title="First Page (1)"
-                    >
-                      <ChevronsLeft size={14} />
-                    </button>
-                    <button
-                      className="page-btn page-btn-nav"
-                      onClick={() => goToPage(safePage - 1)}
-                      disabled={safePage <= 1}
-                      title="Previous Page"
-                    >
-                      <ChevronLeft size={14} /> <span>Prev</span>
-                    </button>
-                    {getPaginationItems(safePage, totalPages).map((item, idx) => {
-                      if (item === '...') {
-                        return <span key={`dots-${idx}`} className="pagination-ellipsis">…</span>;
-                      }
-                      return (
+                        {(reg.photo_url || reg.photo_base64) ? (
+                          <img src={reg.photo_url || reg.photo_base64} alt="" className="member-card-avatar" />
+                        ) : (
+                          <div className="member-card-avatar-placeholder">
+                            <User size={18} strokeWidth={1.8} style={{ color: '#059669' }} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="member-card-header-info">
+                        <div className="member-card-name-row">
+                          <strong className="member-card-name">{name}</strong>
+                          {reg.printed_at ? (
+                            <span className="print-status printed" style={{ fontSize: '0.65rem', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                              <Printer size={9} /> Printed
+                            </span>
+                          ) : (
+                            <span className="print-status not-printed" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>
+                              Unprinted
+                            </span>
+                          )}
+                        </div>
+                        <div className="member-card-badges-wrap">
+                          {reg.em_card_no ? (
+                            <code className="member-emcard-code" style={{ fontSize: '0.70rem', padding: '1px 5px' }}>{reg.em_card_no}</code>
+                          ) : (
+                            <span className="qr-token-missing" style={{ fontSize: '0.65rem' }}>Needs QR</span>
+                          )}
+                          {reg.is_valid_resident ? (
+                            <span className="reg-pill-voter" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>✓ Voter</span>
+                          ) : (
+                            <span className="reg-pill-nonvoter" style={{ fontSize: '0.65rem', padding: '2px 6px' }}>Non-registered</span>
+                          )}
+                          {precinct && (
+                            <span className="member-precinct-tag" style={{ fontSize: '0.65rem', padding: '1px 5px' }}>
+                              Precinct {precinct}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="member-card-details-grid">
+                      <div className="reg-chip-row">
+                        <MapPin size={12} className="reg-chip-icon" style={{ color: '#059669' }} />
+                        <span>{reg.barangay || r.barangay || '-'}{reg.purok ? ` · P-${reg.purok}` : ''}</span>
+                      </div>
+                      <div className="reg-chip-row">
+                        <Tag size={12} className="reg-chip-icon" style={{ color: '#0284c7' }} />
+                        <span>{reg.sector_category || 'General'}{reg.organization ? ` · ${reg.organization}` : ''}</span>
+                      </div>
+                      <div className="reg-chip-row">
+                        <Phone size={12} className="reg-chip-icon" style={{ color: '#64748b' }} />
+                        {reg.contact ? (
+                          <a href={`tel:${reg.contact}`} onClick={e => e.stopPropagation()} style={{ color: '#0284c7', textDecoration: 'none', fontWeight: 600 }}>
+                            {reg.contact}
+                          </a>
+                        ) : (
+                          <span>No phone</span>
+                        )}
+                      </div>
+                      <div className="reg-chip-row">
+                        <Calendar size={12} className="reg-chip-icon" style={{ color: '#64748b' }} />
+                        <span>Approved: {new Date(reg.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="member-card-bottom-actions" onClick={e => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="member-action-btn btn-print-quick"
+                        onClick={() => { setSelectedMember(reg); setShowPrintModal(true); }}
+                        title="Print Card"
+                      >
+                        <Printer size={12} strokeWidth={2} /> Print
+                      </button>
+                      <button
+                        type="button"
+                        className="member-action-btn btn-edit-quick"
+                        onClick={() => { setSelectedMember(reg); openEditMember(reg); }}
+                        title="Edit Member"
+                      >
+                        <Pencil size={12} strokeWidth={2} /> Edit
+                      </button>
+                      {!reg.is_valid_resident && (
                         <button
-                          key={item}
-                          className={`page-btn ${item === safePage ? 'page-btn-active' : ''}`}
-                          onClick={() => goToPage(item)}
-                          title={`Page ${item}`}
+                          type="button"
+                          className="member-action-btn btn-promote-quick"
+                          onClick={() => { setPromoteReg(reg); setShowPromoteModal(true); }}
+                          title="Move to Registered Voters"
                         >
-                          {item}
+                          <ArrowRight size={12} strokeWidth={2} /> Promote
                         </button>
-                      );
-                    })}
-                    <button
-                      className="page-btn page-btn-nav"
-                      onClick={() => goToPage(safePage + 1)}
-                      disabled={safePage >= totalPages}
-                      title="Next Page"
-                    >
-                      <span>Next</span> <ChevronRight size={14} />
-                    </button>
-                    <button
-                      className="page-btn page-btn-nav"
-                      onClick={() => goToPage(totalPages)}
-                      disabled={safePage >= totalPages}
-                      title={`Last Page (${totalPages})`}
-                    >
-                      <ChevronsRight size={14} />
-                    </button>
+                      )}
+                      <button
+                        type="button"
+                        className="member-action-btn btn-del-quick"
+                        onClick={() => { setDeleteMemberId(reg.id); setDeleteMemberName(name); setShowDeleteMemberModal(true); }}
+                        title="Delete Member"
+                      >
+                        <Trash2 size={12} strokeWidth={2} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })}
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="residents-pagination">
+                <span className="pagination-info">
+                  Showing <strong>{startIndex + 1}–{Math.min(startIndex + membersPerPage, totalFiltered)}</strong> of <strong>{totalFiltered}</strong> members
+                </span>
+                <div className="pagination-buttons">
+                  <button
+                    className="page-btn page-btn-nav"
+                    onClick={() => goToPage(1)}
+                    disabled={safePage <= 1}
+                    title="First Page (1)"
+                  >
+                    <ChevronsLeft size={14} />
+                  </button>
+                  <button
+                    className="page-btn page-btn-nav"
+                    onClick={() => goToPage(safePage - 1)}
+                    disabled={safePage <= 1}
+                    title="Previous Page"
+                  >
+                    <ChevronLeft size={14} /> <span>Prev</span>
+                  </button>
+                  {getPaginationItems(safePage, totalPages).map((item, idx) => {
+                    if (item === '...') {
+                      return <span key={`dots-${idx}`} className="pagination-ellipsis">…</span>;
+                    }
+                    return (
+                      <button
+                        key={item}
+                        className={`page-btn ${item === safePage ? 'page-btn-active' : ''}`}
+                        onClick={() => goToPage(item)}
+                        title={`Page ${item}`}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+                  <button
+                    className="page-btn page-btn-nav"
+                    onClick={() => goToPage(safePage + 1)}
+                    disabled={safePage >= totalPages}
+                    title="Next Page"
+                  >
+                    <span>Next</span> <ChevronRight size={14} />
+                  </button>
+                  <button
+                    className="page-btn page-btn-nav"
+                    onClick={() => goToPage(totalPages)}
+                    disabled={safePage >= totalPages}
+                    title={`Last Page (${totalPages})`}
+                  >
+                    <ChevronsRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         ) : (
           /* By Household View */
