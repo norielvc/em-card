@@ -20562,6 +20562,136 @@ html, body {
     height: 32px !important;
   }
 }
+
+/* ===== ORGANIZATIONS RESPONSIVE STYLES ===== */
+.org-desktop-view {
+  display: block;
+}
+
+.org-mobile-view {
+  display: none;
+}
+
+.org-mobile-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: all 0.15s ease;
+}
+
+.org-mobile-card:active {
+  transform: scale(0.99);
+}
+
+.org-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.org-card-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  border: 1.5px solid #a7f3d0;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.org-card-title-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.org-card-name {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.org-card-meta-sub {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.org-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.org-btn-view {
+  flex: 1.2 !important;
+  height: 32px !important;
+  font-size: 0.76rem !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 7px !important;
+}
+
+.org-btn-add {
+  flex: 1.4 !important;
+  height: 32px !important;
+  font-size: 0.76rem !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  background: #059669 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 7px !important;
+}
+
+.org-btn-icon {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 7px !important;
+  flex-shrink: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .org-desktop-view {
+    display: none !important;
+  }
+
+  .org-mobile-view {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding: 10px 12px !important;
+  }
+}
 .dashboard-layout-grid {
   display: grid;
   grid-template-columns: 1fr;

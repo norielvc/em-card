@@ -10105,63 +10105,165 @@ export default function AdminPage() {
 
   const renderOrganizations = () => {
     return (
-      <div className="admin-panel">
-        <div className="panel-header">
-          <h3><Building size={22} /> Organizations</h3>
-          <button className="btn btn-sm btn-primary" onClick={() => setShowCreateOrgModal(true)}>+ Create Organization</button>
+      <div className="admin-panel org-panel">
+        <div className="panel-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+              <Building size={22} style={{ color: '#059669' }} /> Community Organizations
+            </h3>
+            <p style={{ margin: '4px 0 0', fontSize: '0.80rem', color: '#64748b' }}>
+              Accredited civic, sectoral, and community partner organizations
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="panel-badge">{organizations.length} TOTAL</span>
+            <button className="btn btn-sm btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => setShowCreateOrgModal(true)}>
+              <Plus size={15} /> Create Organization
+            </button>
+          </div>
         </div>
-        <div className="members-table-wrap" style={{ marginTop: 20 }}>
+
+        <div className="members-table-wrap" style={{ marginTop: 18 }}>
           {organizationsLoading ? (
             <div className="table-loading">Loading organizations...</div>
           ) : organizations.length === 0 ? (
-            <div className="table-empty">No organizations found. Click "Create Organization" to add one.</div>
+            <div className="table-empty" style={{ padding: '36px 16px', textAlign: 'center' }}>
+              <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                <Building size={24} />
+              </div>
+              <strong style={{ color: '#0f172a', fontSize: '0.96rem', display: 'block' }}>No organizations registered yet</strong>
+              <p style={{ margin: '4px 0 14px', color: '#64748b', fontSize: '0.82rem' }}>Create an organization to group accredited members and track community aid distribution.</p>
+              <button className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: '0 auto' }} onClick={() => setShowCreateOrgModal(true)}>
+                <Plus size={15} /> Create First Organization
+              </button>
+            </div>
           ) : (
-            <div className="table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '40%' }}>Organization Name</th>
-                    <th style={{ width: '20%', textAlign: 'center' }}>Members</th>
-                    <th style={{ width: '40%', textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {organizations.map(org => {
-                    const memberCount = allRegs.filter(r => r.organization === org.name).length;
-                    return (
-                      <tr 
-                        key={org.id}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => {
-                          setShowOrgDetailsModal(org.name);
-                        }}
-                      >
-                        <td><strong style={{ color: '#0f172a', fontSize: '1rem' }}>{org.name}</strong></td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className="status-badge status-approved" style={{ fontSize: '0.8rem' }}>{memberCount} member{memberCount !== 1 ? 's' : ''}</span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button className="btn btn-sm btn-primary" style={{ marginRight: 8 }} onClick={(e) => {
-                            e.stopPropagation();
+            <>
+              {/* ─── 1. DESKTOP TABLE VIEW (Screen > 768px) ─── */}
+              <div className="org-desktop-view">
+                <div className="table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '45%' }}>Organization Name</th>
+                        <th style={{ width: '20%', textAlign: 'center' }}>Members</th>
+                        <th style={{ width: '35%', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {organizations.map(org => {
+                        const memberCount = allRegs.filter(r => r.organization === org.name).length;
+                        return (
+                          <tr 
+                            key={org.id}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => {
+                              setShowOrgDetailsModal(org.name);
+                            }}
+                          >
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <Building size={16} />
+                                </div>
+                                <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>{org.name}</strong>
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span className="status-badge status-approved" style={{ fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                <Users size={12} /> {memberCount} member{memberCount !== 1 ? 's' : ''}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button className="btn btn-sm btn-primary" style={{ marginRight: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={(e) => {
+                                e.stopPropagation();
+                                setShowAddOrgMemberModal(org.name);
+                                setOrgMemberSearch('');
+                              }}><UserPlus size={13} /> Add Member</button>
+                              <button className="btn btn-sm btn-secondary" style={{ marginRight: 8, padding: '6px 8px' }} onClick={(e) => {
+                                e.stopPropagation();
+                                setShowEditOrgModal(org);
+                                setEditOrgName(org.name);
+                              }} title="Edit Organization Name"><Pencil size={13} /></button>
+                              <button className="btn btn-sm btn-danger" style={{ padding: '6px 8px' }} onClick={(e) => {
+                                e.stopPropagation();
+                                setShowDeleteOrgModal(org);
+                              }} title="Delete Organization"><Trash2 size={13} /></button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* ─── 2. MOBILE CARDS VIEW (Screen <= 768px) ─── */}
+              <div className="org-mobile-view">
+                {organizations.map(org => {
+                  const memberCount = allRegs.filter(r => r.organization === org.name).length;
+                  return (
+                    <div
+                      key={org.id}
+                      className="org-mobile-card"
+                      onClick={() => setShowOrgDetailsModal(org.name)}
+                    >
+                      <div className="org-card-header">
+                        <div className="org-card-icon-wrap">
+                          <Building size={20} />
+                        </div>
+                        <div className="org-card-title-info">
+                          <strong className="org-card-name">{org.name}</strong>
+                          <span className="org-card-meta-sub">Accredited Partner Organization</span>
+                        </div>
+                        <span className="status-badge status-approved" style={{ fontSize: '0.70rem', padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                          <Users size={11} /> {memberCount}
+                        </span>
+                      </div>
+
+                      <div className="org-card-actions" onClick={e => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary org-btn-view"
+                          onClick={() => setShowOrgDetailsModal(org.name)}
+                        >
+                          <Users size={13} /> View ({memberCount})
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary org-btn-add"
+                          onClick={() => {
                             setShowAddOrgMemberModal(org.name);
                             setOrgMemberSearch('');
-                          }}><UserPlus size={14} style={{ marginRight: 4 }} /> Add Member</button>
-                          <button className="btn btn-sm btn-secondary" style={{ marginRight: 8, padding: '6px 8px' }} onClick={(e) => {
-                            e.stopPropagation();
+                          }}
+                        >
+                          <UserPlus size={13} /> Add Member
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary org-btn-icon"
+                          onClick={() => {
                             setShowEditOrgModal(org);
                             setEditOrgName(org.name);
-                          }}><Edit size={14} /></button>
-                          <button className="btn btn-sm btn-danger" style={{ padding: '6px 8px' }} onClick={(e) => {
-                            e.stopPropagation();
-                            setShowDeleteOrgModal(org);
-                          }}><Trash size={14} /></button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          }}
+                          title="Edit"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-danger org-btn-icon"
+                          onClick={() => setShowDeleteOrgModal(org)}
+                          title="Delete"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>
