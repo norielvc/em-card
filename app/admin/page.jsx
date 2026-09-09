@@ -3261,28 +3261,66 @@ export default function AdminPage() {
   // Server-side filtering: allResidents already contains the paginated + filtered results
   const filteredResidents = allResidents;
 
-  // NAV ITEMS
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} strokeWidth={1.8} /> },
-    { id: 'residents', label: 'Registered Voters', icon: <Users size={20} strokeWidth={1.8} /> },
-    { id: 'registrations', label: 'Registrations', icon: <ClipboardList size={20} strokeWidth={1.8} /> },
-    { id: 'registerMember', label: 'Register Member', icon: <UserPlus size={20} strokeWidth={1.8} /> },
-    { id: 'members', label: 'Members', icon: <UserCheck size={20} strokeWidth={1.8} /> },
-    { id: 'organizations', label: 'Organizations', icon: <Building size={20} strokeWidth={1.8} /> },
-    { id: 'distributionScanner', label: 'Aid Distribution', icon: <Gift size={20} strokeWidth={1.8} /> },
-    { id: 'eventScanner', label: 'Event Scanner', icon: <ScanLine size={20} strokeWidth={1.8} /> },
-    { id: 'events', label: 'Upcoming Events', icon: <Calendar size={20} strokeWidth={1.8} /> },
-    { id: 'network', label: 'Network', icon: <Network size={20} strokeWidth={1.8} /> },
-    { id: 'messages', label: 'Messages', icon: <MessageSquare size={20} strokeWidth={1.8} /> },
-    { id: 'accounts', label: 'Accounts', icon: <Shield size={20} strokeWidth={1.8} /> },
-    { id: 'adminLogs', label: 'Admin Logs', icon: <History size={20} strokeWidth={1.8} /> },
-    { id: 'system', label: 'System', icon: <Monitor size={20} strokeWidth={1.8} /> },
-  ].filter(item => {
-    if (userRole !== 'staff') return true;
-    // Staff sees: Aid Distribution + Event Scanner + Register Member
-    const staffTabs = new Set(['distributionScanner', 'eventScanner', 'registerMember']);
-    return staffTabs.has(item.id);
-  });
+  // Pending registration count for badge
+  const pendingRegCount = allRegs.filter(r => r.status === 'Pending').length;
+
+  // NAV GROUPS & ITEMS WITH CATEGORIES
+  const navGroups = [
+    {
+      title: 'Overview',
+      items: [
+        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} strokeWidth={1.8} /> },
+      ]
+    },
+    {
+      title: 'Citizen Registry',
+      items: [
+        { id: 'residents', label: 'Registered Voters', icon: <Users size={18} strokeWidth={1.8} /> },
+        { 
+          id: 'registrations', 
+          label: 'Registrations', 
+          icon: <ClipboardList size={18} strokeWidth={1.8} />,
+          badge: pendingRegCount > 0 ? pendingRegCount : null,
+          badgeColor: 'amber'
+        },
+        { id: 'registerMember', label: 'Register Member', icon: <UserPlus size={18} strokeWidth={1.8} /> },
+        { id: 'members', label: 'Approved Members', icon: <UserCheck size={18} strokeWidth={1.8} /> },
+        { id: 'organizations', label: 'Organizations', icon: <Building size={18} strokeWidth={1.8} /> },
+      ]
+    },
+    {
+      title: 'Field Operations',
+      items: [
+        { id: 'distributionScanner', label: 'Aid Distribution', icon: <Gift size={18} strokeWidth={1.8} /> },
+        { id: 'eventScanner', label: 'Event Scanner', icon: <ScanLine size={18} strokeWidth={1.8} /> },
+        { id: 'events', label: 'Upcoming Events', icon: <Calendar size={18} strokeWidth={1.8} /> },
+      ]
+    },
+    {
+      title: 'Intelligence & Network',
+      items: [
+        { id: 'network', label: 'Referral Network', icon: <Network size={18} strokeWidth={1.8} /> },
+        { id: 'messages', label: 'Messages & Feedback', icon: <MessageSquare size={18} strokeWidth={1.8} /> },
+      ]
+    },
+    {
+      title: 'System & Security',
+      items: [
+        { id: 'accounts', label: 'Accounts & Access', icon: <Shield size={18} strokeWidth={1.8} /> },
+        { id: 'system', label: 'System Health', icon: <Monitor size={18} strokeWidth={1.8} /> },
+        { id: 'adminLogs', label: 'Audit Logs', icon: <History size={18} strokeWidth={1.8} /> },
+      ]
+    },
+  ].map(group => ({
+    ...group,
+    items: group.items.filter(item => {
+      if (userRole !== 'staff') return true;
+      const staffTabs = new Set(['distributionScanner', 'eventScanner', 'registerMember']);
+      return staffTabs.has(item.id);
+    })
+  })).filter(group => group.items.length > 0);
+
+  const navItems = navGroups.flatMap(g => g.items);
 
   // LOGIN SCREEN
   if (!isLoggedIn && authLoading) {
@@ -8993,121 +9031,208 @@ export default function AdminPage() {
               )}
             </div>
           ) : (
-            <div className="table-wrap accounts-table-wrap">
-              <table className="admin-table accounts-table">
-                <thead>
-                  <tr>
-                    <th>Account User</th>
-                    <th>Role & Permission</th>
-                    <th>Created On</th>
-                    <th>Last Sign In</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAccounts.map(acc => {
-                    const isCurrent = acc.email === username;
-                    const initials = getInitials(acc.email.split('@')[0]);
-                    const lastActive = formatLastActive(acc.last_sign_in_at);
-                    const isAdmin = acc.role === 'admin';
+            <>
+              {/* ─── 1. DESKTOP TABLE VIEW (Screen > 768px) ─── */}
+              <div className="accounts-desktop-view">
+                <div className="table-wrap accounts-table-wrap">
+                  <table className="admin-table accounts-table">
+                    <thead>
+                      <tr>
+                        <th>Account User</th>
+                        <th>Role & Permission</th>
+                        <th>Created On</th>
+                        <th>Last Sign In</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAccounts.map(acc => {
+                        const isCurrent = acc.email === username;
+                        const initials = getInitials(acc.email.split('@')[0]);
+                        const lastActive = formatLastActive(acc.last_sign_in_at);
+                        const isAdmin = acc.role === 'admin';
 
-                    return (
-                      <tr 
-                        key={acc.id} 
-                        className={`acc-clickable-row ${isCurrent ? 'current-user-row' : ''}`}
-                        onClick={() => {
-                          setEditAccount(acc);
-                          setEditAccountForm({ role: acc.role || 'staff', password: '', confirmPassword: '' });
-                          setShowModalPassword(false);
-                          setShowModalConfirmPassword(false);
-                        }}
-                        title="Click to view details or edit permissions"
-                      >
-                        {/* Account User Info */}
-                        <td>
-                          <div className="acc-user-cell">
-                            <div className={`acc-user-avatar ${isAdmin ? 'admin' : 'staff'}`}>
-                              {initials}
-                            </div>
-                            <div className="acc-user-info">
-                              <div className="acc-email-row">
-                                <span className="acc-user-email">{acc.email}</span>
-                                {isCurrent && (
-                                  <span className="current-user-tag">
-                                    <Check size={11} /> You (Active Session)
-                                  </span>
+                        return (
+                          <tr 
+                            key={acc.id} 
+                            className={`acc-clickable-row ${isCurrent ? 'current-user-row' : ''}`}
+                            onClick={() => {
+                              setEditAccount(acc);
+                              setEditAccountForm({ role: acc.role || 'staff', password: '', confirmPassword: '' });
+                              setShowModalPassword(false);
+                              setShowModalConfirmPassword(false);
+                            }}
+                            title="Click to view details or edit permissions"
+                          >
+                            {/* Account User Info */}
+                            <td>
+                              <div className="acc-user-cell">
+                                <div className={`acc-user-avatar ${isAdmin ? 'admin' : 'staff'}`}>
+                                  {initials}
+                                </div>
+                                <div className="acc-user-info">
+                                  <div className="acc-email-row">
+                                    <span className="acc-user-email">{acc.email}</span>
+                                    {isCurrent && (
+                                      <span className="current-user-tag">
+                                        <Check size={11} /> You (Active Session)
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="acc-user-id">ID: {acc.id.slice(0, 8)}...{acc.id.slice(-4)}</span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Role */}
+                            <td>
+                              <span className={`acc-role-pill ${isAdmin ? 'admin' : 'staff'}`}>
+                                {isAdmin ? <ShieldCheck size={13} /> : <User size={13} />}
+                                <span>{isAdmin ? 'Administrator' : 'Staff Operator'}</span>
+                              </span>
+                            </td>
+
+                            {/* Created Date */}
+                            <td>
+                              <div className="acc-date-cell">
+                                <Calendar size={13} style={{ color: '#94a3b8' }} />
+                                <span>{acc.created_at ? new Date(acc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</span>
+                              </div>
+                            </td>
+
+                            {/* Last Sign In */}
+                            <td>
+                              <div className="acc-last-active-cell">
+                                <span className={`active-indicator-dot ${lastActive.isRecent ? 'recent' : 'inactive'}`} />
+                                <div className="acc-active-text">
+                                  <span className="acc-active-label">{lastActive.label}</span>
+                                  {acc.last_sign_in_at && lastActive.isRecent && (
+                                    <span className="acc-active-sub">
+                                      {new Date(acc.last_sign_in_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Actions */}
+                            <td style={{ textAlign: 'right' }}>
+                              <div className="acc-actions-wrap" onClick={e => e.stopPropagation()}>
+                                <button 
+                                  type="button" 
+                                  className="btn btn-acc-edit"
+                                  onClick={() => {
+                                    setEditAccount(acc);
+                                    setEditAccountForm({ role: acc.role || 'staff', password: '', confirmPassword: '' });
+                                    setShowModalPassword(false);
+                                    setShowModalConfirmPassword(false);
+                                  }}
+                                  title="Edit permissions or reset password"
+                                >
+                                  <Edit3 size={13} /> Edit
+                                </button>
+                                {!isCurrent && (
+                                  <button 
+                                    type="button" 
+                                    className="btn btn-acc-delete"
+                                    onClick={() => setShowDeleteAccountModal(acc)}
+                                    title="Delete user account"
+                                  >
+                                    <Trash2 size={15} strokeWidth={2.2} />
+                                  </button>
                                 )}
                               </div>
-                              <span className="acc-user-id">ID: {acc.id.slice(0, 8)}...{acc.id.slice(-4)}</span>
-                            </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* ─── 2. MOBILE CARDS VIEW (Screen <= 768px) ─── */}
+              <div className="accounts-mobile-view">
+                {filteredAccounts.map(acc => {
+                  const isCurrent = acc.email === username;
+                  const initials = getInitials(acc.email.split('@')[0]);
+                  const lastActive = formatLastActive(acc.last_sign_in_at);
+                  const isAdmin = acc.role === 'admin';
+
+                  return (
+                    <div
+                      key={acc.id}
+                      className={`account-mobile-card ${isCurrent ? 'current-user-card' : ''}`}
+                      onClick={() => {
+                        setEditAccount(acc);
+                        setEditAccountForm({ role: acc.role || 'staff', password: '', confirmPassword: '' });
+                        setShowModalPassword(false);
+                        setShowModalConfirmPassword(false);
+                      }}
+                    >
+                      <div className="acc-card-top">
+                        <div className={`acc-card-avatar ${isAdmin ? 'admin' : 'staff'}`}>
+                          {initials}
+                        </div>
+                        <div className="acc-card-header-info">
+                          <div className="acc-card-name-row">
+                            <strong className="acc-card-email">{acc.email}</strong>
+                            <span className={`acc-role-pill ${isAdmin ? 'admin' : 'staff'}`} style={{ fontSize: '0.68rem', padding: '2px 7px' }}>
+                              {isAdmin ? <ShieldCheck size={11} /> : <User size={11} />}
+                              <span>{isAdmin ? 'Admin' : 'Staff'}</span>
+                            </span>
                           </div>
-                        </td>
-
-                        {/* Role */}
-                        <td>
-                          <span className={`acc-role-pill ${isAdmin ? 'admin' : 'staff'}`}>
-                            {isAdmin ? <ShieldCheck size={13} /> : <User size={13} />}
-                            <span>{isAdmin ? 'Administrator' : 'Staff Operator'}</span>
-                          </span>
-                        </td>
-
-                        {/* Created Date */}
-                        <td>
-                          <div className="acc-date-cell">
-                            <Calendar size={13} style={{ color: '#94a3b8' }} />
-                            <span>{acc.created_at ? new Date(acc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</span>
-                          </div>
-                        </td>
-
-                        {/* Last Sign In */}
-                        <td>
-                          <div className="acc-last-active-cell">
-                            <span className={`active-indicator-dot ${lastActive.isRecent ? 'recent' : 'inactive'}`} />
-                            <div className="acc-active-text">
-                              <span className="acc-active-label">{lastActive.label}</span>
-                              {acc.last_sign_in_at && lastActive.isRecent && (
-                                <span className="acc-active-sub">
-                                  {new Date(acc.last_sign_in_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Actions */}
-                        <td style={{ textAlign: 'right' }}>
-                          <div className="acc-actions-wrap" onClick={e => e.stopPropagation()}>
-                            <button 
-                              type="button" 
-                              className="btn btn-acc-edit"
-                              onClick={() => {
-                                setEditAccount(acc);
-                                setEditAccountForm({ role: acc.role || 'staff', password: '', confirmPassword: '' });
-                                setShowModalPassword(false);
-                                setShowModalConfirmPassword(false);
-                              }}
-                              title="Edit permissions or reset password"
-                            >
-                              <Edit3 size={13} /> Edit
-                            </button>
-                            {!isCurrent && (
-                              <button 
-                                type="button" 
-                                className="btn btn-acc-delete"
-                                onClick={() => setShowDeleteAccountModal(acc)}
-                                title="Delete user account"
-                              >
-                                <Trash2 size={15} strokeWidth={2.2} />
-                              </button>
+                          <div className="acc-card-sub-row">
+                            {isCurrent && (
+                              <span className="current-user-tag" style={{ fontSize: '0.66rem', padding: '1px 6px' }}>
+                                <Check size={10} /> Active Session
+                              </span>
                             )}
+                            <span className="acc-card-id">ID: {acc.id.slice(0, 8)}...</span>
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      </div>
+
+                      <div className="acc-card-details-grid">
+                        <div className="acc-chip-row">
+                          <Calendar size={12} className="acc-chip-icon" />
+                          <span>Joined: {acc.created_at ? new Date(acc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</span>
+                        </div>
+                        <div className="acc-chip-row">
+                          <span className={`active-indicator-dot ${lastActive.isRecent ? 'recent' : 'inactive'}`} style={{ width: 7, height: 7, marginRight: 2 }} />
+                          <span>{lastActive.label}</span>
+                        </div>
+                      </div>
+
+                      <div className="acc-card-bottom-actions" onClick={e => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-emerald acc-mobile-btn-edit"
+                          onClick={() => {
+                            setEditAccount(acc);
+                            setEditAccountForm({ role: acc.role || 'staff', password: '', confirmPassword: '' });
+                            setShowModalPassword(false);
+                            setShowModalConfirmPassword(false);
+                          }}
+                        >
+                          <Edit3 size={13} /> Edit Permissions
+                        </button>
+                        {!isCurrent && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger acc-mobile-btn-del"
+                            onClick={() => setShowDeleteAccountModal(acc)}
+                            title="Delete User"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 
@@ -9317,12 +9442,26 @@ export default function AdminPage() {
     const maxTableSize = largestTable?.size_bytes || 1;
 
     return (
-      <div className="admin-panel">
-        <div className="panel-header">
-          <h3><Monitor size={22} /> System Monitoring</h3>
-          <button className="btn btn-sm btn-primary" onClick={fetchSystemStats} disabled={systemLoading}>
-            <Activity size={14} /> {systemLoading ? 'Refreshing...' : 'Refresh'}
-          </button>
+      <div className="admin-panel system-panel">
+        <div className="panel-header system-top-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+              <Monitor size={22} style={{ color: '#059669' }} /> System Infrastructure & Storage
+            </h3>
+            <p style={{ margin: '4px 0 0', fontSize: '0.80rem', color: '#64748b' }}>
+              Real-time database records, cloud storage usage, and infrastructure health
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {systemStats?.timestamp && (
+              <span className="panel-badge" style={{ fontSize: '0.72rem', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }}>
+                Synced: {systemStats.timestamp.split(', ')[1] || systemStats.timestamp}
+              </span>
+            )}
+            <button className="btn btn-sm btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={fetchSystemStats} disabled={systemLoading}>
+              <Activity size={14} className={systemLoading ? 'spin' : ''} /> {systemLoading ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         {systemStats?.error && (
@@ -9338,9 +9477,6 @@ export default function AdminPage() {
 
         {systemStats && !systemStats.error && (
           <>
-            {/* Timestamp */}
-            <div className="system-timestamp">Last updated: {systemStats.timestamp}</div>
-
             {/* Overview Cards */}
             {(() => {
               const domainExpiry = new Date('2027-05-27');
@@ -9392,7 +9528,7 @@ export default function AdminPage() {
             })()}
 
             {/* Two Column Layout */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 24, marginBottom: 28 }}>
+            <div className="system-main-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, marginBottom: 24 }}>
               {/* Left: Database Tables */}
               <div className="system-section" style={{ marginBottom: 0 }}>
                 <h4><Database size={18} /> Database Tables</h4>
@@ -12646,15 +12782,34 @@ export default function AdminPage() {
       {/* Sidebar */}
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
-          <Image src="/em-main-logo.png" alt="Epektibong Mamamayan Logo" width={44} height={44} className="sidebar-brand-mark-img" />
-          <div className="sidebar-brand-text"><strong>EM Card</strong><small>Admin Portal</small></div>
+          <Image src="/em-main-logo.png" alt="Epektibong Mamamayan Logo" width={42} height={42} className="sidebar-brand-mark-img" />
+          <div className="sidebar-brand-text">
+            <strong>EM Card</strong>
+          </div>
         </div>
+
         <nav className="sidebar-nav">
-          {navItems.map(item => (
-            <button key={item.id} className={`sidebar-nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => handleNavClick(item.id)}>
-              <span className="sidebar-nav-icon">{item.icon}</span>
-              <span className="sidebar-nav-label">{item.label}</span>
-            </button>
+          {navGroups.map((group, gIdx) => (
+            <div key={group.title || gIdx} className="sidebar-group">
+              {group.title && <div className="sidebar-group-title">{group.title}</div>}
+              <div className="sidebar-group-items">
+                {group.items.map(item => (
+                  <button 
+                    key={item.id} 
+                    className={`sidebar-nav-item ${activeTab === item.id ? 'active' : ''}`} 
+                    onClick={() => handleNavClick(item.id)}
+                  >
+                    <span className="sidebar-nav-icon">{item.icon}</span>
+                    <span className="sidebar-nav-label">{item.label}</span>
+                    {item.badge && (
+                      <span className={`sidebar-nav-badge ${item.badgeColor || ''}`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
@@ -12662,17 +12817,17 @@ export default function AdminPage() {
           <div className="sidebar-user">
             <div className="sidebar-user-avatar">{username.charAt(0).toUpperCase()}</div>
             <div className="sidebar-user-info">
-              <span className="sidebar-user-name">{username}</span>
+              <span className="sidebar-user-name" title={username}>{username}</span>
               <span className="sidebar-user-role" style={{ textTransform: 'capitalize' }}>{userRole}</span>
             </div>
           </div>
           {userRole !== 'staff' && (
             <button className="sidebar-logout" onClick={() => setShowCreateAccount(true)}>
-              <User size={15} /><span>Create Account</span>
+              <UserPlus size={14} /><span>Create Account</span>
             </button>
           )}
-          <button className="sidebar-logout" onClick={handleLogout}>
-            <LogOut size={15} /><span>Logout</span>
+          <button className="sidebar-logout btn-logout-danger" onClick={handleLogout}>
+            <LogOut size={14} /><span>Logout</span>
           </button>
         </div>
       </aside>
