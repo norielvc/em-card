@@ -978,6 +978,72 @@ export default function AdminPage() {
     }
   }, [selectedRegDetail]);
 
+  // Disable background scrolling when any modal is open across the entire admin dashboard
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const anyModalOpen = Boolean(
+      showAddModal ||
+      showBulkModal ||
+      selectedRegDetail ||
+      selectedMember ||
+      showPrintModal ||
+      showEditResidentModal ||
+      showDeleteResidentModal ||
+      showDeleteMemberModal ||
+      showDeleteRegModal ||
+      showPromoteModal ||
+      scanQrMember ||
+      selectedLogDetail ||
+      showAllTopBeneficiariesModal ||
+      showDeleteScanEventModal ||
+      showDeleteAccountModal ||
+      inspectImageModal ||
+      showOrgDetailsModal ||
+      showAddOrgMemberModal ||
+      showCreateOrgModal ||
+      showEditOrgModal ||
+      showDeleteOrgModal
+    );
+
+    if (anyModalOpen) {
+      document.body.classList.add('modal-open');
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+
+    return () => {
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [
+    showAddModal,
+    showBulkModal,
+    selectedRegDetail,
+    selectedMember,
+    showPrintModal,
+    showEditResidentModal,
+    showDeleteResidentModal,
+    showDeleteMemberModal,
+    showDeleteRegModal,
+    showPromoteModal,
+    scanQrMember,
+    selectedLogDetail,
+    showAllTopBeneficiariesModal,
+    showDeleteScanEventModal,
+    showDeleteAccountModal,
+    inspectImageModal,
+    showOrgDetailsModal,
+    showAddOrgMemberModal,
+    showCreateOrgModal,
+    showEditOrgModal,
+    showDeleteOrgModal
+  ]);
+
   // Auto-fetch messages when switching to history tab
   useEffect(() => {
     if (activeTab === 'messages' && msgTab === 'history') {

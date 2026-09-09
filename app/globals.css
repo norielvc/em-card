@@ -9018,6 +9018,13 @@ p {
 }
 
 /* Modal Popup Styles */
+body.modal-open,
+body:has(.modal-overlay) {
+  overflow: hidden !important;
+  touch-action: none !important;
+  overscroll-behavior: contain !important;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -9028,6 +9035,7 @@ p {
   z-index: 9999;
   padding: 20px;
   animation: fadeIn 0.25s ease both;
+  overscroll-behavior: contain;
 }
 
 .modal-card {
@@ -11152,23 +11160,23 @@ p {
 
 @media (max-width: 640px) {
   .modal-overlay {
-    padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 10px) 8px !important;
-    align-items: flex-start !important;
+    padding: 12px 10px calc(env(safe-area-inset-bottom, 0px) + 12px) 10px !important;
+    align-items: center !important;
     justify-content: center !important;
     overflow-y: auto !important;
   }
 
   .reg-detail-card {
     width: 100% !important;
-    max-width: 440px !important;
-    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px) !important;
-    height: calc(94dvh - env(safe-area-inset-bottom, 0px)) !important;
+    max-width: 420px !important;
+    max-height: calc(76dvh - env(safe-area-inset-bottom, 0px)) !important;
+    height: min(500px, calc(76dvh - env(safe-area-inset-bottom, 0px))) !important;
     border-radius: 18px !important;
-    margin: 4px auto 0 !important;
+    margin: auto !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3) !important;
   }
 
   .reg-detail-card .modal-header {
