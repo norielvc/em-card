@@ -385,6 +385,8 @@ export default function AdminPage() {
   const [distTopBeneficiaries, setDistTopBeneficiaries] = useState([]);
   const [showAllTopBeneficiariesModal, setShowAllTopBeneficiariesModal] = useState(false);
   const [topBeneficiariesSearch, setTopBeneficiariesSearch] = useState('');
+  const [showAllTopOrgsModal, setShowAllTopOrgsModal] = useState(false);
+  const [topOrgsSearch, setTopOrgsSearch] = useState('');
   const [distCategoryRankings, setDistCategoryRankings] = useState([]);
   const [distSingleClaimCount, setDistSingleClaimCount] = useState(0);
   const [distMultiClaimCount, setDistMultiClaimCount] = useState(0);
@@ -853,6 +855,42 @@ export default function AdminPage() {
   const [showEditOrgModal, setShowEditOrgModal] = useState(null);
   const [editOrgName, setEditOrgName] = useState('');
   const [showDeleteOrgModal, setShowDeleteOrgModal] = useState(null);
+
+  // Ranked Top Organizations by Aid Received
+  const topOrganizations = useMemo(() => {
+    if (!organizations || organizations.length === 0) return [];
+    return organizations.map(org => {
+      const orgMembers = allRegs.filter(r => r.organization === org.name && r.status === 'Approved');
+      const memberCount = orgMembers.length;
+      const orgMemberIds = new Set(orgMembers.map(r => String(r.id).toLowerCase()));
+      const orgAidRecords = allOrgAidRecords.filter(a => a.registration_id && orgMemberIds.has(String(a.registration_id).toLowerCase()));
+      const totalClaims = orgAidRecords.length;
+      const uniqueBeneficiaries = new Set(orgAidRecords.map(a => String(a.registration_id).toLowerCase())).size;
+
+      // Categories breakdown
+      const categories = {};
+      orgAidRecords.forEach(a => {
+        const cat = a.category || 'general';
+        categories[cat] = (categories[cat] || 0) + 1;
+      });
+
+      const coveragePct = memberCount > 0 ? Math.round((uniqueBeneficiaries / memberCount) * 100) : 0;
+
+      return {
+        id: org.id,
+        name: org.name,
+        memberCount,
+        totalClaims,
+        uniqueBeneficiaries,
+        coveragePct,
+        categories,
+      };
+    }).sort((a, b) => {
+      if (b.totalClaims !== a.totalClaims) return b.totalClaims - a.totalClaims;
+      if (b.uniqueBeneficiaries !== a.uniqueBeneficiaries) return b.uniqueBeneficiaries - a.uniqueBeneficiaries;
+      return b.memberCount - a.memberCount;
+    });
+  }, [organizations, allRegs, allOrgAidRecords]);
 
   // Upcoming Events Management
   const [upcomingEventsList, setUpcomingEventsList] = useState([]);
@@ -5434,6 +5472,108 @@ export default function AdminPage() {
                 )}
               </div>
 
+              {/* Top Organization Aid Receivers (Leaderboard) */}
+              <div className="admin-panel dist-analytics-subpanel">
+                <div className="panel-header dist-beneficiaries-panel-header">
+                  <div className="panel-header-left">
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Building size={18} style={{ color: '#10b981' }} /> Top Organization Aid Receivers
+                    </h3>
+                    <span className="panel-subtitle">Accredited partner organizations ranked by welfare aid claimed</span>
+                  </div>
+                  {topOrganizations.length > 5 && (
+                    <button 
+                      type="button" 
+                      className="dist-see-more-btn"
+                      onClick={() => setShowAllTopOrgsModal(true)}
+                      title={`View all ${topOrganizations.length} ranked organizations`}
+                    >
+                      <span>See All ({topOrganizations.length})</span>
+                      <ArrowRight size={13} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="dist-top-residents-list">
+                  {topOrganizations.length === 0 ? (
+                    <div className="dist-dash-empty-notice">
+                      <Building size={24} color="#94a3b8" />
+                      <p>No organization aid claims recorded yet.</p>
+                    </div>
+                  ) : (
+                    topOrganizations.slice(0, 10).map((org, idx) => {
+                      const catEntries = Object.entries(org.categories || {});
+                      return (
+                        <div 
+                          key={org.id || idx}
+                          className="dist-top-resident-row clickable"
+                          onClick={() => setShowOrgDetailsModal(org.name)}
+                          title="Click to view organization members & full aid claim history"
+                        >
+                          <div className={`dist-resident-rank-badge ${idx < 3 ? `rank-${idx + 1}` : ''}`}>#{idx + 1}</div>
+                          <div className="dist-resident-avatar" style={{ background: '#ecfdf5', border: '2px solid #a7f3d0', color: '#059669' }}>
+                            <Building size={18} />
+                          </div>
+                          <div className="dist-resident-info">
+                            <div className="dist-resident-name-line">
+                              <strong>{org.name}</strong>
+                              <span className={`dist-resident-claims-pill ${org.totalClaims === 0 ? 'zero' : ''}`} style={org.totalClaims === 0 ? { background: '#f1f5f9', color: '#64748b', borderColor: '#e2e8f0' } : {}}>
+                                {org.totalClaims} Total Claim{org.totalClaims === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                            <div className="dist-resident-sub-line">
+                              <span className="dist-resident-brgy">
+                                <Users size={11} /> {org.memberCount} Approved Member{org.memberCount !== 1 ? 's' : ''}
+                              </span>
+                              <span style={{ color: '#059669', fontWeight: 600 }}>
+                                ✓ {org.uniqueBeneficiaries} Beneficiar{org.uniqueBeneficiaries === 1 ? 'y' : 'ies'} ({org.coveragePct}% reach)
+                              </span>
+                            </div>
+                            {/* Category Pills Breakdown */}
+                            {catEntries.length > 0 && (
+                              <div className="dist-resident-cat-dots-wrap">
+                                {catEntries.map(([catId, catCount]) => {
+                                  const catMeta = DISTRIBUTION_CATEGORIES.find(c => c.id === catId) || { name: catId, color: '#059669' };
+                                  return (
+                                    <span 
+                                      key={catId} 
+                                      className="dist-resident-cat-dot-badge" 
+                                      style={{ background: `${catMeta.color}15`, color: catMeta.color, borderColor: `${catMeta.color}40` }}
+                                      title={`${catMeta.name}: ${catCount}x`}
+                                    >
+                                      <span className="dist-mini-dot" style={{ background: catMeta.color }} />
+                                      {catMeta.name} {catCount > 1 ? `(${catCount}x)` : ''}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          <div className="dist-resident-row-arrow" title="View Organization Details">
+                            <ChevronRight size={16} />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {topOrganizations.length > 10 && (
+                  <div className="dist-leaderboard-footer">
+                    <button 
+                      type="button" 
+                      className="dist-view-more-link"
+                      onClick={() => setShowAllTopOrgsModal(true)}
+                    >
+                      <Building size={14} /> See more ({topOrganizations.length} total organizations) →
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 5. Advanced Telemetry Row 3: Geographic Barangay Distribution + Staff Operator Leaderboard */}
+            <div className="dist-analytics-grid-2col" style={{ marginTop: 20 }}>
               {/* Geographic Barangay Distribution Leaderboard */}
               <div className="admin-panel dist-analytics-subpanel">
                 <div className="panel-header">
@@ -5467,6 +5607,48 @@ export default function AdminPage() {
                             </div>
                             <div className="dist-brgy-progress-track">
                               <div className="dist-brgy-progress-fill" style={{ width: `${barPct}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Staff Operator & Scanner Telemetry */}
+              <div className="admin-panel dist-analytics-subpanel">
+                <div className="panel-header">
+                  <div className="panel-header-left">
+                    <h3 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <ShieldCheck size={18} style={{ color: '#6366f1' }} /> Field Scanner &amp; Staff Telemetry
+                    </h3>
+                    <span className="panel-subtitle">Staff verification volume and scan processing activity</span>
+                  </div>
+                </div>
+
+                <div className="dist-brgy-leaderboard">
+                  {distOperatorStats.length === 0 ? (
+                    <div className="dist-dash-empty-notice">
+                      <ShieldCheck size={24} color="#94a3b8" />
+                      <p>No operator scan logs recorded yet.</p>
+                    </div>
+                  ) : (
+                    distOperatorStats.slice(0, 8).map((op, idx) => {
+                      const maxOpCount = Math.max(...distOperatorStats.map(item => item.count), 1);
+                      const opPct = Math.round((op.count / maxOpCount) * 100);
+                      return (
+                        <div key={op.operator || idx} className="dist-brgy-row">
+                          <div className="dist-brgy-rank">#{idx + 1}</div>
+                          <div className="dist-brgy-info">
+                            <div className="dist-brgy-title-line">
+                              <strong>{op.operator}</strong>
+                              <span className="dist-brgy-count-badge" style={{ background: '#e0e7ff', color: '#4338ca', borderColor: '#c7d2fe' }}>
+                                {op.count.toLocaleString()} scans recorded
+                              </span>
+                            </div>
+                            <div className="dist-brgy-progress-track">
+                              <div className="dist-brgy-progress-fill" style={{ width: `${opPct}%`, background: '#6366f1' }} />
                             </div>
                           </div>
                         </div>
@@ -13965,6 +14147,140 @@ export default function AdminPage() {
                 type="button" 
                 className="btn btn-secondary" 
                 onClick={() => setShowAllTopBeneficiariesModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ALL TOP ORGANIZATIONS MODAL */}
+      {showAllTopOrgsModal && (
+        <div className="modal-overlay" onClick={() => setShowAllTopOrgsModal(false)}>
+          <div className="modal-card dist-all-beneficiaries-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-header gov-modal-header">
+              <div className="gov-modal-header-brand">
+                <div className="gov-modal-header-seal">
+                  <Building size={20} style={{ color: '#10b981' }} />
+                </div>
+                <div className="gov-modal-header-titles">
+                  <span className="gov-modal-header-pre">Republic of the Philippines · Municipality of Balagtas</span>
+                  <h3 className="gov-modal-header-main">All Partner Organizations Aid Ranking</h3>
+                  <span className="gov-modal-header-sub">
+                    Showing {topOrganizations.length} accredited organizations ranked by aid claim volume
+                  </span>
+                </div>
+              </div>
+              <button className="modal-close-x" onClick={() => setShowAllTopOrgsModal(false)}>✕</button>
+            </div>
+
+            <div className="modal-body dist-all-beneficiaries-body">
+              <div className="dist-modal-search-wrap">
+                <Search size={16} color="#64748b" />
+                <input 
+                  type="text" 
+                  placeholder="Search organizations by name..." 
+                  value={topOrgsSearch}
+                  onChange={e => setTopOrgsSearch(e.target.value)}
+                  autoFocus
+                />
+                {topOrgsSearch && (
+                  <button 
+                    type="button" 
+                    className="dist-search-clear-btn" 
+                    onClick={() => setTopOrgsSearch('')}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="dist-all-beneficiaries-list">
+                {(() => {
+                  const query = topOrgsSearch.trim().toLowerCase();
+                  const filtered = topOrganizations.filter(o => {
+                    if (!query) return true;
+                    return o.name && o.name.toLowerCase().includes(query);
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="dist-dash-empty-notice" style={{ padding: '40px 0' }}>
+                        <Building size={32} color="#94a3b8" />
+                        <p>No organizations found matching &quot;{topOrgsSearch}&quot;.</p>
+                      </div>
+                    );
+                  }
+
+                  return filtered.map((org, idx) => {
+                    const catEntries = Object.entries(org.categories || {});
+                    return (
+                      <div 
+                        key={org.id || idx}
+                        className="dist-top-resident-row clickable"
+                        onClick={() => {
+                          setShowAllTopOrgsModal(false);
+                          setShowOrgDetailsModal(org.name);
+                        }}
+                        title="Click to view organization members & full aid claim history"
+                      >
+                        <div className={`dist-resident-rank-badge ${idx < 3 ? `rank-${idx + 1}` : ''}`}>
+                          #{idx + 1}
+                        </div>
+                        <div className="dist-resident-avatar" style={{ background: '#ecfdf5', border: '2px solid #a7f3d0', color: '#059669' }}>
+                          <Building size={18} />
+                        </div>
+                        <div className="dist-resident-info">
+                          <div className="dist-resident-name-line">
+                            <strong>{org.name}</strong>
+                            <span className={`dist-resident-claims-pill ${org.totalClaims === 0 ? 'zero' : ''}`} style={org.totalClaims === 0 ? { background: '#f1f5f9', color: '#64748b', borderColor: '#e2e8f0' } : {}}>
+                              {org.totalClaims} Total Claim{org.totalClaims === 1 ? '' : 's'}
+                            </span>
+                          </div>
+                          <div className="dist-resident-sub-line">
+                            <span className="dist-resident-brgy">
+                              <Users size={11} /> {org.memberCount} Approved Member{org.memberCount !== 1 ? 's' : ''}
+                            </span>
+                            <span style={{ color: '#059669', fontWeight: 600 }}>
+                              ✓ {org.uniqueBeneficiaries} Beneficiar{org.uniqueBeneficiaries === 1 ? 'y' : 'ies'} ({org.coveragePct}% reach)
+                            </span>
+                            <div className="dist-resident-cat-dots-wrap">
+                              {catEntries.map(([catId, catCount]) => {
+                                const catMeta = DISTRIBUTION_CATEGORIES.find(c => c.id === catId) || { name: catId, color: '#059669' };
+                                return (
+                                  <span 
+                                    key={catId} 
+                                    className="dist-resident-cat-dot-badge" 
+                                    style={{ background: `${catMeta.color}15`, color: catMeta.color, borderColor: `${catMeta.color}40` }}
+                                    title={`${catMeta.name}: ${catCount}x`}
+                                  >
+                                    <span className="dist-mini-dot" style={{ background: catMeta.color }} />
+                                    {catMeta.name} {catCount > 1 ? `(${catCount}x)` : ''}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="dist-resident-row-arrow" title="View Organization Details">
+                          <ChevronRight size={16} />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                Tip: Click any organization to open its enrolled members and full distribution tracking.
+              </span>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setShowAllTopOrgsModal(false)}
               >
                 Close
               </button>
