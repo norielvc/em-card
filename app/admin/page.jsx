@@ -498,7 +498,6 @@ export default function AdminPage() {
       showToast('Scan processing failed', 'error');
     } finally {
       setDistScanLoading(false);
-      distScanInProgressRef.current = false;
       setDistScanToken('EM-');
     }
   };
@@ -527,11 +526,10 @@ export default function AdminPage() {
       await qr.start(
         { facingMode: 'environment' },
         { fps: 30, aspectRatio: 1.0 },
-        (decodedText) => {
+        async (decodedText) => {
           if (distScanInProgressRef.current) return;
           distScanInProgressRef.current = true;
-          try { qr.stop(); } catch (_) {}
-          setDistCameraActive(false);
+          await stopDistScanner();
           handleDistributionScan(decodedText);
         },
         () => {}
@@ -1325,12 +1323,11 @@ export default function AdminPage() {
       await qr.start(
         { facingMode: 'environment' },
         { fps: 30, aspectRatio: 1.0 },
-        (decodedText) => {
+        async (decodedText) => {
           if (scanInProgressRef.current) return;
           scanInProgressRef.current = true;
           // Stop scanner immediately to prevent multiple detections
-          try { qr.stop(); } catch (_) {}
-          setCameraActive(false);
+          await stopScanner();
           handleEventScan(decodedText);
         },
         () => {}
@@ -1378,7 +1375,7 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (scannerInputMode !== 'camera' || !selectedEvent) {
+    if (scannerInputMode !== 'camera' || !selectedEvent || scanResult) {
       stopScanner();
       return;
     }
@@ -1388,10 +1385,10 @@ export default function AdminPage() {
     return () => {
       stopScanner();
     };
-  }, [scannerInputMode, selectedEvent]);
+  }, [scannerInputMode, selectedEvent, Boolean(scanResult)]);
 
   useEffect(() => {
-    if (activeTab !== 'distributionScanner' || distScannerMode !== 'camera') {
+    if (activeTab !== 'distributionScanner' || distScannerMode !== 'camera' || distScanResult) {
       stopDistScanner();
       return;
     }
@@ -1401,7 +1398,7 @@ export default function AdminPage() {
     return () => {
       stopDistScanner();
     };
-  }, [activeTab, distScannerMode, selectedDistCategory]);
+  }, [activeTab, distScannerMode, selectedDistCategory, Boolean(distScanResult)]);
 
   useEffect(() => {
     if (activeTab === 'distributionScanner') {
@@ -10944,7 +10941,6 @@ export default function AdminPage() {
     } finally {
       setScanLoading(false);
       setScanToken('EM-');
-      scanInProgressRef.current = false;
     }
   };
 
