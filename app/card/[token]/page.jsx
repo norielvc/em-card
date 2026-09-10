@@ -190,7 +190,7 @@ export default function CardDashboardPage() {
         {/* Feedback / Suggestion Box - Tagalog */}
         <div className="card-dash-section card-dash-grievance">
           <h3><MessageSquare size={18} /> Suhestyon at Reklamo</h3>
-          <p className="card-dash-grievance-desc">Mahalaga ang iyong boses. Maaari kang magbigay ng suhestyon, reklamo, o feedback direkta sa iyong barangay coordinator.</p>
+          <p className="card-dash-grievance-desc">Mahalaga ang iyong boses. Maaari kang magbigay ng suhestyon, reklamo, o feedback direkta sa EM Admin.</p>
 
           {grievanceSent && (
             <div className="card-dash-grievance-success">
