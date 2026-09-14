@@ -1,5 +1,5 @@
 // EM Card Admin Service Worker
-const CACHE_NAME = 'em-card-admin-v2';
+const CACHE_NAME = 'em-card-admin-v3';
 const STATIC_ASSETS = [
   '/',
   '/admin',
@@ -37,16 +37,24 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Bypass API requests and external calls - always fetch fresh
-  if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
-    return;
-  }
+  // ── Skip non-GET requests entirely ──────────────────────────────
+  if (event.request.method !== 'GET') return;
 
-  // Network-first strategy for navigation and pages
+  // ── Skip ALL cross-origin requests (fonts, CDNs, APIs, Supabase) ─
+  // Let the browser handle them directly — no SW interception.
+  if (url.origin !== self.location.origin) return;
+
+  // ── Skip Next.js API routes ──────────────────────────────────────
+  if (url.pathname.startsWith('/api/')) return;
+
+  // ── Skip Next.js internal build assets (_next/) ─────────────────
+  if (url.pathname.startsWith('/_next/')) return;
+
+  // Network-first strategy for same-origin navigation and pages
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache successful static responses
+        // Cache successful same-origin responses
         if (response && response.status === 200 && response.type === 'basic') {
           const responseClone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -56,8 +64,14 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // Fallback to cache if network fails (offline)
-        return caches.match(event.request);
+        // Fallback to cache when offline
+        return caches.match(event.request).then((cached) => {
+          // Must always return a valid Response
+          return cached || new Response('Offline – no cached version available.', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain' },
+          });
+        });
       })
   );
 });

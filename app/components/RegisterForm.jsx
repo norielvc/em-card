@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, CheckCircle2, Copy, Check, RotateCcw, LayoutDashboard, Search, ShieldCheck, UserCheck } from 'lucide-react';
 
 const TRANSLATIONS = {
   en: {
@@ -65,6 +65,9 @@ const TRANSLATIONS = {
     reviewSector: 'Sector Category',
     reviewGender: 'Gender',
     reviewCivilStatus: 'Civil Status',
+    religionLabel: 'Religion',
+    chooseReligion: 'Select religion...',
+    reviewReligion: 'Religion',
     lotLabel: 'Lot',
     blockLabel: 'Block',
     phaseLabel: 'Phase',
@@ -192,6 +195,9 @@ const TRANSLATIONS = {
     reviewSector: 'Kategorya ng Sektor',
     reviewGender: 'Kasarian',
     reviewCivilStatus: 'Katayuan sa Pag-aasawa',
+    religionLabel: 'Relihiyon',
+    chooseReligion: 'Pumili ng relihiyon...',
+    reviewReligion: 'Relihiyon',
     lotLabel: 'Lot',
     blockLabel: 'Block',
     phaseLabel: 'Phase',
@@ -287,6 +293,7 @@ export default function RegisterForm({ embedded = false }) {
   const [contact, setContact] = useState('');
   const [gender, setGender] = useState('');
   const [civilStatus, setCivilStatus] = useState('');
+  const [religion, setReligion] = useState('');
   const [lot, setLot] = useState('');
   const [block, setBlock] = useState('');
   const [phase, setPhase] = useState('');
@@ -310,10 +317,47 @@ export default function RegisterForm({ embedded = false }) {
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [suffix, setSuffix] = useState('');
-  const [barangay, setBarangay] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [subStep, setSubStep] = useState(1); // 1: Address & Contact, 2: Portrait, 3: Referral & Details
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = (text) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleRegisterAnother = () => {
+    setSubmitted(false);
+    setStep(1);
+    setSelectedPerson(null);
+    setSearchQuery('');
+    setSearchResults([]);
+    setPhoto(null);
+    setPhotoSource(null);
+    setSubStep(1);
+    setRefNumber(null);
+    setCivilStatus('');
+    setGender('');
+    setReligion('');
+    setSector('');
+    setContact('');
+    setHouseNo('');
+    setPurok('');
+    setLot('');
+    setBlock('');
+    setPhase('');
+    setBirthMonth('');
+    setBirthDay('');
+    setBirthYear('');
+    setIsNonValidResident(false);
+    setFirstName('');
+    setMiddleName('');
+    setLastName('');
+    setSuffix('');
+    setBarangay('');
+  };
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -714,6 +758,7 @@ export default function RegisterForm({ embedded = false }) {
         sector_category: sector,
         gender: gender,
         civil_status: civilStatus,
+        religion: religion || null,
         birthday: getFormattedBirthday(),
         photo_url: photoUrl,
         house_no: SUBDIVISION_PUROKS.includes(purok) ? null : houseNo,
@@ -832,51 +877,143 @@ export default function RegisterForm({ embedded = false }) {
 
             <div className="premium-glass-card success-card-panel">
               <div className="reg-success">
-                <div className="success-icon-badge">✓</div>
-                <h2>{t.successCardTitle}</h2>
-                <p className="success-subtext">{t.successCardDesc}</p>
+                {/* Top Animated Success Ring */}
+                <div className="success-icon-wrapper">
+                  <div className="success-icon-ring">
+                    <CheckCircle2 size={40} strokeWidth={2.5} />
+                  </div>
+                </div>
+
+                <div className="success-title-wrap">
+                  <h2 className="success-title">{t.successCardTitle}</h2>
+                  <p className="success-subtext">{t.successCardDesc}</p>
+                </div>
                 
+                {/* Profile Card */}
                 <div className="summary-profile-card">
                   <div className="profile-img-wrap">
-                    {photo && <img src={photo} alt="Profile Snapshot" />}
+                    {photo ? (
+                      <img src={photo} alt="Profile Snapshot" />
+                    ) : (
+                      <div className="profile-avatar-fallback">
+                        <UserCheck size={36} />
+                      </div>
+                    )}
+                    <span className="profile-verified-dot" title="Verified Member">✓</span>
                   </div>
+
                   <div className="profile-details">
-                    <span className="profile-id-badge">{selectedPerson.id}</span>
-                    <h3>{selectedPerson.name}</h3>
+                    <div className="profile-header-row">
+                      <h3 className="profile-name">
+                        {isNonValidResident 
+                          ? `${firstName} ${middleName ? middleName + ' ' : ''}${lastName}${suffix ? ' ' + suffix : ''}`.trim() 
+                          : (selectedPerson?.name || 'Citizen Member')}
+                      </h3>
+                      <span className="profile-badge-pill">
+                        <ShieldCheck size={14} />
+                        {isNonValidResident ? 'Direct Registration' : 'Registry Verified'}
+                      </span>
+                    </div>
+
                     <div className="profile-meta-grid">
-                      <div>
-                        <label>{t.barangay}</label>
-                        <span>{selectedPerson.barangay}</span>
+                      <div className="meta-card-item">
+                        <span className="meta-label">{t.barangay}</span>
+                        <strong className="meta-val">{isNonValidResident ? barangay : (selectedPerson?.barangay || '-')}</strong>
                       </div>
-                      <div>
-                        <label>{t.sector}</label>
-                        <span>{sector}</span>
+                      <div className="meta-card-item">
+                        <span className="meta-label">{t.sector}</span>
+                        <strong className="meta-val">{sector || '-'}</strong>
                       </div>
-                      <div>
-                        <label>{t.birthday}</label>
-                        <span>{getFormattedBirthday()}</span>
+                      {religion && (
+                        <div className="meta-card-item">
+                          <span className="meta-label">{t.religionLabel || 'Religion'}</span>
+                          <strong className="meta-val">{religion}</strong>
+                        </div>
+                      )}
+                      {(gender || civilStatus) && (
+                        <div className="meta-card-item">
+                          <span className="meta-label">Gender & Status</span>
+                          <strong className="meta-val">
+                            {[gender, civilStatus].filter(Boolean).join(' • ') || '-'}
+                          </strong>
+                        </div>
+                      )}
+                      <div className="meta-card-item">
+                        <span className="meta-label">{t.birthday}</span>
+                        <strong className="meta-val">{getFormattedBirthday() || '-'}</strong>
                       </div>
+                      {contact && (
+                        <div className="meta-card-item">
+                          <span className="meta-label">{t.contactLabel}</span>
+                          <strong className="meta-val">{contact}</strong>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
+
+                {/* Reference Number Box */}
                 {refNumber && (
                   <div className="ref-number-box">
-                    <label>{t.refNumberLabel}</label>
-                    <div className="ref-number-row">
-                      <code className="ref-number-code">{refNumber}</code>
+                    <div className="ref-number-header">
+                      <span className="ref-number-tag">
+                        <ShieldCheck size={14} />
+                        {t.refNumberLabel}
+                      </span>
+                    </div>
+                    
+                    <div className="ref-number-display-row">
+                      <div className="ref-code-wrap">
+                        <code className="ref-number-code">{refNumber}</code>
+                      </div>
                       <button
                         type="button"
-                        className="btn btn-premium-outline btn-sm"
-                        onClick={() => { navigator.clipboard.writeText(refNumber); }}
-                      >{t.copyRef}</button>
+                        className={`btn-ref-copy ${copied ? 'copied' : ''}`}
+                        onClick={() => copyToClipboard(refNumber)}
+                        title="Copy Reference Code"
+                      >
+                        {copied ? (
+                          <>
+                            <Check size={16} />
+                            <span>{t.copied || 'Copied!'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={16} />
+                            <span>{t.copyRef || 'Copy'}</span>
+                          </>
+                        )}
+                      </button>
                     </div>
+
                     <p className="ref-number-hint">{t.refNumberDesc}</p>
                   </div>
                 )}
+
+                {/* Action Buttons */}
                 <div className="success-actions">
-                  <a href="/track" className="btn btn-premium-solid btn-track">{t.trackBtn}</a>
-                  <a href="/" className="btn btn-premium-outline btn-back">{t.successBtn}</a>
-                  <button type="button" className="btn btn-premium-outline btn-register-more" onClick={() => window.location.reload()}>{t.registerMore}</button>
+                  <a href={`/track?ref=${encodeURIComponent(refNumber || '')}`} className="btn-success-action btn-track-primary">
+                    <Search size={16} />
+                    <span>{t.trackBtn}</span>
+                  </a>
+                  
+                  <button 
+                    type="button" 
+                    className="btn-success-action btn-register-more-secondary" 
+                    onClick={handleRegisterAnother}
+                  >
+                    <RotateCcw size={16} />
+                    <span>{t.registerMore}</span>
+                  </button>
+
+                  <a 
+                    href={embedded ? "/admin" : "/"} 
+                    className="btn-success-action btn-dashboard-tertiary"
+                    onClick={embedded ? (e) => { e.preventDefault(); handleRegisterAnother(); } : undefined}
+                  >
+                    <LayoutDashboard size={16} />
+                    <span>{embedded ? 'Return to Dashboard' : t.successBtn}</span>
+                  </a>
                 </div>
               </div>
             </div>
@@ -1481,6 +1618,30 @@ export default function RegisterForm({ embedded = false }) {
                   </div>
 
                   <div className="premium-form-group">
+                    <label className="premium-form-label">{t.religionLabel}</label>
+                    <div className="premium-select-wrapper">
+                      <select value={religion} onChange={(e) => setReligion(e.target.value)}>
+                        <option value="">{t.chooseReligion}</option>
+                        <option value="Roman Catholicism">Roman Catholicism</option>
+                        <option value="Islam">Islam</option>
+                        <option value="Evangelical Christianity (Born Again)">Evangelical Christianity (Born Again)</option>
+                        <option value="Protestantism">Protestantism</option>
+                        <option value="Iglesia ni Cristo">Iglesia ni Cristo</option>
+                        <option value="Philippine Independent Church (Aglipayan)">Philippine Independent Church (Aglipayan)</option>
+                        <option value="Seventh-day Adventist">Seventh-day Adventist</option>
+                        <option value="Jehovah's Witnesses">Jehovah&#39;s Witnesses</option>
+                        <option value="Church of Jesus Christ of Latter-day Saints">Church of Jesus Christ of Latter-day Saints</option>
+                        <option value="Indigenous Folk Religions">Indigenous Folk Religions</option>
+                        <option value="Buddhism">Buddhism</option>
+                        <option value="Hinduism">Hinduism</option>
+                        <option value="Sikhism">Sikhism</option>
+                        <option value="Other">Other</option>
+                        <option value="None">None</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="premium-form-group">
                     <label className="premium-form-label">{t.birthdayLabel} <span className="req-star">*</span></label>
                     <div className="premium-date-row">
                       <select value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)} required>
@@ -1581,6 +1742,12 @@ export default function RegisterForm({ embedded = false }) {
                       <span className="review-label">{t.reviewCivilStatus}</span>
                       <span className="review-value">{civilStatus}</span>
                     </div>
+                    {religion && (
+                      <div className="review-item">
+                        <span className="review-label">{t.reviewReligion}</span>
+                        <span className="review-value">{religion}</span>
+                      </div>
+                    )}
                     <div className="review-item">
                       <span className="review-label">{t.reviewBirthday}</span>
                       <span className="review-value">{getFormattedBirthday()}</span>

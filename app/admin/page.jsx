@@ -2132,7 +2132,7 @@ export default function AdminPage() {
       // Recent registrations (still fetch directly — small data)
       const { data: recentData } = await supabase
         .from('registrations')
-        .select('id, resident_id, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, sector_category, referral_name, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+        .select('id, resident_id, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, religion, sector_category, referral_name, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -2359,7 +2359,7 @@ export default function AdminPage() {
     try {
       const { data } = await supabase
         .from('registrations')
-        .select('id, resident_id, reference_no, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, sector_category, referral_name, organization, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, printed_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+        .select('id, resident_id, reference_no, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, religion, sector_category, referral_name, organization, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, printed_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
         .order('created_at', { ascending: false });
       setAllRegs(data || []);
     } catch (err) {
@@ -2433,6 +2433,7 @@ export default function AdminPage() {
       sector_category: reg.sector_category || '',
       gender: reg.gender || '',
       civil_status: reg.civil_status || '',
+      religion: reg.religion || '',
       lot: reg.lot || '',
       block: reg.block || '',
       phase: reg.phase || '',
@@ -2656,6 +2657,7 @@ export default function AdminPage() {
           sector_category: editMemberForm.sector_category,
           gender: editMemberForm.gender,
           civil_status: editMemberForm.civil_status,
+          religion: editMemberForm.religion || null,
           lot: SUBDIVISION_PUROKS.includes(editMemberForm.purok) ? editMemberForm.lot : null,
           block: SUBDIVISION_PUROKS.includes(editMemberForm.purok) ? editMemberForm.block : null,
           phase: SUBDIVISION_PUROKS.includes(editMemberForm.purok) ? editMemberForm.phase : null,
@@ -2674,7 +2676,7 @@ export default function AdminPage() {
       // Refresh selectedMember with new data
       const { data: fresh } = await supabase
         .from('registrations')
-        .select('id, resident_id, reference_no, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, sector_category, referral_name, organization, photo_base64, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+        .select('id, resident_id, reference_no, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, religion, sector_category, referral_name, organization, photo_base64, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
         .eq('id', selectedMember.id)
         .single();
       if (fresh) setSelectedMember(fresh);
@@ -2699,6 +2701,7 @@ export default function AdminPage() {
           sector_category: regEditForm.sector_category,
           gender: regEditForm.gender,
           civil_status: regEditForm.civil_status,
+          religion: regEditForm.religion || null,
           birthday: regEditForm.birthday,
           lot: regEditForm.lot,
           block: regEditForm.block,
@@ -3780,6 +3783,14 @@ export default function AdminPage() {
       }
     }
 
+    // 4. Fallback: standard Date parsing
+    try {
+      const parsed = new Date(clean);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.getMonth() === currentMonth && parsed.getDate() === currentDate;
+      }
+    } catch (_) {}
+
     return false;
   };
 
@@ -3794,18 +3805,28 @@ export default function AdminPage() {
     try {
       const { data: regs, error } = await supabase
         .from('registrations')
-        .select('id, resident_id, contact, barangay, sector_category, birthday, first_name, last_name, middle_name, suffix, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+        .select('id, resident_id, contact, barangay, sector_category, birthday, photo_url, status, first_name, last_name, middle_name, suffix, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
         .eq('status', 'Approved')
-        .not('contact', 'is', null)
-        .neq('contact', '');
+        .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        if (allRegs && allRegs.length > 0) {
+          const celebrators = allRegs.filter(r => r.status === 'Approved' && isBirthdayToday(r.birthday));
+          setBirthdayRecipients(celebrators);
+          return;
+        }
+        throw error;
+      }
 
       const celebrators = (regs || []).filter(reg => isBirthdayToday(reg.birthday));
-
       setBirthdayRecipients(celebrators);
     } catch (err) {
-      showToast('Failed to load birthday celebrators', 'error');
+      if (allRegs && allRegs.length > 0) {
+        const celebrators = allRegs.filter(r => r.status === 'Approved' && isBirthdayToday(r.birthday));
+        setBirthdayRecipients(celebrators);
+      } else {
+        showToast('Failed to load birthday celebrators', 'error');
+      }
     } finally {
       setBirthdayLoading(false);
     }
@@ -3815,9 +3836,15 @@ export default function AdminPage() {
     if (!birthdayMessage.trim()) { showToast('Message is required', 'error'); return; }
     if (birthdayRecipients.length === 0) { showToast('No birthday celebrators today', 'error'); return; }
 
+    const recipientsWithPhone = birthdayRecipients.filter(r => r.contact && r.contact.replace(/\D/g, '').length >= 10);
+    if (recipientsWithPhone.length === 0) {
+      showToast('None of today\'s birthday celebrators have a valid phone number', 'error');
+      return;
+    }
+
     setBirthdaySending(true);
     try {
-      const ids = birthdayRecipients.map(r => r.id);
+      const ids = recipientsWithPhone.map(r => r.id);
       const res = await authFetch('/api/send-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3831,7 +3858,7 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`Birthday SMS sent to ${data.totalRecipients} celebrators`, 'success');
+        showToast(`Birthday SMS sent to ${data.totalRecipients} celebrator${data.totalRecipients > 1 ? 's' : ''}`, 'success');
         fetchMessages();
       } else {
         showToast(data.error || 'Failed to send', 'error');
@@ -3892,7 +3919,7 @@ export default function AdminPage() {
 
       {dashTab === 'overview' && (() => {
         // Compute birthday celebrators count
-        const celebratorsCount = allRegs.filter(r => isBirthdayToday(r.birthday)).length;
+        const celebratorsCount = allRegs.filter(r => r.status === 'Approved' && isBirthdayToday(r.birthday)).length;
         const hasCelebrators = celebratorsCount > 0;
         const pendingCount = allRegs.filter(r => r.status === 'Pending').length;
         const printTotal = cardsPrinted + cardsPending;
@@ -8637,7 +8664,14 @@ export default function AdminPage() {
                             <div className="bday-celebrator-name" title={name}>{name}</div>
                             <div className="bday-celebrator-tags">
                               <span className="bday-tag"><MapPin size={11} /> {reg.barangay || 'Unknown'}</span>
-                              <span className="bday-tag"><Phone size={11} /> {reg.contact || 'No contact'}</span>
+                              <span className="bday-tag" style={{ color: reg.contact ? 'inherit' : '#b91c1c', background: reg.contact ? 'inherit' : '#fef2f2' }}>
+                                <Phone size={11} /> {reg.contact || 'No contact'}
+                              </span>
+                              {reg.status && reg.status !== 'Approved' && (
+                                <span className="bday-tag" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                  {reg.status}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="bday-celebrator-status">
@@ -8655,7 +8689,12 @@ export default function AdminPage() {
             </div>
 
             {/* Birthday SMS Workspace (2-Column Grid on Desktop) */}
-            {birthdayRecipients.length > 0 && (
+            {birthdayRecipients.length > 0 && (() => {
+              const withPhoneRecipients = birthdayRecipients.filter(r => r.contact && r.contact.replace(/\D/g, '').length >= 10);
+              const creditsPerSMS = Math.ceil(birthdayMessage.length / 160) || 1;
+              const totalCreditsNeeded = withPhoneRecipients.length * creditsPerSMS;
+
+              return (
               <div className="dash-overview-grid-2x2" style={{ alignItems: 'flex-start' }}>
                 {/* Left Column: Compose & Templates */}
                 <div className="dash-panel-v2">
@@ -8750,7 +8789,7 @@ export default function AdminPage() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, fontSize: '0.76rem', color: '#64748b' }}>
                           <span>Tag <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4, fontWeight: 600, color: '#0f172a' }}>{'{firstName}'}</code> replaced per recipient</span>
                           <span className="msg-char-count" style={{ margin: 0 }}>
-                            {birthdayMessage.length}/160 chars · {Math.ceil(birthdayMessage.length / 160) || 1} Credit/SMS
+                            {birthdayMessage.length}/160 chars · {creditsPerSMS} Credit/SMS
                           </span>
                         </div>
                       </div>
@@ -8762,8 +8801,8 @@ export default function AdminPage() {
                         type="button"
                         className="btn btn-msg-send"
                         onClick={handleSendBirthday}
-                        disabled={birthdaySending || !birthdayMessage.trim()}
-                        style={{ width: '100%', padding: '12px 20px', borderRadius: 8, fontWeight: 700, fontSize: '0.92rem', background: '#059669', color: '#ffffff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)' }}
+                        disabled={birthdaySending || !birthdayMessage.trim() || withPhoneRecipients.length === 0}
+                        style={{ width: '100%', padding: '12px 20px', borderRadius: 8, fontWeight: 700, fontSize: '0.92rem', background: withPhoneRecipients.length === 0 ? '#94a3b8' : '#059669', color: '#ffffff', border: 'none', cursor: withPhoneRecipients.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 2px 8px rgba(5, 150, 105, 0.25)' }}
                       >
                         {birthdaySending ? (
                           <span className="btn-sending-content">
@@ -8773,7 +8812,13 @@ export default function AdminPage() {
                         ) : (
                           <>
                             <Send size={15} />
-                            <span>Send Birthday SMS to {birthdayRecipients.length} Celebrator{birthdayRecipients.length > 1 ? 's' : ''}</span>
+                            <span>
+                              {withPhoneRecipients.length === birthdayRecipients.length
+                                ? `Send Birthday SMS to ${birthdayRecipients.length} Celebrator${birthdayRecipients.length > 1 ? 's' : ''}`
+                                : withPhoneRecipients.length > 0
+                                ? `Send Birthday SMS to ${withPhoneRecipients.length} Celebrator${withPhoneRecipients.length > 1 ? 's' : ''} (${birthdayRecipients.length - withPhoneRecipients.length} no phone)`
+                                : 'No Celebrators with Phone Numbers'}
+                            </span>
                           </>
                         )}
                       </button>
@@ -8861,7 +8906,7 @@ export default function AdminPage() {
                           <span className="dash-dot green" /> Target Celebrators
                         </div>
                         <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.92rem' }}>
-                          {birthdayRecipients.length} Recipient{birthdayRecipients.length > 1 ? 's' : ''}
+                          {birthdayRecipients.length} Recipient{birthdayRecipients.length > 1 ? 's' : ''} {withPhoneRecipients.length < birthdayRecipients.length && `(${withPhoneRecipients.length} with SMS)`}
                         </span>
                       </div>
                       <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
@@ -8869,7 +8914,7 @@ export default function AdminPage() {
                           <span className="dash-dot muted" /> Total SMS Credits Required
                         </div>
                         <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.92rem' }}>
-                          {(birthdayRecipients.length * (Math.ceil(birthdayMessage.length / 160) || 1)).toLocaleString()} Credits
+                          {totalCreditsNeeded.toLocaleString()} Credits
                         </span>
                       </div>
                       <div className="dash-stat-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}>
@@ -8884,7 +8929,8 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
-            )}
+            );
+          })()}
           </div>
         )}
 
@@ -13737,6 +13783,29 @@ export default function AdminPage() {
                       </select>
                     ) : <span className="reg-detail-value">{selectedRegDetail.civil_status || '-'}</span>}
                   </div>
+                  <div className="reg-detail-item-v2">
+                    <span className="reg-detail-label">Religion</span>
+                    {regEditMode ? (
+                      <select className="reg-edit-input" value={regEditForm.religion || ''} onChange={e => setRegEditForm(f => ({...f, religion: e.target.value}))}>
+                        <option value="">Select religion...</option>
+                        <option value="Roman Catholicism">Roman Catholicism</option>
+                        <option value="Islam">Islam</option>
+                        <option value="Evangelical Christianity (Born Again)">Evangelical Christianity (Born Again)</option>
+                        <option value="Protestantism">Protestantism</option>
+                        <option value="Iglesia ni Cristo">Iglesia ni Cristo</option>
+                        <option value="Philippine Independent Church (Aglipayan)">Philippine Independent Church (Aglipayan)</option>
+                        <option value="Seventh-day Adventist">Seventh-day Adventist</option>
+                        <option value="Jehovah's Witnesses">Jehovah's Witnesses</option>
+                        <option value="Church of Jesus Christ of Latter-day Saints">Church of Jesus Christ of Latter-day Saints</option>
+                        <option value="Indigenous Folk Religions">Indigenous Folk Religions</option>
+                        <option value="Buddhism">Buddhism</option>
+                        <option value="Hinduism">Hinduism</option>
+                        <option value="Sikhism">Sikhism</option>
+                        <option value="Other">Other</option>
+                        <option value="None">None</option>
+                      </select>
+                    ) : <span className="reg-detail-value">{selectedRegDetail.religion || '-'}</span>}
+                  </div>
                   <div className="reg-detail-item-v2 full">
                     <span className="reg-detail-label">Birthday</span>
                     {regEditMode ? (
@@ -13991,6 +14060,7 @@ export default function AdminPage() {
                         sector_category: selectedRegDetail.sector_category || '',
                         gender: selectedRegDetail.gender || '',
                         civil_status: selectedRegDetail.civil_status || '',
+                        religion: selectedRegDetail.religion || '',
                         birthday: selectedRegDetail.birthday ? (() => { const d = new Date(selectedRegDetail.birthday); return isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '',
                         lot: selectedRegDetail.lot || '',
                         block: selectedRegDetail.block || '',
@@ -14509,6 +14579,27 @@ export default function AdminPage() {
                             <option value="Single">Single</option>
                             <option value="Married">Married</option>
                             <option value="Widowed">Widowed</option>
+                          </select>
+                        </div>
+                        <div className="member-edit-field">
+                          <label>Religion</label>
+                          <select value={editMemberForm.religion || ''} onChange={e => setEditMemberForm(f => ({ ...f, religion: e.target.value }))}>
+                            <option value="">Select religion...</option>
+                            <option value="Roman Catholicism">Roman Catholicism</option>
+                            <option value="Islam">Islam</option>
+                            <option value="Evangelical Christianity (Born Again)">Evangelical Christianity (Born Again)</option>
+                            <option value="Protestantism">Protestantism</option>
+                            <option value="Iglesia ni Cristo">Iglesia ni Cristo</option>
+                            <option value="Philippine Independent Church (Aglipayan)">Philippine Independent Church (Aglipayan)</option>
+                            <option value="Seventh-day Adventist">Seventh-day Adventist</option>
+                            <option value="Jehovah's Witnesses">Jehovah's Witnesses</option>
+                            <option value="Church of Jesus Christ of Latter-day Saints">Church of Jesus Christ of Latter-day Saints</option>
+                            <option value="Indigenous Folk Religions">Indigenous Folk Religions</option>
+                            <option value="Buddhism">Buddhism</option>
+                            <option value="Hinduism">Hinduism</option>
+                            <option value="Sikhism">Sikhism</option>
+                            <option value="Other">Other</option>
+                            <option value="None">None</option>
                           </select>
                         </div>
                         <div className="member-edit-field" style={{ position: 'relative' }}>
