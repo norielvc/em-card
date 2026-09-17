@@ -421,18 +421,20 @@ export default function PublicEmployeeScannerPage() {
 
   // ── Real-Time Face Presence Detection Poller ──
   useEffect(() => {
-    if (!cameraActive || scanResult || scanning) {
+    if (!cameraActive || scanResult || scanning || gpsLoading || !gpsLocation || !geofenceInfo.isWithinRange) {
       setFaceDetected(false);
       return;
     }
     const interval = setInterval(async () => {
-      if (videoRef.current && !scanResult && !scanning) {
+      if (videoRef.current && !scanResult && !scanning && !gpsLoading && gpsLocation && geofenceInfo.isWithinRange) {
         const detected = await detectFaceInVideo(videoRef.current);
         setFaceDetected(detected);
+      } else {
+        setFaceDetected(false);
       }
     }, 280);
     return () => clearInterval(interval);
-  }, [cameraActive, scanResult, scanning, detectFaceInVideo]);
+  }, [cameraActive, scanResult, scanning, gpsLoading, gpsLocation, geofenceInfo.isWithinRange, detectFaceInVideo]);
 
   // ── Acknowledge & Reset State for Next Employee ──
   const acknowledgeAndReset = useCallback(() => {
@@ -628,7 +630,7 @@ export default function PublicEmployeeScannerPage() {
                 </div>
 
                 {/* Auto-Punch Countdown Overlay */}
-                {countdown !== null && countdown > 0 && autoScanEnabled && !scanResult && (
+                {countdown !== null && countdown > 0 && autoScanEnabled && !scanResult && !gpsLoading && gpsLocation && geofenceInfo.isWithinRange && (
                   <div className="cam-countdown-overlay">
                     <div className="cam-countdown-number">{countdown}</div>
                     <div className="cam-countdown-sub">Hold Still · Auto-Punching</div>
@@ -698,19 +700,19 @@ export default function PublicEmployeeScannerPage() {
                       ? 'Matching Facial Geometrics...'
                       : cameraError
                       ? 'Camera / Biometric Standby'
+                      : gpsLoading
+                      ? '🛰️ Acquiring GPS Satellite Signal...'
+                      : !gpsLocation
+                      ? '📍 GPS Location Required to Verify Office Perimeter'
                       : !geofenceInfo.isWithinRange
                       ? geofenceInfo.status === 'all_disabled'
                         ? '🔒 All Offices Disabled by Admin · Face Scan Locked'
-                        : geofenceInfo.status === 'out_of_range'
-                        ? `📍 Out of Office Range (${geofenceInfo.distanceMeters >= 1000 ? (geofenceInfo.distanceMeters / 1000).toFixed(1) + 'km' : geofenceInfo.distanceMeters + 'm'} away) · Face Scan Locked`
-                        : geofenceInfo.status === 'no_gps'
-                        ? '📍 GPS Location Required to Verify Office Perimeter'
-                        : '🛰️ Acquiring GPS Satellite Signal...'
+                        : `📍 Out of Office Range (${geofenceInfo.distanceMeters >= 1000 ? (geofenceInfo.distanceMeters / 1000).toFixed(1) + 'km' : geofenceInfo.distanceMeters + 'm'} away) · Face Scan Locked`
                       : scanResult
                       ? 'Biometrics Verified!'
                       : autoScanEnabled
-                      ? faceDetected
-                        ? `Face Locked · Auto-Punching in ${countdown !== null ? countdown : 3}s...`
+                      ? faceDetected && countdown !== null
+                        ? `Face Locked · Auto-Punching in ${countdown}s...`
                         : 'Standby · Align face in oval guide'
                       : 'Position Face Inside Oval Guide'}
                   </span>
