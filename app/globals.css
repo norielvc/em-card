@@ -35294,6 +35294,208 @@ html, body {
   font-size: 0.78rem;
 }
 
+/* ── Geofence Perimeter Alert Banners ── */
+.emp-geofence-banner {
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 2px 0 6px 0;
+  transition: all 0.3s ease;
+}
+
+.emp-geofence-banner.in_range {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.emp-geofence-banner.out_of_range {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.12);
+}
+
+.emp-geofence-banner.no_gps {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.emp-geofence-banner.acquiring {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px dashed rgba(56, 189, 248, 0.35);
+}
+
+.emp-geo-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.emp-geo-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.emp-geo-inner.in-range .emp-geo-title {
+  color: #34d399;
+}
+
+.emp-geo-inner.out-of-range .emp-geo-title {
+  color: #f87171;
+}
+
+.emp-geo-inner.no-gps .emp-geo-title {
+  color: #fbbf24;
+}
+
+.emp-geo-inner.acquiring .emp-geo-title {
+  color: #38bdf8;
+}
+
+.emp-geo-sub {
+  margin: 0;
+  font-size: 0.74rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.emp-geo-sub .geo-highlight {
+  color: #34d399;
+  font-weight: 800;
+}
+
+.emp-geo-retry-btn {
+  margin-top: 4px;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f1f5f9;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.emp-geo-retry-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.btn-kiosk-punch.blocked {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(185, 28, 28, 0.4)) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  color: #fca5a5 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+
+/* ── Office Geofence Enable / Disable Toggles ── */
+.office-status-pill-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  background: transparent;
+}
+
+.office-status-pill-toggle.active {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.office-status-pill-toggle.active:hover {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.office-status-pill-toggle.inactive {
+  background: rgba(148, 163, 184, 0.1);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+.office-status-pill-toggle.inactive:hover {
+  background: rgba(148, 163, 184, 0.2);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.office-status-pill-toggle .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.office-status-pill-toggle.active .dot {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.office-status-pill-toggle.inactive .dot {
+  background: #64748b;
+}
+
+.btn-office-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.btn-office-toggle.btn-disable {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #34d399;
+}
+
+.btn-office-toggle.btn-disable:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+.btn-office-toggle.btn-enable {
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
+}
+
+.btn-office-toggle.btn-enable:hover {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+}
+
+.office-card.is-inactive {
+  opacity: 0.75;
+  border-style: dashed !important;
+  border-color: rgba(148, 163, 184, 0.25) !important;
+  background: rgba(15, 23, 42, 0.4) !important;
+}
+
+.office-card.is-inactive:hover {
+  opacity: 1;
+}
+
+
 
 
 

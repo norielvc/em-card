@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import {
   Camera, Clock, Calendar, CheckCircle2, AlertCircle, Sparkles,
@@ -8,6 +8,44 @@ import {
   LogOut, UserCheck, Users, ArrowRight, Zap, Check, ChevronRight,
   RotateCcw, Volume2
 } from 'lucide-react';
+
+// ── Haversine Distance Formula in Meters ──
+function computeDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+// Fallback default offices if table is empty or loading
+const DEFAULT_OFFICES = [
+  {
+    id: 'off-hq-01',
+    name: 'Main Executive Headquarters',
+    code: 'HQ-MAIN',
+    address: 'Metropolitan Operations Complex, Metro Manila',
+    latitude: 14.6175,
+    longitude: 121.0124,
+    radius_meters: 150,
+    status: 'active',
+  },
+  {
+    id: 'off-east-02',
+    name: 'East District Field Hub',
+    code: 'DIST-EAST',
+    address: 'East Operations Center, Rizal District',
+    latitude: 14.5833,
+    longitude: 121.0667,
+    radius_meters: 250,
+    status: 'active',
+  },
+];
 
 export default function PublicEmployeeScannerPage() {
   // ── Camera & Media States ──
@@ -27,7 +65,7 @@ export default function PublicEmployeeScannerPage() {
   // ── GPS Geolocation States ──
   const [gpsLocation, setGpsLocation] = useState(null);
   const [gpsAddress, setGpsAddress] = useState('Acquiring Satellite GPS...');
-  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(true);
   const [gpsError, setGpsError] = useState('');
 
   // ── Punch Mode & Action States ──
@@ -156,6 +194,97 @@ export default function PublicEmployeeScannerPage() {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, []);
+
+  // ── Geofence Range Evaluation against Registered Office Locations ──
+  const geofenceInfo = useMemo(() => {
+    const officePool = offices && offices.length > 0 ? offices : DEFAULT_OFFICES;
+    const activeOffices = officePool.filter(o => o.status === 'active');
+
+    // 1. If ALL offices in the system are disabled / inactive by admin
+    if (activeOffices.length === 0) {
+      return {
+        hasOffices: true,
+        isWithinRange: false,
+        nearestOffice: null,
+        distanceMeters: null,
+        allowedRadius: null,
+        status: 'all_disabled',
+        message: 'All office locations are currently disabled by administration. Face recognition is suspended.',
+      };
+    }
+
+    // 2. While acquiring GPS satellite coordinates
+    if (gpsLoading) {
+      return {
+        hasOffices: true,
+        isWithinRange: false,
+        nearestOffice: null,
+        distanceMeters: null,
+        allowedRadius: null,
+        status: 'acquiring',
+        message: 'Acquiring high-accuracy satellite GPS fix...',
+      };
+    }
+
+    // 3. If GPS is unavailable / permission denied / no coords
+    if (gpsError || !gpsLocation?.latitude || !gpsLocation?.longitude) {
+      return {
+        hasOffices: true,
+        isWithinRange: false,
+        nearestOffice: null,
+        distanceMeters: null,
+        allowedRadius: null,
+        status: 'no_gps',
+        message: 'Satellite GPS location is required to verify office perimeter before face recognition can scan.',
+      };
+    }
+
+    // 4. Calculate distance to nearest ACTIVE office
+    let minDistance = Infinity;
+    let closestOffice = null;
+
+    for (const off of activeOffices) {
+      if (off.latitude && off.longitude) {
+        const d = computeDistanceMeters(
+          gpsLocation.latitude,
+          gpsLocation.longitude,
+          parseFloat(off.latitude),
+          parseFloat(off.longitude)
+        );
+        if (d < minDistance) {
+          minDistance = d;
+          closestOffice = off;
+        }
+      }
+    }
+
+    if (!closestOffice) {
+      return {
+        hasOffices: true,
+        isWithinRange: false,
+        nearestOffice: null,
+        distanceMeters: null,
+        allowedRadius: null,
+        status: 'all_disabled',
+        message: 'No active office coordinates configured.',
+      };
+    }
+
+    const allowedRadius = parseInt(closestOffice.radius_meters, 10) || 100;
+    const isWithin = minDistance <= allowedRadius;
+
+    return {
+      hasOffices: true,
+      isWithinRange: isWithin,
+      nearestOffice: closestOffice,
+      distanceMeters: minDistance,
+      allowedRadius,
+      status: isWithin ? 'in_range' : 'out_of_range',
+      message: isWithin
+        ? `Within ${closestOffice.name} perimeter (${minDistance}m / ${allowedRadius}m radius)`
+        : `Outside ${closestOffice.name} perimeter (${minDistance >= 1000 ? (minDistance / 1000).toFixed(1) + 'km' : minDistance + 'm'} away · Max allowed: ${allowedRadius}m)`,
+    };
+  }, [offices, gpsLocation, gpsLoading, gpsError]);
 
   // ── Real-Time Face Presence Detection in Frame ──
   const detectFaceInVideo = useCallback(async (videoEl) => {
@@ -290,7 +419,7 @@ export default function PublicEmployeeScannerPage() {
     };
   }, [startCamera, stopCamera]);
 
-  // ── Real-Time Face Detection Poller ──
+  // ── Real-Time Face Presence Detection Poller ──
   useEffect(() => {
     if (!cameraActive || scanResult || scanning) {
       setFaceDetected(false);
@@ -316,6 +445,21 @@ export default function PublicEmployeeScannerPage() {
   // ── Execute Biometric Attendance Punch ──
   const handlePerformScan = useCallback(async (forcedMode = punchMode) => {
     if (scanning) return;
+
+    // Strict Location Check Before Scanning
+    if (!geofenceInfo.isWithinRange) {
+      const errReason = geofenceInfo.status === 'all_disabled'
+        ? 'All office geofences are disabled by administration. Attendance punch is suspended.'
+        : geofenceInfo.status === 'out_of_range'
+        ? `Location Restricted: You are ${geofenceInfo.distanceMeters >= 1000 ? (geofenceInfo.distanceMeters / 1000).toFixed(1) + 'km' : geofenceInfo.distanceMeters + 'm'} away from ${geofenceInfo.nearestOffice?.name || 'the office'}. You must be within ${geofenceInfo.allowedRadius}m to punch attendance.`
+        : geofenceInfo.status === 'acquiring'
+        ? 'Acquiring satellite GPS coordinates. Please wait for GPS confirmation before scanning.'
+        : 'Satellite GPS location is required to verify that you are within the office perimeter.';
+      showToast(errReason, 'error');
+      playTone(320, 0.25, 'sawtooth');
+      return;
+    }
+
     setScanning(true);
     setCameraError('');
 
@@ -371,7 +515,7 @@ export default function PublicEmployeeScannerPage() {
     } finally {
       setScanning(false);
     }
-  }, [scanning, cameraActive, punchMode, gpsLocation, gpsAddress, selectedEmpId, playTone, loadPublicData]);
+  }, [scanning, cameraActive, punchMode, gpsLocation, gpsAddress, selectedEmpId, geofenceInfo, playTone, loadPublicData]);
 
   // Keep ref for auto-punch countdown callback
   const handlePerformScanRef = useRef(null);
@@ -379,9 +523,10 @@ export default function PublicEmployeeScannerPage() {
     handlePerformScanRef.current = handlePerformScan;
   }, [handlePerformScan]);
 
-  // ── Auto-Punch Countdown Timer (Triggers when Face is Detected & AutoScan is ON) ──
+  // ── Auto-Punch Countdown Timer (Triggers ONLY when GPS is locked, Within Range, Face Detected) ──
   useEffect(() => {
-    if (!cameraActive || !autoScanEnabled || scanResult || scanning) {
+    // If not within office range or camera inactive or autoScan disabled or result showing or scanning or GPS loading or no coords: cancel countdown immediately!
+    if (!cameraActive || !autoScanEnabled || scanResult || scanning || !geofenceInfo.isWithinRange || gpsLoading || !gpsLocation?.latitude) {
       setCountdown(null);
       if (countdownTimerRef.current) {
         clearInterval(countdownTimerRef.current);
@@ -399,7 +544,7 @@ export default function PublicEmployeeScannerPage() {
       return;
     }
 
-    // Start 3-second countdown
+    // Start 3-second countdown ONLY when inside office perimeter & GPS confirmed
     setCountdown(3);
     playTone(520, 0.08);
 
@@ -427,7 +572,7 @@ export default function PublicEmployeeScannerPage() {
         countdownTimerRef.current = null;
       }
     };
-  }, [cameraActive, autoScanEnabled, faceDetected, scanResult, scanning, playTone]);
+  }, [cameraActive, autoScanEnabled, faceDetected, scanResult, scanning, geofenceInfo.isWithinRange, gpsLoading, gpsLocation, playTone]);
 
   // Filtered recent logs
   const filteredLogs = recentLogs.filter(log => {
@@ -519,7 +664,9 @@ export default function PublicEmployeeScannerPage() {
                     ry="118"
                     fill="none"
                     stroke={
-                      cameraError
+                      !geofenceInfo.isWithinRange
+                        ? (geofenceInfo.status === 'out_of_range' || geofenceInfo.status === 'all_disabled' ? '#ef4444' : '#f59e0b')
+                        : cameraError
                         ? '#ef4444'
                         : scanResult
                         ? '#10b981'
@@ -527,18 +674,20 @@ export default function PublicEmployeeScannerPage() {
                         ? '#10b981'
                         : '#38bdf8'
                     }
-                    strokeWidth={faceDetected || scanResult ? '3' : '2'}
-                    strokeDasharray={faceDetected || scanResult ? 'none' : '6 4'}
+                    strokeWidth={!geofenceInfo.isWithinRange ? '2.5' : faceDetected || scanResult ? '3' : '2'}
+                    strokeDasharray={!geofenceInfo.isWithinRange ? '4 4' : faceDetected || scanResult ? 'none' : '6 4'}
                   />
                 </svg>
 
                 {/* Floating Bottom Status Pill */}
                 <div className="kiosk-status-pill">
-                  <span className={cameraError ? 'error' : faceDetected || scanResult ? '' : 'waiting'}>
+                  <span className={!geofenceInfo.isWithinRange || cameraError ? 'error' : faceDetected || scanResult ? '' : 'waiting'}>
                     <div
                       className="kiosk-pulse-dot"
                       style={{
-                        background: cameraError
+                        background: !geofenceInfo.isWithinRange
+                          ? (geofenceInfo.status === 'out_of_range' || geofenceInfo.status === 'all_disabled' ? '#ef4444' : '#f59e0b')
+                          : cameraError
                           ? '#ef4444'
                           : scanResult || faceDetected
                           ? '#10b981'
@@ -549,6 +698,14 @@ export default function PublicEmployeeScannerPage() {
                       ? 'Matching Facial Geometrics...'
                       : cameraError
                       ? 'Camera / Biometric Standby'
+                      : !geofenceInfo.isWithinRange
+                      ? geofenceInfo.status === 'all_disabled'
+                        ? '🔒 All Offices Disabled by Admin · Face Scan Locked'
+                        : geofenceInfo.status === 'out_of_range'
+                        ? `📍 Out of Office Range (${geofenceInfo.distanceMeters >= 1000 ? (geofenceInfo.distanceMeters / 1000).toFixed(1) + 'km' : geofenceInfo.distanceMeters + 'm'} away) · Face Scan Locked`
+                        : geofenceInfo.status === 'no_gps'
+                        ? '📍 GPS Location Required to Verify Office Perimeter'
+                        : '🛰️ Acquiring GPS Satellite Signal...'
                       : scanResult
                       ? 'Biometrics Verified!'
                       : autoScanEnabled
@@ -646,6 +803,77 @@ export default function PublicEmployeeScannerPage() {
                 </button>
               </div>
 
+              {/* Geofence Perimeter Status Card */}
+              {geofenceInfo.hasOffices && (
+                <div className={`emp-geofence-banner ${geofenceInfo.status}`}>
+                  {geofenceInfo.status === 'in_range' && (
+                    <div className="emp-geo-inner in-range">
+                      <div className="emp-geo-title">
+                        <ShieldCheck size={16} className="emerald" />
+                        <strong>Authorized Office Perimeter Verified</strong>
+                      </div>
+                      <p className="emp-geo-sub">
+                        Connected to <strong>{geofenceInfo.nearestOffice?.name}</strong> · Distance: <span className="geo-highlight">{geofenceInfo.distanceMeters}m</span> (Within {geofenceInfo.allowedRadius}m radius)
+                      </p>
+                    </div>
+                  )}
+
+                  {geofenceInfo.status === 'all_disabled' && (
+                    <div className="emp-geo-inner out-of-range">
+                      <div className="emp-geo-title">
+                        <AlertTriangle size={16} className="danger" />
+                        <strong>All Office Locations Disabled</strong>
+                      </div>
+                      <p className="emp-geo-sub">
+                        Biometric face recognition and attendance punching are currently <strong>suspended by administrator</strong>.
+                      </p>
+                    </div>
+                  )}
+
+                  {geofenceInfo.status === 'out_of_range' && (
+                    <div className="emp-geo-inner out-of-range">
+                      <div className="emp-geo-title">
+                        <AlertTriangle size={16} className="danger" />
+                        <strong>Outside Authorized Office Range ({geofenceInfo.distanceMeters >= 1000 ? (geofenceInfo.distanceMeters / 1000).toFixed(1) + 'km' : geofenceInfo.distanceMeters + 'm'} away)</strong>
+                      </div>
+                      <p className="emp-geo-sub">
+                        Face recognition is <strong>cancelled & blocked</strong>. You must be physically within <strong>{geofenceInfo.allowedRadius}m</strong> of <strong>{geofenceInfo.nearestOffice?.name}</strong> to punch attendance.
+                      </p>
+                      <button type="button" onClick={fetchLocation} className="emp-geo-retry-btn">
+                        <Navigation size={12} /> Re-verify GPS Distance
+                      </button>
+                    </div>
+                  )}
+
+                  {geofenceInfo.status === 'no_gps' && (
+                    <div className="emp-geo-inner no-gps">
+                      <div className="emp-geo-title">
+                        <MapPin size={16} className="amber" />
+                        <strong>Satellite GPS Location Required</strong>
+                      </div>
+                      <p className="emp-geo-sub">
+                        Office perimeter check is mandatory. Please grant browser location access to verify you are on-site before face recognition unlocks.
+                      </p>
+                      <button type="button" onClick={fetchLocation} className="emp-geo-retry-btn">
+                        <Navigation size={12} /> Enable / Retry GPS Location
+                      </button>
+                    </div>
+                  )}
+
+                  {geofenceInfo.status === 'acquiring' && (
+                    <div className="emp-geo-inner acquiring">
+                      <div className="emp-geo-title">
+                        <RefreshCw size={15} className="animate-spin emerald" />
+                        <strong>Acquiring GPS Satellite Signal...</strong>
+                      </div>
+                      <p className="emp-geo-sub">
+                        Confirming exact coordinates and calculating distance to nearest authorized office.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Biometric 1:N AI Mode + Auto-Punch Toggle */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '2px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#6ee7b7', fontWeight: 700 }}>
@@ -688,14 +916,27 @@ export default function PublicEmployeeScannerPage() {
               {/* Master Tactile Punch Button */}
               <button
                 type="button"
-                className="btn-kiosk-punch"
+                className={`btn-kiosk-punch ${!geofenceInfo.isWithinRange ? 'blocked' : ''}`}
                 onClick={() => handlePerformScan()}
-                disabled={scanning || !cameraActive}
+                disabled={scanning || !cameraActive || !geofenceInfo.isWithinRange}
               >
                 {scanning ? (
                   <div className="pub-btn-loading">
                     <RefreshCw size={20} className="animate-spin" />
                     <span>Matching Face in Biometric Database...</span>
+                  </div>
+                ) : !geofenceInfo.isWithinRange ? (
+                  <div className="pub-btn-content" style={{ opacity: 0.9 }}>
+                    <AlertTriangle size={18} />
+                    <span>
+                      {geofenceInfo.status === 'all_disabled'
+                        ? 'OFFICE GEOFENCES DISABLED — SCAN SUSPENDED'
+                        : geofenceInfo.status === 'out_of_range'
+                        ? `OUT OF RANGE (${geofenceInfo.distanceMeters >= 1000 ? (geofenceInfo.distanceMeters / 1000).toFixed(1) + 'km' : geofenceInfo.distanceMeters + 'm'}) — SCAN LOCKED`
+                        : geofenceInfo.status === 'acquiring'
+                        ? 'CONFIRMING SATELLITE GPS LOCATION...'
+                        : 'GPS LOCATION REQUIRED TO SCAN'}
+                    </span>
                   </div>
                 ) : (
                   <div className="pub-btn-content">

@@ -8,7 +8,7 @@ const supabaseAdmin = createClient(
 );
 
 // Fallback seed offices in case table is not yet migrated
-const DEFAULT_OFFICES = [
+let inMemoryOffices = [
   {
     id: 'off-hq-01',
     name: 'Main Executive Headquarters',
@@ -66,10 +66,19 @@ export async function GET(request) {
       console.warn('Offices table query fallback:', e.message);
     }
 
-    return Response.json({ success: true, offices: DEFAULT_OFFICES });
+    let filtered = [...inMemoryOffices];
+    if (status && status !== 'all') {
+      filtered = filtered.filter(o => o.status === status);
+    }
+    if (query) {
+      const q = query.toLowerCase();
+      filtered = filtered.filter(o => o.name?.toLowerCase().includes(q) || o.code?.toLowerCase().includes(q) || o.address?.toLowerCase().includes(q));
+    }
+
+    return Response.json({ success: true, offices: filtered });
   } catch (err) {
     console.error('Error fetching offices:', err);
-    return Response.json({ success: false, error: err.message || 'Server error' }, { status: 500 });
+    return Response.json({ success: true, offices: inMemoryOffices });
   }
 }
 
@@ -125,6 +134,7 @@ export async function POST(request) {
     }
 
     const fallbackOffice = { id: `off-${Date.now()}`, ...payload, created_at: new Date().toISOString() };
+    inMemoryOffices.unshift(fallbackOffice);
     return Response.json({ success: true, office: fallbackOffice });
   } catch (err) {
     console.error('Error creating office:', err);
@@ -171,6 +181,13 @@ export async function PUT(request) {
       console.warn('Supabase update office error, using fallback:', e.message);
     }
 
+    // In-memory fallback update
+    const idx = inMemoryOffices.findIndex(o => o.id === id);
+    if (idx !== -1) {
+      inMemoryOffices[idx] = { ...inMemoryOffices[idx], ...cleanUpdates };
+      return Response.json({ success: true, office: inMemoryOffices[idx] });
+    }
+
     return Response.json({ success: true, office: { id, ...cleanUpdates } });
   } catch (err) {
     console.error('Error updating office:', err);
@@ -202,6 +219,7 @@ export async function DELETE(request) {
       console.warn('Supabase delete office error:', e.message);
     }
 
+    inMemoryOffices = inMemoryOffices.filter(o => o.id !== id);
     return Response.json({ success: true, message: 'Office location removed successfully' });
   } catch (err) {
     console.error('Error deleting office:', err);

@@ -15,7 +15,7 @@ import {
   ChevronLeft, LayoutDashboard, History, Award, MapPin, Sparkles, Navigation, Upload,
   Sliders, Target, Crosshair, Radio, ExternalLink, Navigation2, Compass,
   Printer, Receipt, Send, DollarSign, TrendingUp, Wallet, FileText, CheckSquare, Layers, Percent, Briefcase,
-  Zap, Shield
+  Zap, Shield, ToggleLeft, ToggleRight, Power
 } from 'lucide-react';
 
 export default function FinancePortal() {
@@ -336,34 +336,31 @@ export default function FinancePortal() {
     if (!session || userRole !== 'finance') return;
     setLoading(true);
     try {
-      // 1. Stats
-      const resStats = await authFetch('/api/finance/stats');
-      const dataStats = await resStats.json();
-      if (dataStats.success) setStats(dataStats.stats);
+      const [resStats, resEmp, resLogs, resPayroll, resOffices] = await Promise.allSettled([
+        authFetch('/api/finance/stats').then(r => r.json()).catch(() => ({ success: false })),
+        authFetch('/api/finance/employees').then(r => r.json()).catch(() => ({ success: false })),
+        authFetch(`/api/finance/biometrics?startDate=${cutoffStart}&endDate=${cutoffEnd}`).then(r => r.json()).catch(() => ({ success: false })),
+        authFetch(`/api/finance/payroll?startDate=${cutoffStart}&endDate=${cutoffEnd}`).then(r => r.json()).catch(() => ({ success: false })),
+        authFetch('/api/finance/offices').then(r => r.json()).catch(() => ({ success: false })),
+      ]);
 
-      // 2. Employees
-      const resEmp = await authFetch('/api/finance/employees');
-      const dataEmp = await resEmp.json();
-      if (dataEmp.success) setEmployees(dataEmp.employees || []);
-
-      // 3. Today / Filtered Attendance Logs
-      const resLogs = await authFetch(`/api/finance/biometrics?startDate=${cutoffStart}&endDate=${cutoffEnd}`);
-      const dataLogs = await resLogs.json();
-      if (dataLogs.success) setAttendanceLogs(dataLogs.logs || []);
-
-      // 4. Payroll
-      const resPayroll = await authFetch(`/api/finance/payroll?startDate=${cutoffStart}&endDate=${cutoffEnd}`);
-      const dataPayroll = await resPayroll.json();
-      if (dataPayroll.success) setPayrollData(dataPayroll);
-
-      // 5. Offices & Geofences
-      const resOffices = await authFetch('/api/finance/offices');
-      const dataOffices = await resOffices.json();
-      if (dataOffices.success) setOffices(dataOffices.offices || []);
-
+      if (resStats.status === 'fulfilled' && resStats.value?.success) {
+        setStats(resStats.value.stats);
+      }
+      if (resEmp.status === 'fulfilled' && resEmp.value?.success) {
+        setEmployees(resEmp.value.employees || []);
+      }
+      if (resLogs.status === 'fulfilled' && resLogs.value?.success) {
+        setAttendanceLogs(resLogs.value.logs || []);
+      }
+      if (resPayroll.status === 'fulfilled' && resPayroll.value?.success) {
+        setPayrollData(resPayroll.value);
+      }
+      if (resOffices.status === 'fulfilled' && resOffices.value?.success) {
+        setOffices(resOffices.value.offices || []);
+      }
     } catch (err) {
       console.error('Failed to load finance data:', err);
-      showToast('Error fetching finance records', 'error');
     } finally {
       setLoading(false);
     }
@@ -591,6 +588,34 @@ export default function FinancePortal() {
     } catch (err) {
       console.error('Error deleting office:', err);
       showToast('Error removing office', 'error');
+    }
+  };
+
+  const handleToggleOfficeStatus = async (office) => {
+    const newStatus = office.status === 'active' ? 'inactive' : 'active';
+    try {
+      const res = await authFetch('/api/finance/offices', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: office.id,
+          status: newStatus,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(
+          newStatus === 'active'
+            ? `Office "${office.name}" enabled (Geofence active)`
+            : `Office "${office.name}" disabled (Geofence inactive)`,
+          newStatus === 'active' ? 'success' : 'info'
+        );
+        loadData();
+      } else {
+        showToast(data.error || 'Failed to update status', 'error');
+      }
+    } catch (err) {
+      showToast('Error updating office status', 'error');
     }
   };
 
@@ -3625,10 +3650,20 @@ export default function FinancePortal() {
                     >
                       <div className="office-card-top">
                         <div className="office-code-chip">{office.code || 'BRANCH'}</div>
-                        <div className={`office-status-pill ${office.status === 'active' ? 'active' : 'inactive'}`}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleOfficeStatus(office)}
+                          className={`office-status-pill-toggle ${office.status === 'active' ? 'active' : 'inactive'}`}
+                          title={office.status === 'active' ? 'Click to Disable Geofence' : 'Click to Enable Geofence'}
+                        >
                           <span className="dot" />
-                          <span>{office.status === 'active' ? 'Active Geofence' : 'Inactive'}</span>
-                        </div>
+                          <span>{office.status === 'active' ? 'Active Geofence' : 'Disabled'}</span>
+                          {office.status === 'active' ? (
+                            <ToggleRight size={16} className="toggle-icon-active" />
+                          ) : (
+                            <ToggleLeft size={16} className="toggle-icon-inactive" />
+                          )}
+                        </button>
                       </div>
 
                       <h3 className="office-card-title">{office.name}</h3>
@@ -3708,12 +3743,32 @@ export default function FinancePortal() {
                       <div className="office-card-actions">
                         <button
                           type="button"
+                          className={`btn-office-toggle ${office.status === 'active' ? 'btn-disable' : 'btn-enable'}`}
+                          onClick={() => handleToggleOfficeStatus(office)}
+                          title={office.status === 'active' ? 'Disable this office geofence' : 'Enable this office geofence'}
+                        >
+                          {office.status === 'active' ? (
+                            <>
+                              <ToggleRight size={15} />
+                              <span>Enabled</span>
+                            </>
+                          ) : (
+                            <>
+                              <ToggleLeft size={15} />
+                              <span>Disabled</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
                           className="btn-office-edit"
                           onClick={() => openEditOfficeModal(office)}
                         >
                           <Edit3 size={14} />
                           <span>Edit Geofence</span>
                         </button>
+
                         <button
                           type="button"
                           className="btn-office-delete"
@@ -3787,7 +3842,7 @@ export default function FinancePortal() {
                     onChange={(e) => setOfficeForm({ ...officeForm, status: e.target.value })}
                   >
                     <option value="active">Active (Enforcing Attendance Geofence)</option>
-                    <option value="inactive">Inactive (Geofence Disabled)</option>
+                    <option value="inactive">Disabled / Inactive (Geofence Suspended)</option>
                   </select>
                 </div>
 

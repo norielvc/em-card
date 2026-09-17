@@ -23,15 +23,50 @@ function toISODateString(d) {
   return d.toISOString().split('T')[0];
 }
 
+// Fallback default offices if table is not yet in Supabase
+const DEFAULT_OFFICES = [
+  {
+    id: 'off-hq-01',
+    name: 'Main Executive Headquarters',
+    code: 'HQ-MAIN',
+    address: 'Metropolitan Operations Complex, Metro Manila',
+    latitude: 14.6175,
+    longitude: 121.0124,
+    radius_meters: 150,
+    status: 'active',
+  },
+  {
+    id: 'off-east-02',
+    name: 'East District Field Hub',
+    code: 'DIST-EAST',
+    address: 'East Operations Center, Rizal District',
+    latitude: 14.5833,
+    longitude: 121.0667,
+    radius_meters: 250,
+    status: 'active',
+  },
+];
+
 export async function GET() {
   try {
     const todayStr = toISODateString(new Date());
 
-    // Fetch active offices for GPS matching
-    const { data: offices } = await supabaseAdmin
-      .from('offices')
-      .select('*')
-      .eq('status', 'active');
+    // Fetch all offices so client receives full status (active/inactive)
+    let officeList = [];
+    try {
+      const { data: dbOffices, error: offErr } = await supabaseAdmin
+        .from('offices')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!offErr && dbOffices && dbOffices.length > 0) {
+        officeList = dbOffices;
+      } else {
+        officeList = DEFAULT_OFFICES;
+      }
+    } catch (e) {
+      officeList = DEFAULT_OFFICES;
+    }
 
     // Fetch enrolled active employees for quick selection / recognition hints
     const { data: employees } = await supabaseAdmin
@@ -72,7 +107,7 @@ export async function GET() {
 
     return Response.json({
       success: true,
-      offices: offices || [],
+      offices: officeList,
       employees: employees || [],
       recent_logs: todayLogs || []
     });
@@ -98,7 +133,77 @@ export async function POST(request) {
       return Response.json({ success: false, error: 'Camera frame image is required for biometric face scan.' }, { status: 400 });
     }
 
-    // 1. Fetch enrolled active employees
+    // 1. Mandatory Geofence & Active Office Check
+    let allOffices = [];
+    try {
+      const { data: dbOffices, error: offErr } = await supabaseAdmin
+        .from('offices')
+        .select('*');
+      if (!offErr && dbOffices && dbOffices.length > 0) {
+        allOffices = dbOffices;
+      } else {
+        allOffices = DEFAULT_OFFICES;
+      }
+    } catch (e) {
+      allOffices = DEFAULT_OFFICES;
+    }
+
+    const activeOffices = allOffices.filter(o => o.status === 'active');
+
+    // If ALL offices have been disabled/inactive by admin, block recognition immediately!
+    if (activeOffices.length === 0) {
+      return Response.json({
+        success: false,
+        error: 'All workplace office locations are currently disabled by administration. Biometric attendance punch is suspended.'
+      }, { status: 403 });
+    }
+
+    // GPS location is strictly required
+    if (!latitude || !longitude) {
+      return Response.json({
+        success: false,
+        error: 'Satellite GPS location is strictly required to verify you are within an authorized office perimeter before punching.'
+      }, { status: 403 });
+    }
+
+    let minDistance = Infinity;
+    let nearestOffice = null;
+
+    for (const off of activeOffices) {
+      if (off.latitude && off.longitude) {
+        const d = computeDistanceMeters(
+          parseFloat(latitude),
+          parseFloat(longitude),
+          parseFloat(off.latitude),
+          parseFloat(off.longitude)
+        );
+        if (d < minDistance) {
+          minDistance = d;
+          nearestOffice = off;
+        }
+      }
+    }
+
+    if (!nearestOffice) {
+      return Response.json({
+        success: false,
+        error: 'No active office coordinates configured for location validation.'
+      }, { status: 403 });
+    }
+
+    const allowedRadius = parseInt(nearestOffice.radius_meters, 10) || 100;
+    const isWithinGeofence = minDistance <= allowedRadius;
+    const locationTag = `${nearestOffice.name} (${minDistance}m)`;
+
+    if (!isWithinGeofence) {
+      const distFormatted = minDistance >= 1000 ? `${(minDistance / 1000).toFixed(1)}km` : `${minDistance}m`;
+      return Response.json({
+        success: false,
+        error: `Location Restricted: You are ${distFormatted} away from ${nearestOffice.name}. You must be physically within ${allowedRadius}m of the office location to punch attendance.`
+      }, { status: 403 });
+    }
+
+    // 2. Fetch enrolled active employees
     const { data: allEnrolled, error: listErr } = await supabaseAdmin
       .from('employees')
       .select('*')
@@ -108,7 +213,7 @@ export async function POST(request) {
       return Response.json({ success: false, error: 'No registered employees found in system.' }, { status: 404 });
     }
 
-    // 2. 1:N Facial Identification Match
+    // 3. 1:N Facial Identification Match
     let emp = null;
     if (directEmployeeId) {
       emp = allEnrolled.find(e => e.employee_id === directEmployeeId);
@@ -134,37 +239,6 @@ export async function POST(request) {
     const employee_id = emp.employee_id;
     const now = new Date();
     const todayStr = toISODateString(now);
-
-    // 3. Geofence Check against Registered Offices
-    let nearestOffice = null;
-    let distanceMeters = null;
-    let isWithinGeofence = true;
-    let locationTag = 'Mobile Face Kiosk';
-
-    try {
-      const { data: offices } = await supabaseAdmin
-        .from('offices')
-        .select('*')
-        .eq('status', 'active');
-
-      if (offices && offices.length > 0 && latitude && longitude) {
-        let minDistance = Infinity;
-        for (const off of offices) {
-          const d = computeDistanceMeters(parseFloat(latitude), parseFloat(longitude), parseFloat(off.latitude), parseFloat(off.longitude));
-          if (d < minDistance) {
-            minDistance = d;
-            nearestOffice = off;
-            distanceMeters = d;
-          }
-        }
-        if (nearestOffice) {
-          isWithinGeofence = distanceMeters <= (nearestOffice.radius_meters || 100);
-          locationTag = `${nearestOffice.name} (${distanceMeters}m)`;
-        }
-      }
-    } catch (e) {
-      console.warn('Geofence check warning:', e.message);
-    }
 
     // 4. Check existing attendance log for today
     const { data: existingLogs } = await supabaseAdmin

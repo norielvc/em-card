@@ -218,8 +218,28 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS required_daily_hours NUMERIC(4, 2
 
 -- ==============================================================================
 -- QUICK COPY-PASTE MIGRATION FOR SUPABASE SQL EDITOR
--- Run this block in Supabase Dashboard -> SQL Editor to enable 3-Angle Face & Schedules:
+-- Run this block in Supabase Dashboard -> SQL Editor to enable Offices, 3-Angle Face & Schedules:
 -- ==============================================================================
+CREATE TABLE IF NOT EXISTS offices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(150) NOT NULL,
+  code VARCHAR(50) UNIQUE NOT NULL,
+  address TEXT,
+  latitude NUMERIC(10, 7) NOT NULL,
+  longitude NUMERIC(10, 7) NOT NULL,
+  radius_meters INTEGER DEFAULT 100,
+  status VARCHAR(20) DEFAULT 'active',
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO offices (name, code, address, latitude, longitude, radius_meters, status, notes)
+VALUES
+  ('Main Executive Headquarters', 'HQ-MAIN', 'Metropolitan Operations Complex, Metro Manila', 14.6175, 121.0124, 150, 'active', 'Primary Biometric Attendance Kiosk & Executive Headquarters'),
+  ('East District Field Hub', 'DIST-EAST', 'East Operations Center, Rizal District', 14.5833, 121.0667, 250, 'active', 'Field personnel & community outreach kiosk hub')
+ON CONFLICT (code) DO NOTHING;
+
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS face_token TEXT;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS face_samples JSONB;
@@ -228,4 +248,5 @@ ALTER TABLE employees ADD COLUMN IF NOT EXISTS shift_start TIME DEFAULT '08:00:0
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS shift_end TIME DEFAULT '17:00:00';
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS grace_period_mins INTEGER DEFAULT 15;
 ALTER TABLE employees ADD COLUMN IF NOT EXISTS required_daily_hours NUMERIC(4, 2) DEFAULT 8.00;
+
 

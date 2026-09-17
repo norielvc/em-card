@@ -132,28 +132,51 @@ export async function POST(request) {
       const employee_id = emp.employee_id;
 
       // ── Geofence Range Validation against Authorized Offices ──
+      const DEFAULT_OFFICES = [
+        { id: 'off-hq-01', name: 'Main Executive Headquarters', code: 'HQ-MAIN', latitude: 14.6175, longitude: 121.0124, radius_meters: 150, status: 'active' },
+        { id: 'off-east-02', name: 'East District Field Hub', code: 'DIST-EAST', latitude: 14.5833, longitude: 121.0667, radius_meters: 250, status: 'active' }
+      ];
+
       let nearestOffice = null;
       let distanceMeters = null;
       let isWithinGeofence = true;
 
       try {
-        const { data: offices } = await supabaseAdmin
+        let allOffices = [];
+        const { data: offices, error: offErr } = await supabaseAdmin
           .from('offices')
-          .select('*')
-          .eq('status', 'active');
+          .select('*');
 
-        if (offices && offices.length > 0 && latitude && longitude) {
+        if (!offErr && offices && offices.length > 0) {
+          allOffices = offices;
+        } else {
+          allOffices = DEFAULT_OFFICES;
+        }
+
+        const activeOffices = allOffices.filter(o => o.status === 'active');
+
+        if (activeOffices.length === 0) {
+          return Response.json({
+            success: false,
+            error: 'All workplace office locations are currently disabled by administration. Attendance punch is suspended.'
+          }, { status: 403 });
+        }
+
+        if (latitude && longitude && activeOffices.length > 0) {
           let minDistance = Infinity;
-          for (const off of offices) {
-            const d = computeDistanceMeters(parseFloat(latitude), parseFloat(longitude), parseFloat(off.latitude), parseFloat(off.longitude));
-            if (d < minDistance) {
-              minDistance = d;
-              nearestOffice = off;
-              distanceMeters = d;
+          for (const off of activeOffices) {
+            if (off.latitude && off.longitude) {
+              const d = computeDistanceMeters(parseFloat(latitude), parseFloat(longitude), parseFloat(off.latitude), parseFloat(off.longitude));
+              if (d < minDistance) {
+                minDistance = d;
+                nearestOffice = off;
+                distanceMeters = d;
+              }
             }
           }
           if (nearestOffice) {
-            isWithinGeofence = distanceMeters <= (nearestOffice.radius_meters || 100);
+            const allowedRadius = parseInt(nearestOffice.radius_meters, 10) || 100;
+            isWithinGeofence = distanceMeters <= allowedRadius;
           }
         }
       } catch (e) {
