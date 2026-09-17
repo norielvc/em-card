@@ -20,7 +20,7 @@ import {
   ArrowRight, Ban, Building, Cake, CreditCard, Database, Folder, Globe, HardDrive, Hash,
   History, Inbox, Lock, Mail, Megaphone, Monitor, Phone, Plus, Server, ShieldAlert,
   ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award, XCircle, Sparkles,
-  ShoppingBag, Package, Coins, Pill, Droplets
+  ShoppingBag, Package, Coins, Pill, Droplets, Banknote
 } from 'lucide-react';
 
 
@@ -919,6 +919,10 @@ export default function AdminPage() {
           setUsername(data.session.user.email);
           const role = data.session.user.user_metadata?.role || 'admin';
           setUserRole(role);
+          if (role === 'finance') {
+            window.location.href = '/finance';
+            return;
+          }
           if (role === 'staff') {
             setActiveTab('eventScanner');
           }
@@ -937,6 +941,10 @@ export default function AdminPage() {
         setUsername(session.user.email);
         const role = session.user.user_metadata?.role || 'admin';
         setUserRole(role);
+        if (role === 'finance') {
+          window.location.href = '/finance';
+          return;
+        }
         if (role === 'staff') {
           setActiveTab('eventScanner');
         }
@@ -9127,6 +9135,7 @@ export default function AdminPage() {
   const renderAccounts = () => {
     // Accounts calculations
     const adminCount = accounts.filter(a => a.role === 'admin').length;
+    const financeCount = accounts.filter(a => a.role === 'finance').length;
     const staffCount = accounts.filter(a => a.role === 'staff').length;
     const activeRecentCount = accounts.filter(a => {
       if (!a.last_sign_in_at) return false;
@@ -9138,6 +9147,7 @@ export default function AdminPage() {
 
     const filteredAccounts = accounts.filter(a => {
       if (accountRoleFilter === 'admin' && a.role !== 'admin') return false;
+      if (accountRoleFilter === 'finance' && a.role !== 'finance') return false;
       if (accountRoleFilter === 'staff' && a.role !== 'staff') return false;
       if (accountSearch.trim()) {
         const q = accountSearch.toLowerCase().trim();
@@ -9180,11 +9190,11 @@ export default function AdminPage() {
             <div className="accounts-title-row">
               <h3 className="accounts-page-title">Accounts & Access Control</h3>
               <span className="accounts-status-chip">
-                <ShieldCheck size={13} /> {accounts.length} Total Users · {adminCount} Admins
+                <ShieldCheck size={13} /> {accounts.length} Total Users · {adminCount} Admins · {financeCount} Finance
               </span>
             </div>
             <p className="accounts-page-subtitle">
-              Manage system access, assign administrative or staff privileges, and audit user logins.
+              Manage system access, assign administrative, finance, or staff privileges, and audit user logins.
             </p>
           </div>
           <div className="accounts-header-actions">
@@ -9241,6 +9251,22 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {/* Finance Officers */}
+          <div 
+            className={`accounts-metric-card finance-card ${accountRoleFilter === 'finance' ? 'active' : ''}`}
+            onClick={() => setAccountRoleFilter(accountRoleFilter === 'finance' ? 'all' : 'finance')}
+          >
+            <div className="accounts-metric-accent finance" />
+            <div className="accounts-metric-card-top">
+              <span className="accounts-metric-label">Finance Officers</span>
+              <div className="accounts-metric-icon finance"><Banknote size={16} /></div>
+            </div>
+            <div className="accounts-metric-val finance-text">{financeCount}</div>
+            <div className="accounts-metric-sub">
+              Biometrics, DTR, Timesheets & Payroll
+            </div>
+          </div>
+
           {/* Staff Operators */}
           <div 
             className={`accounts-metric-card staff-card ${accountRoleFilter === 'staff' ? 'active' : ''}`}
@@ -9290,6 +9316,15 @@ export default function AdminPage() {
               <span className="dot admin" />
               <span>Administrators</span>
               <span className="count-tag">{adminCount}</span>
+            </button>
+            <button 
+              type="button" 
+              className={`accounts-pill finance ${accountRoleFilter === 'finance' ? 'active' : ''}`}
+              onClick={() => setAccountRoleFilter('finance')}
+            >
+              <span className="dot finance" />
+              <span>Finance</span>
+              <span className="count-tag">{financeCount}</span>
             </button>
             <button 
               type="button" 
@@ -9382,7 +9417,7 @@ export default function AdminPage() {
                             {/* Account User Info */}
                             <td>
                               <div className="acc-user-cell">
-                                <div className={`acc-user-avatar ${isAdmin ? 'admin' : 'staff'}`}>
+                                <div className={`acc-user-avatar ${isAdmin ? 'admin' : acc.role === 'finance' ? 'finance' : 'staff'}`}>
                                   {initials}
                                 </div>
                                 <div className="acc-user-info">
@@ -9401,9 +9436,9 @@ export default function AdminPage() {
 
                             {/* Role */}
                             <td>
-                              <span className={`acc-role-pill ${isAdmin ? 'admin' : 'staff'}`}>
-                                {isAdmin ? <ShieldCheck size={13} /> : <User size={13} />}
-                                <span>{isAdmin ? 'Administrator' : 'Staff Operator'}</span>
+                              <span className={`acc-role-pill ${isAdmin ? 'admin' : acc.role === 'finance' ? 'finance' : 'staff'}`}>
+                                {isAdmin ? <ShieldCheck size={13} /> : acc.role === 'finance' ? <Banknote size={13} /> : <User size={13} />}
+                                <span>{isAdmin ? 'Administrator' : acc.role === 'finance' ? 'Finance Officer' : 'Staff Operator'}</span>
                               </span>
                             </td>
 
@@ -9486,15 +9521,15 @@ export default function AdminPage() {
                       }}
                     >
                       <div className="acc-card-top">
-                        <div className={`acc-card-avatar ${isAdmin ? 'admin' : 'staff'}`}>
+                        <div className={`acc-card-avatar ${isAdmin ? 'admin' : acc.role === 'finance' ? 'finance' : 'staff'}`}>
                           {initials}
                         </div>
                         <div className="acc-card-header-info">
                           <div className="acc-card-name-row">
                             <strong className="acc-card-email">{acc.email}</strong>
-                            <span className={`acc-role-pill ${isAdmin ? 'admin' : 'staff'}`} style={{ fontSize: '0.68rem', padding: '2px 7px' }}>
-                              {isAdmin ? <ShieldCheck size={11} /> : <User size={11} />}
-                              <span>{isAdmin ? 'Admin' : 'Staff'}</span>
+                            <span className={`acc-role-pill ${isAdmin ? 'admin' : acc.role === 'finance' ? 'finance' : 'staff'}`} style={{ fontSize: '0.68rem', padding: '2px 7px' }}>
+                              {isAdmin ? <ShieldCheck size={11} /> : acc.role === 'finance' ? <Banknote size={11} /> : <User size={11} />}
+                              <span>{isAdmin ? 'Admin' : acc.role === 'finance' ? 'Finance' : 'Staff'}</span>
                             </span>
                           </div>
                           <div className="acc-card-sub-row">
@@ -9587,34 +9622,66 @@ export default function AdminPage() {
               <form onSubmit={handleUpdateAccount} className="modal-form acc-modal-body">
                 {/* Visual Role Selector */}
                 <div className="form-group">
-                  <label className="acc-field-label">Access Role</label>
+                  <div className="acc-field-label-row">
+                    <label className="acc-field-label" style={{ marginBottom: 0 }}>Access Role</label>
+                    <span className="acc-field-hint">Select privilege tier</span>
+                  </div>
                   <div className="acc-role-cards-grid">
                     <div 
-                      className={`acc-role-card ${editAccountForm.role === 'staff' ? 'selected' : ''}`}
+                      className={`acc-role-card role-staff ${editAccountForm.role === 'staff' ? 'selected' : ''}`}
                       onClick={() => setEditAccountForm(f => ({ ...f, role: 'staff' }))}
                     >
-                      <div className="acc-role-card-header">
-                        <User size={16} className="acc-role-icon staff" />
-                        <span className="acc-role-name">Staff Operator</span>
+                      <div className="acc-role-card-top">
+                        <div className="acc-role-icon-badge staff">
+                          <User size={15} />
+                        </div>
                         <div className="acc-role-radio" />
                       </div>
-                      <p className="acc-role-desc">
-                        Registration, event scanning, inquiries & general operations.
-                      </p>
+                      <div className="acc-role-info">
+                        <span className="acc-role-name">Staff Operator</span>
+                        <span className="acc-role-badge staff">Operations</span>
+                        <p className="acc-role-desc">
+                          Registration, scanning, inquiries & operations.
+                        </p>
+                      </div>
                     </div>
 
                     <div 
-                      className={`acc-role-card ${editAccountForm.role === 'admin' ? 'selected' : ''}`}
-                      onClick={() => setEditAccountForm(f => ({ ...f, role: 'admin' }))}
+                      className={`acc-role-card role-finance ${editAccountForm.role === 'finance' ? 'selected' : ''}`}
+                      onClick={() => setEditAccountForm(f => ({ ...f, role: 'finance' }))}
                     >
-                      <div className="acc-role-card-header">
-                        <ShieldCheck size={16} className="acc-role-icon admin" />
-                        <span className="acc-role-name">Administrator</span>
+                      <div className="acc-role-card-top">
+                        <div className="acc-role-icon-badge finance">
+                          <Banknote size={15} />
+                        </div>
                         <div className="acc-role-radio" />
                       </div>
-                      <p className="acc-role-desc">
-                        Full access: user management, analytics, export & system settings.
-                      </p>
+                      <div className="acc-role-info">
+                        <span className="acc-role-name">Finance Officer</span>
+                        <span className="acc-role-badge finance">Finance & DTR</span>
+                        <p className="acc-role-desc">
+                          Biometrics, timesheets & payroll management.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div 
+                      className={`acc-role-card role-admin ${editAccountForm.role === 'admin' ? 'selected' : ''}`}
+                      onClick={() => setEditAccountForm(f => ({ ...f, role: 'admin' }))}
+                    >
+                      <div className="acc-role-card-top">
+                        <div className="acc-role-icon-badge admin">
+                          <ShieldCheck size={15} />
+                        </div>
+                        <div className="acc-role-radio" />
+                      </div>
+                      <div className="acc-role-info">
+                        <span className="acc-role-name">Administrator</span>
+                        <span className="acc-role-badge admin">Full Control</span>
+                        <p className="acc-role-desc">
+                          Full access: users, analytics & settings.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -9627,13 +9694,14 @@ export default function AdminPage() {
                   </div>
                   <div className="form-group" style={{ marginBottom: 10 }}>
                     <label className="acc-field-label">New Password</label>
-                    <div className="acc-password-input-wrap">
+                    <div className="acc-input-icon-wrap">
+                      <Lock size={16} className="acc-input-icon" />
                       <input 
                         type={showModalPassword ? 'text' : 'password'} 
                         value={editAccountForm.password} 
                         onChange={e => setEditAccountForm(f => ({ ...f, password: e.target.value }))} 
                         placeholder="Leave blank to keep existing password" 
-                        className="acc-styled-input"
+                        className="acc-styled-input with-icon"
                       />
                       {editAccountForm.password && (
                         <button 
@@ -9642,7 +9710,7 @@ export default function AdminPage() {
                           onClick={() => setShowModalPassword(v => !v)}
                           tabIndex={-1}
                         >
-                          {showModalPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                          {showModalPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
                       )}
                     </div>
@@ -9651,13 +9719,14 @@ export default function AdminPage() {
                   {editAccountForm.password && (
                     <div className="form-group">
                       <label className="acc-field-label">Confirm New Password</label>
-                      <div className="acc-password-input-wrap">
+                      <div className="acc-input-icon-wrap">
+                        <Lock size={16} className="acc-input-icon" />
                         <input 
                           type={showModalConfirmPassword ? 'text' : 'password'} 
                           value={editAccountForm.confirmPassword} 
                           onChange={e => setEditAccountForm(f => ({ ...f, confirmPassword: e.target.value }))} 
                           placeholder="Re-enter new password to confirm" 
-                          className="acc-styled-input"
+                          className="acc-styled-input with-icon"
                         />
                         {editAccountForm.confirmPassword && (
                           <button 
@@ -9666,7 +9735,7 @@ export default function AdminPage() {
                             onClick={() => setShowModalConfirmPassword(v => !v)}
                             tabIndex={-1}
                           >
-                            {showModalConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                            {showModalConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                           </button>
                         )}
                       </div>
@@ -15770,7 +15839,7 @@ export default function AdminPage() {
               <div className="form-group" style={{ marginBottom: 16 }}>
                 <label className="acc-field-label">Email Address</label>
                 <div className="acc-input-icon-wrap">
-                  <Mail size={15} className="acc-input-icon" />
+                  <Mail size={16} className="acc-input-icon" />
                   <input 
                     type="email" 
                     required 
@@ -15784,49 +15853,82 @@ export default function AdminPage() {
               </div>
 
               {/* Visual Role Selector */}
-              <div className="form-group" style={{ marginBottom: 16 }}>
-                <label className="acc-field-label">Assign Role & Access Level</label>
+              <div className="form-group" style={{ marginBottom: 18 }}>
+                <div className="acc-field-label-row">
+                  <label className="acc-field-label" style={{ marginBottom: 0 }}>Assign Role & Access Level</label>
+                  <span className="acc-field-hint">Select privilege tier</span>
+                </div>
                 <div className="acc-role-cards-grid">
                   <div 
-                    className={`acc-role-card ${createAccountForm.role === 'staff' ? 'selected' : ''}`}
+                    className={`acc-role-card role-staff ${createAccountForm.role === 'staff' ? 'selected' : ''}`}
                     onClick={() => setCreateAccountForm(f => ({ ...f, role: 'staff' }))}
                   >
-                    <div className="acc-role-card-header">
-                      <User size={16} className="acc-role-icon staff" />
-                      <span className="acc-role-name">Staff Operator</span>
+                    <div className="acc-role-card-top">
+                      <div className="acc-role-icon-badge staff">
+                        <User size={15} />
+                      </div>
                       <div className="acc-role-radio" />
                     </div>
-                    <p className="acc-role-desc">
-                      Registration, event scanning & inquiries.
-                    </p>
+                    <div className="acc-role-info">
+                      <span className="acc-role-name">Staff Operator</span>
+                      <span className="acc-role-badge staff">Operations</span>
+                      <p className="acc-role-desc">
+                        Registration, event scanning & inquiries.
+                      </p>
+                    </div>
                   </div>
 
                   <div 
-                    className={`acc-role-card ${createAccountForm.role === 'admin' ? 'selected' : ''}`}
-                    onClick={() => setCreateAccountForm(f => ({ ...f, role: 'admin' }))}
+                    className={`acc-role-card role-finance ${createAccountForm.role === 'finance' ? 'selected' : ''}`}
+                    onClick={() => setCreateAccountForm(f => ({ ...f, role: 'finance' }))}
                   >
-                    <div className="acc-role-card-header">
-                      <ShieldCheck size={16} className="acc-role-icon admin" />
-                      <span className="acc-role-name">Administrator</span>
+                    <div className="acc-role-card-top">
+                      <div className="acc-role-icon-badge finance">
+                        <Banknote size={15} />
+                      </div>
                       <div className="acc-role-radio" />
                     </div>
-                    <p className="acc-role-desc">
-                      Full access, analytics, user controls & exports.
-                    </p>
+                    <div className="acc-role-info">
+                      <span className="acc-role-name">Finance Officer</span>
+                      <span className="acc-role-badge finance">Finance & DTR</span>
+                      <p className="acc-role-desc">
+                        Biometrics, timesheets & payroll audit.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div 
+                    className={`acc-role-card role-admin ${createAccountForm.role === 'admin' ? 'selected' : ''}`}
+                    onClick={() => setCreateAccountForm(f => ({ ...f, role: 'admin' }))}
+                  >
+                    <div className="acc-role-card-top">
+                      <div className="acc-role-icon-badge admin">
+                        <ShieldCheck size={15} />
+                      </div>
+                      <div className="acc-role-radio" />
+                    </div>
+                    <div className="acc-role-info">
+                      <span className="acc-role-name">Administrator</span>
+                      <span className="acc-role-badge admin">Full Control</span>
+                      <p className="acc-role-desc">
+                        Full access, analytics & exports.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: 12 }}>
+              <div className="form-group" style={{ marginBottom: 14 }}>
                 <label className="acc-field-label">Password</label>
-                <div className="acc-password-input-wrap">
+                <div className="acc-input-icon-wrap">
+                  <Lock size={16} className="acc-input-icon" />
                   <input 
                     type={showModalPassword ? 'text' : 'password'} 
                     required 
                     value={createAccountForm.password} 
                     onChange={e => setCreateAccountForm(f => ({ ...f, password: e.target.value }))} 
                     placeholder="Minimum 6 characters" 
-                    className="acc-styled-input"
+                    className="acc-styled-input with-icon"
                   />
                   {createAccountForm.password && (
                     <button 
@@ -15835,22 +15937,23 @@ export default function AdminPage() {
                       onClick={() => setShowModalPassword(v => !v)}
                       tabIndex={-1}
                     >
-                      {showModalPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      {showModalPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   )}
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: 16 }}>
+              <div className="form-group" style={{ marginBottom: 20 }}>
                 <label className="acc-field-label">Confirm Password</label>
-                <div className="acc-password-input-wrap">
+                <div className="acc-input-icon-wrap">
+                  <Lock size={16} className="acc-input-icon" />
                   <input 
                     type={showModalConfirmPassword ? 'text' : 'password'} 
                     required 
                     value={createAccountForm.confirmPassword} 
                     onChange={e => setCreateAccountForm(f => ({ ...f, confirmPassword: e.target.value }))} 
                     placeholder="Repeat password" 
-                    className="acc-styled-input"
+                    className="acc-styled-input with-icon"
                   />
                   {createAccountForm.confirmPassword && (
                     <button 
@@ -15859,7 +15962,7 @@ export default function AdminPage() {
                       onClick={() => setShowModalConfirmPassword(v => !v)}
                       tabIndex={-1}
                     >
-                      {showModalConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      {showModalConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   )}
                 </div>
@@ -15868,7 +15971,7 @@ export default function AdminPage() {
               <div className="modal-footer acc-modal-footer">
                 <button type="button" className="btn btn-modal-secondary" onClick={() => setShowCreateAccount(false)}>Cancel</button>
                 <button type="submit" className="btn btn-modal-primary" disabled={createAccountLoading}>
-                  <UserPlus size={15} /> {createAccountLoading ? 'Creating Account...' : 'Create Account'}
+                  <UserPlus size={16} /> {createAccountLoading ? 'Creating Account...' : 'Create Account'}
                 </button>
               </div>
             </form>
