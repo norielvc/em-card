@@ -1059,8 +1059,12 @@ export default function FinancePortal() {
       if (videoRef.current && canvasRef.current) {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        const width = video.videoWidth || 1280;
-        const height = video.videoHeight || 720;
+        const vW = video.videoWidth || 640;
+        const vH = video.videoHeight || 480;
+        const maxDim = 480;
+        const scale = Math.min(1, maxDim / Math.max(vW, vH));
+        const width = Math.round(vW * scale);
+        const height = Math.round(vH * scale);
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d', { alpha: false });
@@ -1070,7 +1074,7 @@ export default function FinancePortal() {
         ctx.translate(width, 0);
         ctx.scale(-1, 1);
         ctx.drawImage(video, 0, 0, width, height);
-        imageBase64 = canvas.toDataURL('image/jpeg', 0.95);
+        imageBase64 = canvas.toDataURL('image/jpeg', 0.75);
       }
 
       const res = await authFetch('/api/finance/biometrics', {

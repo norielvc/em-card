@@ -478,16 +478,22 @@ export default function PublicEmployeeScannerPage() {
     setScanning(true);
     setCameraError('');
 
-    // Capture frame snapshot from video element
+    // Capture optimized frame snapshot from video element
     let imageBase64 = null;
     if (videoRef.current && cameraActive) {
       try {
         const canvas = canvasRef.current || document.createElement('canvas');
-        canvas.width = videoRef.current.videoWidth || 640;
-        canvas.height = videoRef.current.videoHeight || 480;
+        const vW = videoRef.current.videoWidth || 640;
+        const vH = videoRef.current.videoHeight || 480;
+        const maxDim = 480;
+        const scale = Math.min(1, maxDim / Math.max(vW, vH));
+        canvas.width = Math.round(vW * scale);
+        canvas.height = Math.round(vH * scale);
         const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+        imageBase64 = canvas.toDataURL('image/jpeg', 0.75);
       } catch (err) {
         console.warn('Could not capture frame snapshot:', err);
       }
@@ -559,11 +565,11 @@ export default function PublicEmployeeScannerPage() {
       return;
     }
 
-    // Start 3-second countdown ONLY when inside office perimeter & GPS confirmed
-    setCountdown(3);
+    // Start 2-second countdown ONLY when inside office perimeter & GPS confirmed
+    setCountdown(2);
     playTone(520, 0.08);
 
-    let sec = 3;
+    let sec = 2;
     if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
 
     countdownTimerRef.current = setInterval(() => {
@@ -902,7 +908,7 @@ export default function PublicEmployeeScannerPage() {
                   title="Toggle hands-free Auto-Punch mode"
                   style={{ cursor: 'pointer', outline: 'none' }}
                 >
-                  {autoScanEnabled ? 'Auto-Punch: ON (3s)' : 'Manual Punch'}
+                  {autoScanEnabled ? 'Auto-Punch: ON (2s)' : 'Manual Punch'}
                 </button>
               </div>
 
