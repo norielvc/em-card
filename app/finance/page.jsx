@@ -357,7 +357,20 @@ export default function FinancePortal() {
         setPayrollData(resPayroll.value);
       }
       if (resOffices.status === 'fulfilled' && resOffices.value?.success) {
-        setOffices(resOffices.value.offices || []);
+        let loadedOffices = resOffices.value.offices || [];
+        try {
+          const localOverrides = JSON.parse(localStorage.getItem('emcard_finance_offices_override') || '{}');
+          if (localOverrides && Object.keys(localOverrides).length > 0) {
+            loadedOffices = loadedOffices.map(o => {
+              const ov = localOverrides[o.id] || localOverrides[o.code];
+              if (ov) return { ...o, ...ov };
+              return o;
+            });
+          }
+        } catch (e) {
+          // ignore
+        }
+        setOffices(loadedOffices);
       }
     } catch (err) {
       console.error('Failed to load finance data:', err);
@@ -593,6 +606,20 @@ export default function FinancePortal() {
 
   const handleToggleOfficeStatus = async (office) => {
     const newStatus = office.status === 'active' ? 'inactive' : 'active';
+
+    // 1. Immediate optimistic UI update
+    setOffices(prev => prev.map(o => (o.id === office.id || o.code === office.code ? { ...o, status: newStatus } : o)));
+
+    // 2. Persist in localStorage so reload maintains status even if Supabase table is not yet migrated
+    try {
+      const existing = JSON.parse(localStorage.getItem('emcard_finance_offices_override') || '{}');
+      existing[office.id] = { ...(existing[office.id] || {}), status: newStatus };
+      if (office.code) existing[office.code] = { ...(existing[office.code] || {}), status: newStatus };
+      localStorage.setItem('emcard_finance_offices_override', JSON.stringify(existing));
+    } catch (e) {
+      // ignore
+    }
+
     try {
       const res = await authFetch('/api/finance/offices', {
         method: 'PUT',
@@ -610,12 +637,11 @@ export default function FinancePortal() {
             : `Office "${office.name}" disabled (Geofence inactive)`,
           newStatus === 'active' ? 'success' : 'info'
         );
-        loadData();
       } else {
-        showToast(data.error || 'Failed to update status', 'error');
+        showToast(data.error || 'Failed to update status in cloud', 'error');
       }
     } catch (err) {
-      showToast('Error updating office status', 'error');
+      console.warn('Office status update cloud error:', err);
     }
   };
 

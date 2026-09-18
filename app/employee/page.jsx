@@ -131,7 +131,20 @@ export default function PublicEmployeeScannerPage() {
       if (data.success) {
         setEmployees(data.employees || []);
         setRecentLogs(data.recent_logs || []);
-        setOffices(data.offices || []);
+        let officeList = data.offices || [];
+        try {
+          const localOverrides = JSON.parse(localStorage.getItem('emcard_finance_offices_override') || '{}');
+          if (localOverrides && Object.keys(localOverrides).length > 0) {
+            officeList = officeList.map(o => {
+              const ov = localOverrides[o.id] || localOverrides[o.code];
+              if (ov) return { ...o, ...ov };
+              return o;
+            });
+          }
+        } catch (e) {
+          // ignore
+        }
+        setOffices(officeList);
       }
     } catch (err) {
       console.warn('Error fetching public directory:', err);
