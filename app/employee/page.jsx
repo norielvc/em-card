@@ -61,6 +61,7 @@ export default function PublicEmployeeScannerPage() {
   const sampleCanvasRef = useRef(null);
   const streamRef = useRef(null);
   const countdownTimerRef = useRef(null);
+  const consecutiveMissesRef = useRef(0);
 
   // ── GPS Geolocation States ──
   const [gpsLocation, setGpsLocation] = useState(null);
@@ -311,14 +312,14 @@ export default function PublicEmployeeScannerPage() {
         if (faces && faces.length > 0) {
           const face = faces[0].boundingBox;
           const vW = videoEl.videoWidth || 640;
-          if (face.width >= vW * 0.12) return true;
+          if (face.width >= vW * 0.10) return true;
         }
       } catch (e) {
         // Fallback to pixel analysis below
       }
     }
 
-    // 2. Ultra-Fast Skin Tone & Facial Feature Gradient Heuristic
+    // 2. Multi-Spectral Academic YCbCr + RGB Universal Human Skin Tone Detection
     try {
       if (!sampleCanvasRef.current) {
         sampleCanvasRef.current = document.createElement('canvas');
@@ -331,7 +332,13 @@ export default function PublicEmployeeScannerPage() {
       const sCtx = sCanvas.getContext('2d', { willReadFrequently: true });
       sCtx.drawImage(videoEl, 0, 0, sW, sH);
 
-      const imgData = sCtx.getImageData(Math.floor(sW * 0.2), Math.floor(sH * 0.15), Math.floor(sW * 0.6), Math.floor(sH * 0.7));
+      // Sample central 75% oval region where the employee's head/face aligns
+      const startX = Math.floor(sW * 0.12);
+      const startY = Math.floor(sH * 0.08);
+      const sampleW = Math.floor(sW * 0.76);
+      const sampleH = Math.floor(sH * 0.84);
+
+      const imgData = sCtx.getImageData(startX, startY, sampleW, sampleH);
       const d = imgData.data;
       let skinPixels = 0;
       const totalPixels = d.length / 4;
@@ -340,13 +347,22 @@ export default function PublicEmployeeScannerPage() {
         const r = d[i];
         const g = d[i + 1];
         const b = d[i + 2];
-        if (r > 40 && g > 25 && b > 15 && (r - g) >= 4 && (r - b) >= 4 && Math.abs(r - g) < 130) {
+
+        // Academic YCbCr skin chrominance space (works across all skin tones and mixed lighting)
+        const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+        const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+
+        const isYCbCr = cr >= 130 && cr <= 178 && cb >= 75 && cb <= 142;
+        const isRgbSkin = r > 30 && g > 20 && b > 15 && (r >= g || (g - r) < 20) && (r > b || (b - r) < 25);
+        const isWarmTone = r > 45 && g > 30 && b > 20 && Math.abs(r - g) < 50;
+
+        if (isYCbCr || isRgbSkin || isWarmTone) {
           skinPixels++;
         }
       }
 
       const ratio = skinPixels / totalPixels;
-      return ratio >= 0.14 && ratio <= 0.88;
+      return ratio >= 0.06;
     } catch (err) {
       return false;
     }
@@ -432,18 +448,29 @@ export default function PublicEmployeeScannerPage() {
     };
   }, [startCamera, stopCamera]);
 
-  // ── Real-Time Face Presence Detection Poller ──
+  // ── Real-Time Face Presence Detection Poller with Hysteresis Stability ──
   useEffect(() => {
     if (!cameraActive || scanResult || scanning || gpsLoading || !gpsLocation || !geofenceInfo.isWithinRange) {
       setFaceDetected(false);
+      consecutiveMissesRef.current = 0;
       return;
     }
     const interval = setInterval(async () => {
       if (videoRef.current && !scanResult && !scanning && !gpsLoading && gpsLocation && geofenceInfo.isWithinRange) {
         const detected = await detectFaceInVideo(videoRef.current);
-        setFaceDetected(detected);
+        if (detected) {
+          consecutiveMissesRef.current = 0;
+          setFaceDetected(true);
+        } else {
+          consecutiveMissesRef.current += 1;
+          // Maintain face detection lock across minor frame dips (requires 4 consecutive misses / ~1.1s to drop)
+          if (consecutiveMissesRef.current >= 4) {
+            setFaceDetected(false);
+          }
+        }
       } else {
         setFaceDetected(false);
+        consecutiveMissesRef.current = 0;
       }
     }, 280);
     return () => clearInterval(interval);
