@@ -168,6 +168,7 @@ export async function POST(request) {
 
     let minDistance = Infinity;
     let nearestOffice = null;
+    let distanceMeters = null;
 
     for (const off of activeOffices) {
       if (off.latitude && off.longitude) {
@@ -180,6 +181,7 @@ export async function POST(request) {
         if (d < minDistance) {
           minDistance = d;
           nearestOffice = off;
+          distanceMeters = d;
         }
       }
     }
@@ -193,7 +195,7 @@ export async function POST(request) {
 
     const allowedRadius = parseInt(nearestOffice.radius_meters, 10) || 100;
     const isWithinGeofence = minDistance <= allowedRadius;
-    const locationTag = `${nearestOffice.name} (${minDistance}m)`;
+    const locationTag = `${nearestOffice.name} (${distanceMeters}m)`;
 
     if (!isWithinGeofence) {
       const distFormatted = minDistance >= 1000 ? `${(minDistance / 1000).toFixed(1)}km` : `${minDistance}m`;
