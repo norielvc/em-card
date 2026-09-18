@@ -31204,6 +31204,253 @@ html, body {
   100% { opacity: 0; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   BIOMETRIC FACE SCAN PROCESSING ANIMATION OVERLAY
+═══════════════════════════════════════════════════════════════════ */
+.cam-processing-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 12;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(6, 182, 212, 0.14) 0%, rgba(2, 6, 23, 0.52) 85%);
+  backdrop-filter: blur(1.5px);
+  animation: procFadeIn 0.25s ease-out forwards;
+}
+
+@keyframes procFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.cam-proc-radar-wrap {
+  position: relative;
+  width: 200px;
+  height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cam-proc-ring {
+  position: absolute;
+  pointer-events: none;
+}
+
+.cam-proc-ring.outer {
+  width: 190px;
+  height: 240px;
+  border-radius: 50% / 50%;
+  border: 2px dashed rgba(6, 182, 212, 0.85);
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.4), inset 0 0 15px rgba(6, 182, 212, 0.2);
+  animation: procSpinClockwise 3s linear infinite;
+}
+
+.cam-proc-ring.inner {
+  width: 160px;
+  height: 210px;
+  border-radius: 50% / 50%;
+  border: 2px dotted rgba(16, 185, 129, 0.8);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+  animation: procSpinCounterClockwise 2.2s linear infinite;
+}
+
+.cam-proc-sweep {
+  position: absolute;
+  width: 170px;
+  height: 220px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 65%, rgba(6, 182, 212, 0.35) 90%, rgba(16, 185, 129, 0.7) 100%);
+  animation: procSpinClockwise 1.6s linear infinite;
+  mask-image: radial-gradient(ellipse at center, transparent 40%, black 75%);
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 40%, black 75%);
+}
+
+@keyframes procSpinClockwise {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes procSpinCounterClockwise {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+/* 4 Corner Targeting HUD Brackets */
+.cam-proc-corner {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: #38bdf8;
+  border-style: solid;
+  border-width: 0;
+  filter: drop-shadow(0 0 6px #38bdf8);
+  animation: cornerPulse 1.2s ease-in-out infinite alternate;
+}
+
+.cam-proc-corner.top-left {
+  top: 0;
+  left: 0;
+  border-top-width: 3px;
+  border-left-width: 3px;
+  border-top-left-radius: 6px;
+}
+
+.cam-proc-corner.top-right {
+  top: 0;
+  right: 0;
+  border-top-width: 3px;
+  border-right-width: 3px;
+  border-top-right-radius: 6px;
+}
+
+.cam-proc-corner.bottom-left {
+  bottom: 0;
+  left: 0;
+  border-bottom-width: 3px;
+  border-left-width: 3px;
+  border-bottom-left-radius: 6px;
+}
+
+.cam-proc-corner.bottom-right {
+  bottom: 0;
+  right: 0;
+  border-bottom-width: 3px;
+  border-right-width: 3px;
+  border-bottom-right-radius: 6px;
+}
+
+@keyframes cornerPulse {
+  0% { transform: scale(0.95); opacity: 0.75; }
+  100% { transform: scale(1.05); opacity: 1; }
+}
+
+/* Central Reticle Crosshair */
+.cam-proc-crosshair {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(6, 182, 212, 0.6);
+  border-radius: 50%;
+  animation: crosshairPulse 1s ease-in-out infinite;
+}
+
+.cam-proc-crosshair::before,
+.cam-proc-crosshair::after {
+  content: '';
+  position: absolute;
+  background: #38bdf8;
+}
+
+.cam-proc-crosshair::before {
+  top: 50%;
+  left: -8px;
+  right: -8px;
+  height: 1.5px;
+  transform: translateY(-50%);
+}
+
+.cam-proc-crosshair::after {
+  left: 50%;
+  top: -8px;
+  bottom: -8px;
+  width: 1.5px;
+  transform: translateX(-50%);
+}
+
+@keyframes crosshairPulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+/* Fast Cyber Laser Scan Bar */
+.cam-proc-laser-bar {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #38bdf8, #34d399, transparent);
+  box-shadow: 0 0 16px #38bdf8, 0 0 30px #34d399;
+  animation: fastProcLaser 0.85s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
+  z-index: 13;
+  border-radius: 999px;
+}
+
+@keyframes fastProcLaser {
+  0% { top: 18%; opacity: 0.4; }
+  100% { top: 78%; opacity: 1; }
+}
+
+/* High-Tech Telemetry HUD Status Badge */
+.cam-proc-status-badge {
+  margin-top: 14px;
+  background: rgba(2, 6, 23, 0.9);
+  border: 1px solid rgba(6, 182, 212, 0.6);
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.35), inset 0 0 12px rgba(6, 182, 212, 0.15);
+  backdrop-filter: blur(12px);
+  padding: 8px 18px;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: badgeSlideUp 0.3s ease-out;
+}
+
+@keyframes badgeSlideUp {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.cam-proc-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(6, 182, 212, 0.25);
+  border-top-color: #06b6d4;
+  border-right-color: #10b981;
+  animation: procSpinClockwise 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+.cam-proc-text-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.cam-proc-title {
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #38bdf8;
+  text-transform: uppercase;
+  font-family: ui-monospace, monospace;
+}
+
+.cam-proc-subtitle {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #6ee7b7;
+  display: flex;
+  align-items: center;
+}
+
+.cam-proc-dots {
+  display: inline-block;
+  width: 14px;
+  animation: dotsBlink 1.2s infinite;
+}
+
+@keyframes dotsBlink {
+  0% { opacity: 0.2; }
+  50% { opacity: 1; }
+  100% { opacity: 0.2; }
+}
+
 .auto-capture-badge {
   display: inline-flex;
   align-items: center;

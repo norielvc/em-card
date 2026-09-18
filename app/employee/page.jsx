@@ -649,10 +649,45 @@ export default function PublicEmployeeScannerPage() {
                 </div>
 
                 {/* Auto-Punch Countdown Overlay */}
-                {countdown !== null && countdown > 0 && autoScanEnabled && !scanResult && !gpsLoading && gpsLocation && geofenceInfo.isWithinRange && (
+                {countdown !== null && countdown > 0 && autoScanEnabled && !scanResult && !scanning && !gpsLoading && gpsLocation && geofenceInfo.isWithinRange && (
                   <div className="cam-countdown-overlay">
                     <div className="cam-countdown-number">{countdown}</div>
                     <div className="cam-countdown-sub">Hold Still · Auto-Punching</div>
+                  </div>
+                )}
+
+                {/* Biometric AI Facial Processing & Neural Vector Match Overlay */}
+                {scanning && (
+                  <div className="cam-processing-overlay">
+                    <div className="cam-proc-radar-wrap">
+                      <div className="cam-proc-ring outer" />
+                      <div className="cam-proc-ring inner" />
+                      <div className="cam-proc-sweep" />
+
+                      {/* 4 Corner Targeting HUD Brackets */}
+                      <div className="cam-proc-corner top-left" />
+                      <div className="cam-proc-corner top-right" />
+                      <div className="cam-proc-corner bottom-left" />
+                      <div className="cam-proc-corner bottom-right" />
+
+                      {/* Central Matrix Crosshair */}
+                      <div className="cam-proc-crosshair" />
+                    </div>
+
+                    {/* Fast Laser Scan Bar */}
+                    <div className="cam-proc-laser-bar" />
+
+                    {/* High-Tech Telemetry HUD Status Badge */}
+                    <div className="cam-proc-status-badge">
+                      <div className="cam-proc-spinner" />
+                      <div className="cam-proc-text-wrap">
+                        <div className="cam-proc-title">ANALYZING BIOMETRICS</div>
+                        <div className="cam-proc-subtitle">
+                          <span>1:N Neural Vector Matching</span>
+                          <span className="cam-proc-dots">...</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -667,7 +702,7 @@ export default function PublicEmployeeScannerPage() {
                 <canvas ref={canvasRef} style={{ display: 'none' }} />
 
                 {/* Animated Laser Scanning Beam */}
-                <div className="kiosk-laser-line" />
+                {!scanning && <div className="kiosk-laser-line" />}
 
                 {/* Smooth Oval Cutout SVG Mask with Dynamic Glowing Border */}
                 <svg className="kiosk-oval-svg" viewBox="0 0 400 300" preserveAspectRatio="none">
@@ -689,14 +724,16 @@ export default function PublicEmployeeScannerPage() {
                         ? (geofenceInfo.status === 'out_of_range' || geofenceInfo.status === 'all_disabled' ? '#ef4444' : '#f59e0b')
                         : cameraError
                         ? '#ef4444'
+                        : scanning
+                        ? '#06b6d4'
                         : scanResult
                         ? '#10b981'
                         : faceDetected
                         ? '#10b981'
                         : '#38bdf8'
                     }
-                    strokeWidth={!geofenceInfo.isWithinRange ? '2.5' : faceDetected || scanResult ? '3' : '2'}
-                    strokeDasharray={!geofenceInfo.isWithinRange ? '4 4' : faceDetected || scanResult ? 'none' : '6 4'}
+                    strokeWidth={!geofenceInfo.isWithinRange ? '2.5' : scanning || faceDetected || scanResult ? '3' : '2'}
+                    strokeDasharray={!geofenceInfo.isWithinRange ? '4 4' : scanning || faceDetected || scanResult ? 'none' : '6 4'}
                   />
                 </svg>
 

@@ -4712,10 +4712,45 @@ export default function FinancePortal() {
                       <span>1080p Ultra-HD Biometric Scanner</span>
                     </div>
 
-                    {kioskCountdown !== null && kioskCountdown > 0 && kioskAutoScan && !kioskResult && (
+                    {kioskCountdown !== null && kioskCountdown > 0 && kioskAutoScan && !kioskResult && !kioskScanning && (
                       <div className="cam-countdown-overlay">
                         <div className="cam-countdown-number">{kioskCountdown}</div>
                         <div className="cam-countdown-sub">Hold Still · Auto-Punching</div>
+                      </div>
+                    )}
+
+                    {/* Biometric AI Facial Processing Overlay */}
+                    {kioskScanning && (
+                      <div className="cam-processing-overlay">
+                        <div className="cam-proc-radar-wrap">
+                          <div className="cam-proc-ring outer" />
+                          <div className="cam-proc-ring inner" />
+                          <div className="cam-proc-sweep" />
+
+                          {/* 4 Corner Targeting HUD Brackets */}
+                          <div className="cam-proc-corner top-left" />
+                          <div className="cam-proc-corner top-right" />
+                          <div className="cam-proc-corner bottom-left" />
+                          <div className="cam-proc-corner bottom-right" />
+
+                          {/* Central Matrix Crosshair */}
+                          <div className="cam-proc-crosshair" />
+                        </div>
+
+                        {/* Fast Laser Scan Bar */}
+                        <div className="cam-proc-laser-bar" />
+
+                        {/* High-Tech Telemetry HUD Status Badge */}
+                        <div className="cam-proc-status-badge">
+                          <div className="cam-proc-spinner" />
+                          <div className="cam-proc-text-wrap">
+                            <div className="cam-proc-title">ANALYZING BIOMETRICS</div>
+                            <div className="cam-proc-subtitle">
+                              <span>1:N Neural Vector Matching</span>
+                              <span className="cam-proc-dots">...</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -4729,7 +4764,7 @@ export default function FinancePortal() {
                     <canvas ref={canvasRef} style={{ display: 'none' }} />
 
                     {/* Animated Laser Beam */}
-                    <div className="kiosk-laser-line" />
+                    {!kioskScanning && <div className="kiosk-laser-line" />}
 
                     {/* Oval Mask Framing Guide */}
                     <svg className="kiosk-oval-svg" viewBox="0 0 400 300" preserveAspectRatio="none">
@@ -4749,14 +4784,16 @@ export default function FinancePortal() {
                         stroke={
                           kioskError
                             ? '#ef4444'
+                            : kioskScanning
+                            ? '#06b6d4'
                             : kioskResult
                             ? '#10b981'
                             : kioskFaceDetected
                             ? '#10b981'
                             : '#38bdf8'
                         }
-                        strokeWidth={kioskFaceDetected || kioskResult ? '3' : '2'}
-                        strokeDasharray={kioskFaceDetected || kioskResult ? 'none' : '6 4'}
+                        strokeWidth={kioskScanning || kioskFaceDetected || kioskResult ? '3' : '2'}
+                        strokeDasharray={kioskScanning || kioskFaceDetected || kioskResult ? 'none' : '6 4'}
                       />
                     </svg>
 
