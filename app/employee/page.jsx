@@ -116,8 +116,8 @@ export default function PublicEmployeeScannerPage() {
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      setCurrentTime(now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      setCurrentDate(now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }));
+      setCurrentTime(now.toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+      setCurrentDate(now.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }));
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
@@ -1188,11 +1188,11 @@ export default function PublicEmployeeScannerPage() {
 
                     <div className="pub-feed-stamps">
                       <div className="pub-feed-in">
-                        <span>IN:</span> {log.time_in ? new Date(log.time_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                        <span>IN:</span> {log.time_in ? new Date(log.time_in).toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: true }) : '--:--'}
                       </div>
                       {log.time_out && (
                         <div className="pub-feed-out">
-                          <span>OUT:</span> {new Date(log.time_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <span>OUT:</span> {new Date(log.time_out).toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: true })}
                         </div>
                       )}
                     </div>

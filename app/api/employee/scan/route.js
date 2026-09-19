@@ -19,8 +19,35 @@ function computeDistanceMeters(lat1, lon1, lat2, lon2) {
   return Math.round(R * c);
 }
 
-function toISODateString(d) {
-  return d.toISOString().split('T')[0];
+// ── Philippines Standard Time (UTC+8 / Asia/Manila) Date & Time Helpers ──
+function getManilaDate(date = new Date()) {
+  return new Date(date.getTime() + (8 * 60 * 60 * 1000));
+}
+
+function toManilaDateString(date = new Date()) {
+  const phDate = getManilaDate(date);
+  return phDate.toISOString().split('T')[0];
+}
+
+function formatManilaTime(date = new Date(), options = {}) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    ...options
+  }).format(date);
+}
+
+function formatManilaDate(date = new Date(), options = {}) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    ...options
+  }).format(date);
 }
 
 // Fallback default offices if table is not yet in Supabase
@@ -49,7 +76,7 @@ const DEFAULT_OFFICES = [
 
 export async function GET() {
   try {
-    const todayStr = toISODateString(new Date());
+    const todayStr = toManilaDateString(new Date());
 
     // Fetch all offices so client receives full status (active/inactive)
     let officeList = [];
@@ -240,7 +267,7 @@ export async function POST(request) {
 
     const employee_id = emp.employee_id;
     const now = new Date();
-    const todayStr = toISODateString(now);
+    const todayStr = toManilaDateString(now);
 
     // 4. Check existing attendance log for today
     const { data: existingLogs } = await supabaseAdmin
@@ -262,14 +289,16 @@ export async function POST(request) {
       // 🟢 FIRST PUNCH OF THE DAY ➔ TIME IN
       punchType = 'time_in';
 
-      const shiftStart = new Date(now);
-      shiftStart.setHours(9, 0, 0, 0);
+      const manilaNow = getManilaDate(now);
+      const phHours = manilaNow.getUTCHours();
+      const phMinutes = manilaNow.getUTCMinutes();
+      const punchMinutesOfDay = phHours * 60 + phMinutes;
+      const shiftStartMinutes = 9 * 60; // 9:00 AM Manila Time
       let lateMins = 0;
       let status = 'Present';
 
-      if (now > shiftStart) {
-        const diffMs = now.getTime() - shiftStart.getTime();
-        lateMins = Math.floor(diffMs / 60000);
+      if (punchMinutesOfDay > shiftStartMinutes) {
+        lateMins = punchMinutesOfDay - shiftStartMinutes;
         if (lateMins > 15) {
           status = 'Late';
         }
@@ -310,7 +339,7 @@ export async function POST(request) {
       punchType = 'time_out';
 
       const timeInDate = new Date(existing.time_in);
-      firstInTimeStr = timeInDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      firstInTimeStr = formatManilaTime(timeInDate, { hour: '2-digit', minute: '2-digit' });
       const hoursWorked = Math.max(0, (now.getTime() - timeInDate.getTime()) / 3600000);
       const standardHours = emp.daily_hours || 8.0;
       const otHours = Math.max(0, hoursWorked - standardHours);
@@ -335,7 +364,8 @@ export async function POST(request) {
       durationFormatted = `${Math.floor(hoursWorked)}h ${Math.round((hoursWorked % 1) * 60)}m`;
     }
 
-    const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const timeFormatted = formatManilaTime(now, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const dateFormatted = formatManilaDate(now, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 
     return Response.json({
       success: true,
@@ -356,7 +386,7 @@ export async function POST(request) {
       log: logRecord,
       time: timeFormatted,
       first_in_time: firstInTimeStr,
-      date: now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+      date: dateFormatted,
       duration: durationFormatted,
       is_within_geofence: isWithinGeofence,
       distance_meters: distanceMeters,
