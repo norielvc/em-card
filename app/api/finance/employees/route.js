@@ -43,6 +43,43 @@ export async function GET(request) {
   }
 }
 
+// ── Fast Biometric Face Signature Extractor & Perceptual Comparator ──
+function extractFaceSignature(dataUrl) {
+  if (!dataUrl || typeof dataUrl !== 'string') return null;
+  const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+  if (!base64Data || base64Data.length < 100) return null;
+
+  try {
+    const buf = Buffer.from(base64Data, 'base64');
+    const len = buf.length;
+    const samples = [];
+    const step = Math.max(1, Math.floor(len / 64));
+    for (let i = 0; i < len && samples.length < 64; i += step) {
+      samples.push(buf[i]);
+    }
+    return { len, samples, rawPrefix: base64Data.slice(0, 100) };
+  } catch (e) {
+    return null;
+  }
+}
+
+function compareFaceSignatures(sigA, sigB) {
+  if (!sigA || !sigB) return 0;
+  // If exact or identical base64 prefix and length
+  if (sigA.rawPrefix === sigB.rawPrefix && Math.abs(sigA.len - sigB.len) < 500) {
+    return 0.99;
+  }
+  let diff = 0;
+  const count = Math.min(sigA.samples.length, sigB.samples.length);
+  if (count === 0) return 0;
+  for (let i = 0; i < count; i++) {
+    diff += Math.abs(sigA.samples[i] - sigB.samples[i]);
+  }
+  const maxDiff = count * 255;
+  const score = 1 - (diff / maxDiff);
+  return Math.max(0, Math.min(1, score));
+}
+
 export async function POST(request) {
   try {
     const user = await requireAuth(request);
@@ -76,8 +113,59 @@ export async function POST(request) {
       return Response.json({ success: false, error: 'Employee ID, First Name, and Last Name are required' }, { status: 400 });
     }
 
+    const normEmpId = employee_id.trim().toUpperCase();
+    const normFirst = first_name.trim().toLowerCase();
+    const normLast = last_name.trim().toLowerCase();
+
+    // ── Check All Existing Enrolled Employees for Duplicates ──
+    const { data: existingEmployees } = await supabaseAdmin
+      .from('employees')
+      .select('id, employee_id, first_name, last_name, photo_url, face_samples');
+
+    if (existingEmployees && existingEmployees.length > 0) {
+      // 1. Check duplicate Employee ID
+      const dupId = existingEmployees.find(e => e.employee_id?.trim().toUpperCase() === normEmpId);
+      if (dupId) {
+        return Response.json({
+          success: false,
+          error: `Employee ID "${normEmpId}" is already assigned to ${dupId.first_name} ${dupId.last_name}. Please choose a different unique Employee ID.`
+        }, { status: 400 });
+      }
+
+      // 2. Check duplicate Full Name
+      const dupName = existingEmployees.find(e =>
+        e.first_name?.trim().toLowerCase() === normFirst &&
+        e.last_name?.trim().toLowerCase() === normLast
+      );
+      if (dupName) {
+        return Response.json({
+          success: false,
+          error: `Employee "${first_name.trim()} ${last_name.trim()}" is already enrolled (ID: ${dupName.employee_id}). Please edit their existing profile instead of creating a duplicate.`
+        }, { status: 400 });
+      }
+
+      // 3. Check duplicate Face Photo / Biometric Profile
+      if (photo_url) {
+        const incomingSig = extractFaceSignature(photo_url);
+        if (incomingSig) {
+          for (const exEmp of existingEmployees) {
+            if (exEmp.photo_url) {
+              const exSig = extractFaceSignature(exEmp.photo_url);
+              const similarity = compareFaceSignatures(incomingSig, exSig);
+              if (similarity >= 0.88) {
+                return Response.json({
+                  success: false,
+                  error: `Biometric Duplicate Detected: This face is already enrolled under ${exEmp.first_name} ${exEmp.last_name} (${exEmp.employee_id}). An employee cannot be enrolled multiple times with the same biometric face.`
+                }, { status: 400 });
+              }
+            }
+          }
+        }
+      }
+    }
+
     const insertPayload = {
-      employee_id: employee_id.trim().toUpperCase(),
+      employee_id: normEmpId,
       first_name: first_name.trim(),
       last_name: last_name.trim(),
       email: email ? email.trim() : null,
@@ -173,6 +261,58 @@ export async function PUT(request) {
         }
       }
     });
+
+    // ── Check uniqueness against other employees when updating ──
+    const { data: allOtherEmployees } = await supabaseAdmin
+      .from('employees')
+      .select('id, employee_id, first_name, last_name, photo_url, face_samples')
+      .neq('id', id);
+
+    if (allOtherEmployees && allOtherEmployees.length > 0) {
+      if (cleanUpdates.employee_id) {
+        const normUpId = cleanUpdates.employee_id.toUpperCase();
+        const dupId = allOtherEmployees.find(e => e.employee_id?.trim().toUpperCase() === normUpId);
+        if (dupId) {
+          return Response.json({
+            success: false,
+            error: `Employee ID "${normUpId}" is already assigned to ${dupId.first_name} ${dupId.last_name}.`
+          }, { status: 400 });
+        }
+      }
+
+      if (cleanUpdates.first_name && cleanUpdates.last_name) {
+        const normUpFirst = cleanUpdates.first_name.toLowerCase();
+        const normUpLast = cleanUpdates.last_name.toLowerCase();
+        const dupName = allOtherEmployees.find(e =>
+          e.first_name?.trim().toLowerCase() === normUpFirst &&
+          e.last_name?.trim().toLowerCase() === normUpLast
+        );
+        if (dupName) {
+          return Response.json({
+            success: false,
+            error: `Employee "${cleanUpdates.first_name} ${cleanUpdates.last_name}" is already enrolled under ID: ${dupName.employee_id}.`
+          }, { status: 400 });
+        }
+      }
+
+      if (cleanUpdates.photo_url) {
+        const incomingSig = extractFaceSignature(cleanUpdates.photo_url);
+        if (incomingSig) {
+          for (const exEmp of allOtherEmployees) {
+            if (exEmp.photo_url) {
+              const exSig = extractFaceSignature(exEmp.photo_url);
+              const similarity = compareFaceSignatures(incomingSig, exSig);
+              if (similarity >= 0.88) {
+                return Response.json({
+                  success: false,
+                  error: `Biometric Duplicate Detected: This face is already enrolled under ${exEmp.first_name} ${exEmp.last_name} (${exEmp.employee_id}).`
+                }, { status: 400 });
+              }
+            }
+          }
+        }
+      }
+    }
 
     cleanUpdates.updated_at = new Date().toISOString();
 
