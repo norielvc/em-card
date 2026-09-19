@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '../../../../lib/auth';
 import { requireFinance } from '../../../../lib/security';
+import { compareFaceTokens, extractFaceSignature, compareFaceSignatures } from '../../../../lib/biometrics';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -43,43 +44,6 @@ export async function GET(request) {
   }
 }
 
-// ── Fast Biometric Face Signature Extractor & Perceptual Comparator ──
-function extractFaceSignature(dataUrl) {
-  if (!dataUrl || typeof dataUrl !== 'string') return null;
-  const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-  if (!base64Data || base64Data.length < 100) return null;
-
-  try {
-    const buf = Buffer.from(base64Data, 'base64');
-    const len = buf.length;
-    const samples = [];
-    const step = Math.max(1, Math.floor(len / 64));
-    for (let i = 0; i < len && samples.length < 64; i += step) {
-      samples.push(buf[i]);
-    }
-    return { len, samples, rawPrefix: base64Data.slice(0, 100) };
-  } catch (e) {
-    return null;
-  }
-}
-
-function compareFaceSignatures(sigA, sigB) {
-  if (!sigA || !sigB) return 0;
-  // If exact or identical base64 prefix and length
-  if (sigA.rawPrefix === sigB.rawPrefix && Math.abs(sigA.len - sigB.len) < 500) {
-    return 0.99;
-  }
-  let diff = 0;
-  const count = Math.min(sigA.samples.length, sigB.samples.length);
-  if (count === 0) return 0;
-  for (let i = 0; i < count; i++) {
-    diff += Math.abs(sigA.samples[i] - sigB.samples[i]);
-  }
-  const maxDiff = count * 255;
-  const score = 1 - (diff / maxDiff);
-  return Math.max(0, Math.min(1, score));
-}
-
 export async function POST(request) {
   try {
     const user = await requireAuth(request);
@@ -107,6 +71,8 @@ export async function POST(request) {
       grace_period_mins = 15,
       required_daily_hours = 8,
       photo_url,
+      face_samples,
+      face_token,
     } = body;
 
     if (!employee_id || !first_name || !last_name) {
@@ -120,7 +86,7 @@ export async function POST(request) {
     // ── Check All Existing Enrolled Employees for Duplicates ──
     const { data: existingEmployees } = await supabaseAdmin
       .from('employees')
-      .select('id, employee_id, first_name, last_name, photo_url, face_samples');
+      .select('*');
 
     if (existingEmployees && existingEmployees.length > 0) {
       // 1. Check duplicate Employee ID
@@ -144,15 +110,28 @@ export async function POST(request) {
         }, { status: 400 });
       }
 
-      // 3. Check duplicate Face Photo / Biometric Profile
-      if (photo_url) {
-        const incomingSig = extractFaceSignature(photo_url);
-        if (incomingSig) {
-          for (const exEmp of existingEmployees) {
-            if (exEmp.photo_url) {
-              const exSig = extractFaceSignature(exEmp.photo_url);
+      // 3. Check duplicate Face Photo / Biometric Token
+      const checkToken = face_token || body.face_token;
+      if (checkToken || photo_url) {
+        for (const exEmp of existingEmployees) {
+          // A) Token comparison (Ultra-high accuracy 256-bit perceptual hash)
+          if (checkToken && exEmp.face_token) {
+            const tokenSim = compareFaceTokens(checkToken, exEmp.face_token);
+            if (tokenSim >= 0.70) {
+              return Response.json({
+                success: false,
+                error: `Biometric Duplicate Rejected: This face is already enrolled under ${exEmp.first_name} ${exEmp.last_name} (${exEmp.employee_id}). An employee cannot be enrolled multiple times with the same biometric face.`
+              }, { status: 400 });
+            }
+          }
+
+          // B) Signature / Base64 comparison fallback
+          if (photo_url && exEmp.photo_url) {
+            const incomingSig = extractFaceSignature(photo_url);
+            const exSig = extractFaceSignature(exEmp.photo_url);
+            if (incomingSig && exSig) {
               const similarity = compareFaceSignatures(incomingSig, exSig);
-              if (similarity >= 0.88) {
+              if (similarity >= 0.85) {
                 return Response.json({
                   success: false,
                   error: `Biometric Duplicate Detected: This face is already enrolled under ${exEmp.first_name} ${exEmp.last_name} (${exEmp.employee_id}). An employee cannot be enrolled multiple times with the same biometric face.`
@@ -184,6 +163,8 @@ export async function POST(request) {
       grace_period_mins: parseInt(grace_period_mins !== undefined ? grace_period_mins : 15, 10),
       required_daily_hours: parseFloat(required_daily_hours) || 8,
       photo_url: photo_url || null,
+      face_samples: face_samples || null,
+      face_token: face_token || body.face_token || null,
       updated_at: new Date().toISOString()
     };
 
@@ -193,8 +174,9 @@ export async function POST(request) {
       .select()
       .single();
 
-    if (error && (error.message?.includes('face_samples') || error.message?.includes('schema cache'))) {
+    if (error && (error.message?.includes('face_samples') || error.message?.includes('face_token') || error.message?.includes('schema cache') || error.message?.includes('column'))) {
       delete insertPayload.face_samples;
+      delete insertPayload.face_token;
       const retry = await supabaseAdmin
         .from('employees')
         .insert([insertPayload])
@@ -265,7 +247,7 @@ export async function PUT(request) {
     // ── Check uniqueness against other employees when updating ──
     const { data: allOtherEmployees } = await supabaseAdmin
       .from('employees')
-      .select('id, employee_id, first_name, last_name, photo_url, face_samples')
+      .select('*')
       .neq('id', id);
 
     if (allOtherEmployees && allOtherEmployees.length > 0) {
@@ -295,14 +277,27 @@ export async function PUT(request) {
         }
       }
 
-      if (cleanUpdates.photo_url) {
-        const incomingSig = extractFaceSignature(cleanUpdates.photo_url);
-        if (incomingSig) {
-          for (const exEmp of allOtherEmployees) {
-            if (exEmp.photo_url) {
-              const exSig = extractFaceSignature(exEmp.photo_url);
+      const checkUpToken = cleanUpdates.face_token || updates.face_token;
+      if (checkUpToken || cleanUpdates.photo_url) {
+        for (const exEmp of allOtherEmployees) {
+          // Token comparison
+          if (checkUpToken && exEmp.face_token) {
+            const tokenSim = compareFaceTokens(checkUpToken, exEmp.face_token);
+            if (tokenSim >= 0.70) {
+              return Response.json({
+                success: false,
+                error: `Biometric Duplicate Rejected: This face is already enrolled under ${exEmp.first_name} ${exEmp.last_name} (${exEmp.employee_id}).`
+              }, { status: 400 });
+            }
+          }
+
+          // Signature comparison fallback
+          if (cleanUpdates.photo_url && exEmp.photo_url) {
+            const incomingSig = extractFaceSignature(cleanUpdates.photo_url);
+            const exSig = extractFaceSignature(exEmp.photo_url);
+            if (incomingSig && exSig) {
               const similarity = compareFaceSignatures(incomingSig, exSig);
-              if (similarity >= 0.88) {
+              if (similarity >= 0.85) {
                 return Response.json({
                   success: false,
                   error: `Biometric Duplicate Detected: This face is already enrolled under ${exEmp.first_name} ${exEmp.last_name} (${exEmp.employee_id}).`
@@ -323,9 +318,10 @@ export async function PUT(request) {
       .select()
       .single();
 
-    if (error && (error.message?.includes('face_samples') || error.details?.includes('face_samples') || error.message?.includes('schema cache'))) {
+    if (error && (error.message?.includes('face_samples') || error.message?.includes('face_token') || error.message?.includes('schema cache') || error.message?.includes('column'))) {
       const fallbackUpdates = { ...cleanUpdates };
       delete fallbackUpdates.face_samples;
+      delete fallbackUpdates.face_token;
       const retry = await supabaseAdmin
         .from('employees')
         .update(fallbackUpdates)

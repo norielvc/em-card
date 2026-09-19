@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { supabase } from '../../lib/supabaseClient';
+import { generatePerceptualFaceToken } from '../../lib/biometrics';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -154,6 +155,7 @@ export default function FinancePortal() {
     required_daily_hours: 8,
     photo_url: '',
     face_samples: [],
+    face_token: '',
   });
 
   // ── 3-Shot Multi-Angle Face Enrollment States ──
@@ -805,6 +807,7 @@ export default function FinancePortal() {
 
     // Ultra-HD JPEG export (0.96 high quality)
     const dataUrl = canvas.toDataURL('image/jpeg', 0.96);
+    const faceToken = generatePerceptualFaceToken(canvas);
 
     // Visual Shutter Flash & Shutter Sound Chime
     setShutterFlash(true);
@@ -826,6 +829,7 @@ export default function FinancePortal() {
           ...prevForm,
           photo_url: updated[0], // primary front face
           face_samples: updated,
+          face_token: faceToken || prevForm.face_token || '',
         }));
         stopEnrollCam();
         showToast('🎉 All 3 Crystal-Clear Face Angles Registered with 99.8% AI accuracy!', 'success');
@@ -913,12 +917,14 @@ export default function FinancePortal() {
       return;
     }
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const dataUrl = event.target.result;
+      const faceToken = await generatePerceptualFaceToken(dataUrl);
       setEmployeeForm((prev) => ({
         ...prev,
         photo_url: dataUrl,
         face_samples: [dataUrl, dataUrl, dataUrl],
+        face_token: faceToken || prev.face_token || '',
       }));
       setEnrollPhotos([dataUrl, '', '']);
       showToast('Face photo uploaded & registered!', 'success');
@@ -1056,6 +1062,7 @@ export default function FinancePortal() {
 
     try {
       let imageBase64 = null;
+      let scanFaceToken = null;
       if (videoRef.current && canvasRef.current) {
         const video = videoRef.current;
         const canvas = canvasRef.current;
@@ -1075,6 +1082,7 @@ export default function FinancePortal() {
         ctx.scale(-1, 1);
         ctx.drawImage(video, 0, 0, width, height);
         imageBase64 = canvas.toDataURL('image/jpeg', 0.75);
+        scanFaceToken = generatePerceptualFaceToken(canvas);
       }
 
       const res = await authFetch('/api/finance/biometrics', {
@@ -1083,6 +1091,7 @@ export default function FinancePortal() {
         body: JSON.stringify({
           action: 'scan',
           image: imageBase64,
+          face_token: scanFaceToken,
           latitude: kioskGps.latitude,
           longitude: kioskGps.longitude,
           location: kioskGps.location,
@@ -2543,6 +2552,7 @@ export default function FinancePortal() {
                                     required_daily_hours: emp.required_daily_hours || 8,
                                     photo_url: emp.photo_url || '',
                                     face_samples: samplePhotos,
+                                    face_token: emp.face_token || '',
                                   });
                                   setEnrollPhotos(samplePhotos.length === 3 ? samplePhotos : (emp.photo_url ? [emp.photo_url, emp.photo_url, emp.photo_url] : ['', '', '']));
                                   stopEnrollCam();

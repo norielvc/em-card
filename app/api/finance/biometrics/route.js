@@ -1,47 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '../../../../lib/auth';
 import { requireFinance } from '../../../../lib/security';
+import { compareFaceTokens, extractFaceSignature, compareFaceSignatures } from '../../../../lib/biometrics';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
-
-// ── Fast Biometric Face Signature Extractor & Perceptual Comparator ──
-function extractFaceSignature(dataUrl) {
-  if (!dataUrl || typeof dataUrl !== 'string') return null;
-  const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-  if (!base64Data || base64Data.length < 100) return null;
-
-  try {
-    const buf = Buffer.from(base64Data, 'base64');
-    const len = buf.length;
-    const samples = [];
-    const step = Math.max(1, Math.floor(len / 64));
-    for (let i = 0; i < len && samples.length < 64; i += step) {
-      samples.push(buf[i]);
-    }
-    return { len, samples, rawPrefix: base64Data.slice(0, 100) };
-  } catch (e) {
-    return null;
-  }
-}
-
-function compareFaceSignatures(sigA, sigB) {
-  if (!sigA || !sigB) return 0;
-  if (sigA.rawPrefix === sigB.rawPrefix && Math.abs(sigA.len - sigB.len) < 500) {
-    return 0.99;
-  }
-  let diff = 0;
-  const count = Math.min(sigA.samples.length, sigB.samples.length);
-  if (count === 0) return 0;
-  for (let i = 0; i < count; i++) {
-    diff += Math.abs(sigA.samples[i] - sigB.samples[i]);
-  }
-  const maxDiff = count * 255;
-  const score = 1 - (diff / maxDiff);
-  return Math.max(0, Math.min(1, score));
-}
 
 export async function GET(request) {
   try {
@@ -152,44 +117,51 @@ export async function POST(request) {
         // Automatically match against enrolled employees with registered face photos
         const withFace = allEnrolled.filter(e => e.photo_url || e.face_token || e.face_samples);
         if (withFace.length > 0) {
-          if (image) {
-            const scanSig = extractFaceSignature(image);
-            let bestCandidate = null;
-            let bestScore = -1;
+          const checkScanToken = body.face_token;
+          const scanSig = image ? extractFaceSignature(image) : null;
+          let bestCandidate = null;
+          let bestScore = -1;
 
-            for (const cand of withFace) {
-              let maxCandScore = 0;
+          for (const cand of withFace) {
+            let maxCandScore = 0;
 
-              if (cand.photo_url) {
-                const candSig = extractFaceSignature(cand.photo_url);
-                const score = compareFaceSignatures(scanSig, candSig);
+            // 1. Biometric 256-bit token match
+            if (checkScanToken && cand.face_token) {
+              const tokenScore = compareFaceTokens(checkScanToken, cand.face_token);
+              if (tokenScore > maxCandScore) maxCandScore = tokenScore;
+            }
+
+            // 2. Primary photo signature match
+            if (scanSig && cand.photo_url) {
+              const candSig = extractFaceSignature(cand.photo_url);
+              const score = compareFaceSignatures(scanSig, candSig);
+              if (score > maxCandScore) maxCandScore = score;
+            }
+
+            // 3. Multi-angle samples match
+            if (scanSig && cand.face_samples && Array.isArray(cand.face_samples)) {
+              for (const sample of cand.face_samples) {
+                const sampleSig = extractFaceSignature(sample);
+                const score = compareFaceSignatures(scanSig, sampleSig);
                 if (score > maxCandScore) maxCandScore = score;
               }
-
-              if (cand.face_samples && Array.isArray(cand.face_samples)) {
-                for (const sample of cand.face_samples) {
-                  const sampleSig = extractFaceSignature(sample);
-                  const score = compareFaceSignatures(scanSig, sampleSig);
-                  if (score > maxCandScore) maxCandScore = score;
-                }
-              }
-
-              if (maxCandScore > bestScore) {
-                bestScore = maxCandScore;
-                bestCandidate = cand;
-              }
             }
 
-            if (bestCandidate && bestScore >= 0.35) {
-              emp = bestCandidate;
-            } else {
-              emp = withFace[0];
+            if (maxCandScore > bestScore) {
+              bestScore = maxCandScore;
+              bestCandidate = cand;
             }
+          }
+
+          if (bestCandidate && bestScore >= 0.50) {
+            emp = bestCandidate;
+          } else if (bestCandidate && bestScore >= 0.35) {
+            emp = bestCandidate;
           } else {
-            emp = withFace[0];
+            emp = null;
           }
         } else {
-          emp = allEnrolled[0];
+          emp = null;
         }
       }
 

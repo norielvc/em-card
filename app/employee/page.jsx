@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
+import { generatePerceptualFaceToken } from '../../lib/biometrics';
 import {
   Camera, Clock, Calendar, CheckCircle2, AlertCircle, Sparkles,
   MapPin, ShieldCheck, RefreshCw, Navigation, AlertTriangle,
@@ -507,6 +508,7 @@ export default function PublicEmployeeScannerPage() {
 
     // Capture optimized frame snapshot from video element
     let imageBase64 = null;
+    let scanFaceToken = null;
     if (videoRef.current && cameraActive) {
       try {
         const canvas = canvasRef.current || document.createElement('canvas');
@@ -521,6 +523,7 @@ export default function PublicEmployeeScannerPage() {
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
         imageBase64 = canvas.toDataURL('image/jpeg', 0.75);
+        scanFaceToken = generatePerceptualFaceToken(canvas);
       } catch (err) {
         console.warn('Could not capture frame snapshot:', err);
       }
@@ -532,6 +535,7 @@ export default function PublicEmployeeScannerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image: imageBase64,
+          face_token: scanFaceToken,
           mode: forcedMode,
           latitude: gpsLocation?.latitude || null,
           longitude: gpsLocation?.longitude || null,
