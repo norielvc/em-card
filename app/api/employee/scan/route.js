@@ -283,11 +283,8 @@ export async function POST(request) {
         status,
         late_minutes: lateMins,
         location: locationTag,
-        office_id: nearestOffice ? nearestOffice.id : null,
-        is_within_geofence: isWithinGeofence,
-        distance_meters: distanceMeters,
         confidence_score: confidence,
-        notes: `First Log (Time-In) · ${isWithinGeofence ? 'In Range' : 'Off-site ' + distanceMeters + 'm'}`
+        notes: `First Log (Time-In) · ${isWithinGeofence ? 'In Range' : 'Off-site ' + (distanceMeters || 0) + 'm'}`
       };
 
       if (existing) {

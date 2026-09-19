@@ -20,7 +20,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co https://em-card.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://*.supabase.co https://fonts.googleapis.com; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self';",
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co https://em-card.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://*.supabase.co https://fonts.googleapis.com https://nominatim.openstreetmap.org https://*.openstreetmap.org; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self';",
           },
           {
             key: 'Strict-Transport-Security',
