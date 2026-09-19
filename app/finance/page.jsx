@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { supabase } from '../../lib/supabaseClient';
-import { generatePerceptualFaceToken } from '../../lib/biometrics';
+import { generatePerceptualFaceToken, compareFaceTokens } from '../../lib/biometrics';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -425,11 +425,52 @@ export default function FinancePortal() {
   const handleSaveEmployee = async (e) => {
     e.preventDefault();
     try {
+      // 1. Compute 256-bit perceptual face token if photo exists
+      let submissionFaceToken = employeeForm.face_token;
+      if (!submissionFaceToken && employeeForm.photo_url) {
+        submissionFaceToken = await generatePerceptualFaceToken(employeeForm.photo_url);
+      }
+
+      // 2. Client-Side Instant Biometric Duplicate Verification against all existing employees
+      if (submissionFaceToken || employeeForm.photo_url) {
+        const otherEmployees = employees.filter(emp => !editEmployee || emp.id !== editEmployee.id);
+        for (const existing of otherEmployees) {
+          // Check duplicate Employee ID
+          if (employeeForm.employee_id && existing.employee_id?.toUpperCase() === employeeForm.employee_id.trim().toUpperCase()) {
+            showToast(`Employee ID "${employeeForm.employee_id}" is already assigned to ${existing.first_name} ${existing.last_name}.`, 'error');
+            playTone(320, 0.25, 'sawtooth');
+            return;
+          }
+          // Check duplicate Full Name
+          if (
+            existing.first_name?.trim().toLowerCase() === employeeForm.first_name.trim().toLowerCase() &&
+            existing.last_name?.trim().toLowerCase() === employeeForm.last_name.trim().toLowerCase()
+          ) {
+            showToast(`Employee "${employeeForm.first_name.trim()} ${employeeForm.last_name.trim()}" is already enrolled (ID: ${existing.employee_id}).`, 'error');
+            playTone(320, 0.25, 'sawtooth');
+            return;
+          }
+
+          // Check duplicate Biometric Face
+          if (existing.photo_url || existing.face_token) {
+            const existingToken = existing.face_token || (await generatePerceptualFaceToken(existing.photo_url));
+            if (submissionFaceToken && existingToken) {
+              const similarity = compareFaceTokens(submissionFaceToken, existingToken);
+              if (similarity >= 0.68) {
+                showToast(`Biometric Duplicate Rejected: This face is already enrolled under ${existing.first_name} ${existing.last_name} (${existing.employee_id}). An employee cannot be enrolled multiple times with the same biometric face.`, 'error');
+                playTone(320, 0.35, 'sawtooth');
+                return;
+              }
+            }
+          }
+        }
+      }
+
       const url = '/api/finance/employees';
       const method = editEmployee ? 'PUT' : 'POST';
       const body = editEmployee 
-        ? { id: editEmployee.id, ...employeeForm }
-        : employeeForm;
+        ? { id: editEmployee.id, ...employeeForm, face_token: submissionFaceToken }
+        : { ...employeeForm, face_token: submissionFaceToken };
 
       const res = await authFetch(url, {
         method,
@@ -444,6 +485,7 @@ export default function FinancePortal() {
         loadData();
       } else {
         showToast(data.error || 'Failed to save employee', 'error');
+        playTone(320, 0.25, 'sawtooth');
       }
     } catch (err) {
       showToast(err.message || 'Server error', 'error');
