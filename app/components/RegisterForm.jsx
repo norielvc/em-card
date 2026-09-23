@@ -43,6 +43,8 @@ const TRANSLATIONS = {
     contactLabel: 'Contact Number',
     sectorLabel: 'Civil Sector Category',
     chooseCategory: 'Choose category...',
+    organizationLabel: 'Community Organization',
+    chooseOrganization: 'Select organization (optional)...',
     genderLabel: 'Gender',
     chooseGender: 'Select gender...',
     civilStatusLabel: 'Civil Status',
@@ -63,6 +65,7 @@ const TRANSLATIONS = {
     reviewContact: 'Contact',
     reviewReferral: 'Referred By',
     reviewSector: 'Sector Category',
+    reviewOrganization: 'Community Organization',
     reviewGender: 'Gender',
     reviewCivilStatus: 'Civil Status',
     religionLabel: 'Religion',
@@ -173,6 +176,8 @@ const TRANSLATIONS = {
     contactLabel: 'Numero ng Kontak',
     sectorLabel: 'Kategorya ng Sektor',
     chooseCategory: 'Pumili ng kategorya...',
+    organizationLabel: 'Organisasyon sa Komunidad',
+    chooseOrganization: 'Pumili ng organisasyon (opsyonal)...',
     genderLabel: 'Kasarian',
     chooseGender: 'Pumili ng kasarian...',
     civilStatusLabel: 'Katayuan sa Pag-aasawa',
@@ -193,6 +198,7 @@ const TRANSLATIONS = {
     reviewContact: 'Kontak',
     reviewReferral: 'Inirekomenda Ni',
     reviewSector: 'Kategorya ng Sektor',
+    reviewOrganization: 'Organisasyon sa Komunidad',
     reviewGender: 'Kasarian',
     reviewCivilStatus: 'Katayuan sa Pag-aasawa',
     religionLabel: 'Relihiyon',
@@ -288,6 +294,8 @@ export default function RegisterForm({ embedded = false }) {
   const [referralResults, setReferralResults] = useState([]);
   const [referralValid, setReferralValid] = useState(true);
   const [sector, setSector] = useState('');
+  const [organization, setOrganization] = useState('');
+  const [organizationsList, setOrganizationsList] = useState([]);
   const [houseNo, setHouseNo] = useState('');
   const [purok, setPurok] = useState('');
   const [contact, setContact] = useState('');
@@ -344,6 +352,7 @@ export default function RegisterForm({ embedded = false }) {
     setGender('');
     setReligion('');
     setSector('');
+    setOrganization('');
     setContact('');
     setHouseNo('');
     setPurok('');
@@ -388,6 +397,24 @@ export default function RegisterForm({ embedded = false }) {
   useEffect(() => {
     if (step !== 2) setSubStep(1);
   }, [step]);
+
+  // Fetch registered community organizations
+  useEffect(() => {
+    const fetchOrgs = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('id, name')
+          .order('name', { ascending: true });
+        if (data) {
+          setOrganizationsList(data);
+        }
+      } catch (err) {
+        // silent
+      }
+    };
+    fetchOrgs();
+  }, []);
 
   // ── URL hash persistence (fallback + bookmarkable step) ──
   useEffect(() => {
@@ -758,6 +785,7 @@ export default function RegisterForm({ embedded = false }) {
         is_valid_resident: !isNonValidResident,
         referral_name: referral,
         sector_category: sector,
+        organization: organization || null,
         gender: gender,
         civil_status: civilStatus,
         religion: religion || null,
@@ -1619,29 +1647,43 @@ export default function RegisterForm({ embedded = false }) {
                     </div>
                   </div>
 
-                  <div className="premium-form-group">
-                    <label className="premium-form-label">{t.religionLabel}</label>
-                    <div className="premium-select-wrapper">
-                      <select value={religion} onChange={(e) => setReligion(e.target.value)}>
-                        <option value="">{t.chooseReligion}</option>
-                        <option value="Roman Catholicism">Roman Catholicism</option>
-                        <option value="Islam">Islam</option>
-                        <option value="Evangelical Christianity (Born Again)">Evangelical Christianity (Born Again)</option>
-                        <option value="Protestantism">Protestantism</option>
-                        <option value="Iglesia ni Cristo">Iglesia ni Cristo</option>
-                        <option value="Philippine Independent Church (Aglipayan)">Philippine Independent Church (Aglipayan)</option>
-                        <option value="Seventh-day Adventist">Seventh-day Adventist</option>
-                        <option value="Jehovah's Witnesses">Jehovah&#39;s Witnesses</option>
-                        <option value="Church of Jesus Christ of Latter-day Saints">Church of Jesus Christ of Latter-day Saints</option>
-                        <option value="Indigenous Folk Religions">Indigenous Folk Religions</option>
-                        <option value="Buddhism">Buddhism</option>
-                        <option value="Hinduism">Hinduism</option>
-                        <option value="Sikhism">Sikhism</option>
-                        <option value="Other">Other</option>
-                        <option value="None">None</option>
-                      </select>
+                    <div className="premium-form-group">
+                      <label className="premium-form-label">{t.religionLabel}</label>
+                      <div className="premium-select-wrapper">
+                        <select value={religion} onChange={(e) => setReligion(e.target.value)}>
+                          <option value="">{t.chooseReligion}</option>
+                          <option value="Roman Catholicism">Roman Catholicism</option>
+                          <option value="Islam">Islam</option>
+                          <option value="Evangelical Christianity (Born Again)">Evangelical Christianity (Born Again)</option>
+                          <option value="Protestantism">Protestantism</option>
+                          <option value="Iglesia ni Cristo">Iglesia ni Cristo</option>
+                          <option value="Philippine Independent Church (Aglipayan)">Philippine Independent Church (Aglipayan)</option>
+                          <option value="Seventh-day Adventist">Seventh-day Adventist</option>
+                          <option value="Jehovah's Witnesses">Jehovah&#39;s Witnesses</option>
+                          <option value="Church of Jesus Christ of Latter-day Saints">Church of Jesus Christ of Latter-day Saints</option>
+                          <option value="Indigenous Folk Religions">Indigenous Folk Religions</option>
+                          <option value="Buddhism">Buddhism</option>
+                          <option value="Hinduism">Hinduism</option>
+                          <option value="Sikhism">Sikhism</option>
+                          <option value="Other">Other</option>
+                          <option value="None">None</option>
+                        </select>
+                      </div>
                     </div>
-                  </div>
+
+                    <div className="premium-form-group">
+                      <label className="premium-form-label">{t.organizationLabel}</label>
+                      <div className="premium-select-wrapper">
+                        <select value={organization} onChange={(e) => setOrganization(e.target.value)}>
+                          <option value="">{t.chooseOrganization}</option>
+                          {organizationsList.map((org) => (
+                            <option key={org.id} value={org.name}>
+                              {org.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
 
                   <div className="premium-form-group">
                     <label className="premium-form-label">{t.birthdayLabel} <span className="req-star">*</span></label>
@@ -1736,6 +1778,12 @@ export default function RegisterForm({ embedded = false }) {
                       <span className="review-label">{t.reviewSector}</span>
                       <span className="review-value">{sector}</span>
                     </div>
+                    {organization && (
+                      <div className="review-item">
+                        <span className="review-label">{t.reviewOrganization}</span>
+                        <span className="review-value">{organization}</span>
+                      </div>
+                    )}
                     <div className="review-item">
                       <span className="review-label">{t.reviewGender}</span>
                       <span className="review-value">{gender}</span>
