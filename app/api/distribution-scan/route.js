@@ -278,11 +278,11 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { rawToken, category, scanned_by, notes } = body;
+    const { rawToken, registrationId, category, scanned_by, notes } = body;
     const allow_duplicates = body.allow_duplicates === true || body.allow_duplicates === 'true' || body.allowDuplicates === true || body.allowDuplicates === 'true';
 
-    if (!rawToken || !category) {
-      return Response.json({ error: 'Missing token or aid category' }, { status: 400 });
+    if ((!rawToken && !registrationId) || !category) {
+      return Response.json({ error: 'Missing resident identifier or aid category' }, { status: 400 });
     }
 
     const catMeta = DISTRIBUTION_CATEGORIES[category];
@@ -290,32 +290,53 @@ export async function POST(request) {
       return Response.json({ error: 'Invalid distribution category' }, { status: 400 });
     }
 
-    // 1. Clean & extract token
-    let token = cleanToken(rawToken);
-    token = extractTokenFromUrl(token);
+    let reg = null;
 
-    if (!isValidToken(token)) {
-      return Response.json({
-        type: 'invalid',
-        message: 'SECURITY ALERT: Invalid QR format. This is NOT a valid EM Card.',
-        rawText: token,
-      }, { status: 400 });
-    }
+    if (registrationId) {
+      // Manual Claim by registration ID
+      const { data, error: regErr } = await supabaseAdmin
+        .from('registrations')
+        .select('*, ValidResidents(*)')
+        .eq('id', registrationId)
+        .eq('status', 'Approved')
+        .maybeSingle();
 
-    // 2. Fetch Registration + ValidResident
-    const { data: reg, error: regErr } = await supabaseAdmin
-      .from('registrations')
-      .select('*, ValidResidents(*)')
-      .eq('qr_token', token)
-      .eq('status', 'Approved')
-      .maybeSingle();
+      if (regErr || !data) {
+        return Response.json({
+          type: 'invalid',
+          message: 'Member not found or not approved in our system.',
+        }, { status: 404 });
+      }
+      reg = data;
+    } else {
+      // 1. Clean & extract token
+      let token = cleanToken(rawToken);
+      token = extractTokenFromUrl(token);
 
-    if (regErr || !reg) {
-      return Response.json({
-        type: 'invalid',
-        message: 'SECURITY ALERT: Unregistered or unauthorized EM Card. This citizen is not approved in our system.',
-        rawText: token,
-      }, { status: 404 });
+      if (!isValidToken(token)) {
+        return Response.json({
+          type: 'invalid',
+          message: 'SECURITY ALERT: Invalid QR format. This is NOT a valid EM Card.',
+          rawText: token,
+        }, { status: 400 });
+      }
+
+      // 2. Fetch Registration + ValidResident
+      const { data, error: regErr } = await supabaseAdmin
+        .from('registrations')
+        .select('*, ValidResidents(*)')
+        .eq('qr_token', token)
+        .eq('status', 'Approved')
+        .maybeSingle();
+
+      if (regErr || !data) {
+        return Response.json({
+          type: 'invalid',
+          message: 'SECURITY ALERT: Unregistered or unauthorized EM Card. This citizen is not approved in our system.',
+          rawText: token,
+        }, { status: 404 });
+      }
+      reg = data;
     }
 
     const person = reg.ValidResidents || {};

@@ -399,6 +399,16 @@ export default function AdminPage() {
   const [memberAidHistory, setMemberAidHistory] = useState([]);
   const [memberAidLoading, setMemberAidLoading] = useState(false);
   const [selectedMemberAidCat, setSelectedMemberAidCat] = useState(null);
+
+  // ─── Manual Aid Claim Modal State ───
+  const [showManualClaimModal, setShowManualClaimModal] = useState(false);
+  const [manualClaimCategory, setManualClaimCategory] = useState('groceries');
+  const [manualClaimMember, setManualClaimMember] = useState(null);
+  const [manualClaimSearch, setManualClaimSearch] = useState('');
+  const [manualClaimNotes, setManualClaimNotes] = useState('');
+  const [manualClaimLoading, setManualClaimLoading] = useState(false);
+  const [manualClaimOverrideDup, setManualClaimOverrideDup] = useState(false);
+
   const distScannerRef = useRef(null);
   const distScanInProgressRef = useRef(false);
   const distFileInputRef = useRef(null);
@@ -503,6 +513,55 @@ export default function AdminPage() {
     } finally {
       setDistScanLoading(false);
       setDistScanToken('EM-');
+    }
+  };
+
+  const handleManualClaimSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!manualClaimMember) {
+      showToast('Please select a resident to process the claim.', 'error');
+      return;
+    }
+    if (!manualClaimCategory) {
+      showToast('Please select an aid program.', 'error');
+      return;
+    }
+
+    setManualClaimLoading(true);
+    try {
+      const res = await authFetch('/api/distribution-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registrationId: manualClaimMember.id,
+          category: manualClaimCategory,
+          allow_duplicates: manualClaimOverrideDup || distAllowDuplicates,
+          notes: manualClaimNotes.trim() ? `[Manual Entry] ${manualClaimNotes.trim()}` : '[Manual Entry by Admin]',
+          scanned_by: username || 'Admin',
+        }),
+      });
+
+      const json = await res.json();
+
+      if (json.type === 'success') {
+        showToast(`Aid distributed: ${json.categoryName} to ${json.name}`, 'success');
+        setShowManualClaimModal(false);
+        setManualClaimMember(null);
+        setManualClaimSearch('');
+        setManualClaimNotes('');
+        setManualClaimOverrideDup(false);
+        fetchDistributionRecords(distFilterCategory);
+        fetchOrganizations();
+        fetchAllRegistrations();
+      } else if (json.type === 'duplicate') {
+        showToast(json.message || 'Already claimed in this category', 'error');
+      } else {
+        showToast(json.message || json.error || 'Claim failed', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to submit manual claim', 'error');
+    } finally {
+      setManualClaimLoading(false);
     }
   };
 
@@ -1101,7 +1160,8 @@ export default function AdminPage() {
       showAddOrgMemberModal ||
       showCreateOrgModal ||
       showEditOrgModal ||
-      showDeleteOrgModal
+      showDeleteOrgModal ||
+      showManualClaimModal
     );
 
     if (anyModalOpen) {
@@ -12489,6 +12549,22 @@ export default function AdminPage() {
             <div className="dist-header-actions">
               <button 
                 type="button" 
+                className="btn btn-sm dist-header-btn"
+                style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', border: 'none', fontWeight: 600, boxShadow: '0 2px 8px rgba(16,185,129,0.25)' }}
+                onClick={() => {
+                  setShowManualClaimModal(true);
+                  setManualClaimCategory(selectedDistCategory || 'groceries');
+                  setManualClaimMember(null);
+                  setManualClaimSearch('');
+                  setManualClaimNotes('');
+                  setManualClaimOverrideDup(false);
+                }}
+                title="Manually record aid distribution to resident"
+              >
+                <Plus size={14} /> Manual Claim
+              </button>
+              <button 
+                type="button" 
                 className="btn btn-sm btn-outline-emerald dist-header-btn"
                 onClick={() => fetchDistributionRecords(distFilterCategory)}
                 disabled={distRecordsLoading}
@@ -12640,26 +12716,45 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Quick Policy Toggle in Scanner Topbar */}
-            <div className="dist-duplicate-toggle-box" style={{ margin: 0 }}>
-              <span className="dist-toggle-label" style={{ fontSize: '0.78rem' }}>Enforcement Policy:</span>
-              <div className="dist-toggle-btn-group">
-                <button
-                  type="button"
-                  className={`dist-policy-btn ${!distAllowDuplicates ? 'active-strict' : ''}`}
-                  onClick={() => { setDistAllowDuplicates(false); distAllowDuplicatesRef.current = false; }}
-                  title="Strict 1-per-resident policy."
-                >
-                  <Lock size={12} /> Strict (1-Per-Resident)
-                </button>
-                <button
-                  type="button"
-                  className={`dist-policy-btn ${distAllowDuplicates ? 'active-allow' : ''}`}
-                  onClick={() => { setDistAllowDuplicates(true); distAllowDuplicatesRef.current = true; }}
-                  title="Allow multiple claims."
-                >
-                  <Check size={12} /> Allow Multiple
-                </button>
+            {/* Quick Actions in Scanner Topbar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.78rem', padding: '6px 12px', borderRadius: '8px' }}
+                onClick={() => {
+                  stopDistScanner();
+                  setShowManualClaimModal(true);
+                  setManualClaimCategory(selectedDistCategory || 'groceries');
+                  setManualClaimMember(null);
+                  setManualClaimSearch('');
+                  setManualClaimNotes('');
+                  setManualClaimOverrideDup(false);
+                }}
+                title="Manually claim for this program without QR scan"
+              >
+                <Plus size={13} /> Manual Claim
+              </button>
+              <div className="dist-duplicate-toggle-box" style={{ margin: 0 }}>
+                <span className="dist-toggle-label" style={{ fontSize: '0.78rem' }}>Policy:</span>
+                <div className="dist-toggle-btn-group">
+                  <button
+                    type="button"
+                    className={`dist-policy-btn ${!distAllowDuplicates ? 'active-strict' : ''}`}
+                    onClick={() => { setDistAllowDuplicates(false); distAllowDuplicatesRef.current = false; }}
+                    title="Strict 1-per-resident policy."
+                  >
+                    <Lock size={12} /> Strict
+                  </button>
+                  <button
+                    type="button"
+                    className={`dist-policy-btn ${distAllowDuplicates ? 'active-allow' : ''}`}
+                    onClick={() => { setDistAllowDuplicates(true); distAllowDuplicatesRef.current = true; }}
+                    title="Allow multiple claims."
+                  >
+                    <Check size={12} /> Allow Multi
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -16093,6 +16188,428 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MANUAL AID CLAIM MODAL */}
+      {showManualClaimModal && typeof document !== 'undefined' && createPortal(
+        <div className="modal-overlay" onClick={() => !manualClaimLoading && setShowManualClaimModal(false)}>
+          <div className="modal-card manual-claim-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 640, width: '92%', borderRadius: 16, overflow: 'hidden', padding: 0 }}>
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%)',
+              color: '#ffffff',
+              padding: '20px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
+                  background: 'rgba(255,255,255,0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backdropFilter: 'blur(4px)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                }}>
+                  <Gift size={22} color="#6ee7b7" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.01em' }}>
+                    Manual Aid Claim Dispatch
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)' }}>
+                    Record official resident aid claims directly without QR scanning
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="modal-close-x"
+                onClick={() => !manualClaimLoading && setShowManualClaimModal(false)}
+                style={{ color: '#ffffff', background: 'rgba(255,255,255,0.15)', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleManualClaimSubmit} style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+              
+              {/* 1. Aid Program Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: 8 }}>
+                  1. Select Aid Program
+                </label>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                  gap: 8,
+                  maxHeight: 180,
+                  overflowY: 'auto',
+                  padding: 2
+                }}>
+                  {DISTRIBUTION_CATEGORIES.map(cat => {
+                    const isSelected = manualClaimCategory === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setManualClaimCategory(cat.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '8px 10px',
+                          borderRadius: 10,
+                          border: isSelected ? `2px solid ${cat.color}` : '1px solid #e2e8f0',
+                          background: isSelected ? `${cat.color}15` : '#f8fafc',
+                          color: isSelected ? '#0f172a' : '#475569',
+                          fontWeight: isSelected ? 700 : 500,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          background: cat.color,
+                          flexShrink: 0
+                        }} />
+                        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {cat.name}
+                        </span>
+                        {isSelected && <Check size={14} color={cat.color} style={{ flexShrink: 0 }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Resident Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: 8 }}>
+                  2. Select Approved Beneficiary
+                </label>
+
+                {!manualClaimMember ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ position: 'relative' }}>
+                      <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                      <input
+                        type="text"
+                        value={manualClaimSearch}
+                        onChange={e => setManualClaimSearch(e.target.value)}
+                        placeholder="Search by name, EM Card #, contact, or barangay..."
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px 10px 36px',
+                          borderRadius: 10,
+                          border: '1px solid #cbd5e1',
+                          fontSize: '0.88rem',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                        autoFocus
+                      />
+                    </div>
+
+                    {/* Filtered Residents List */}
+                    {manualClaimSearch.trim() ? (
+                      <div style={{
+                        maxHeight: 220,
+                        overflowY: 'auto',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 10,
+                        background: '#ffffff',
+                        display: 'flex',
+                        flexDirection: 'column'
+                      }}>
+                        {allRegs
+                          .filter(r => r.status === 'Approved')
+                          .filter(r => {
+                            const p = r.ValidResidents || {};
+                            const name = `${p.first_name || r.first_name || ''} ${p.middle_name || r.middle_name || ''} ${p.last_name || r.last_name || ''} ${p.suffix || r.suffix || ''}`.toLowerCase();
+                            const em = (r.em_card_no || '').toLowerCase();
+                            const brgy = (r.barangay || p.barangay || '').toLowerCase();
+                            const phone = (r.contact || '').toLowerCase();
+                            const q = manualClaimSearch.toLowerCase().trim();
+                            return name.includes(q) || em.includes(q) || brgy.includes(q) || phone.includes(q);
+                          })
+                          .slice(0, 8)
+                          .map((r, idx) => {
+                            const p = r.ValidResidents || {};
+                            const fullName = `${p.first_name || r.first_name || ''} ${p.middle_name || r.middle_name ? (p.middle_name || r.middle_name) + ' ' : ''}${p.last_name || r.last_name || ''}${p.suffix || r.suffix ? ' ' + (p.suffix || r.suffix) : ''}`.trim() || 'Balagtas Resident';
+                            const photo = r.photo_url || r.photo_base64;
+                            const brgy = r.barangay || p.barangay || 'Balagtas';
+                            const emCard = r.em_card_no || 'EM-CARD';
+
+                            return (
+                              <div
+                                key={r.id || idx}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '10px 14px',
+                                  borderBottom: '1px solid #f1f5f9',
+                                  gap: 12,
+                                  cursor: 'pointer',
+                                  transition: 'background 0.15s ease'
+                                }}
+                                className="manual-claim-search-row"
+                                onClick={() => setManualClaimMember(r)}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                                  <div style={{
+                                    width: 38,
+                                    height: 38,
+                                    borderRadius: '50%',
+                                    overflow: 'hidden',
+                                    background: '#e2e8f0',
+                                    flexShrink: 0,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                  }}>
+                                    {photo ? (
+                                      <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                      <User size={20} color="#94a3b8" />
+                                    )}
+                                  </div>
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {fullName}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.75rem', color: '#64748b' }}>
+                                      <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#059669' }}>{emCard}</span>
+                                      <span>•</span>
+                                      <span>{brgy}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm"
+                                  style={{
+                                    background: '#ecfdf5',
+                                    color: '#059669',
+                                    border: '1px solid #a7f3d0',
+                                    borderRadius: 6,
+                                    padding: '4px 10px',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 600,
+                                    flexShrink: 0
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setManualClaimMember(r);
+                                  }}
+                                >
+                                  Select
+                                </button>
+                              </div>
+                            );
+                          })}
+                        {allRegs.filter(r => r.status === 'Approved').filter(r => {
+                          const p = r.ValidResidents || {};
+                          const name = `${p.first_name || r.first_name || ''} ${p.middle_name || r.middle_name || ''} ${p.last_name || r.last_name || ''} ${p.suffix || r.suffix || ''}`.toLowerCase();
+                          const em = (r.em_card_no || '').toLowerCase();
+                          const brgy = (r.barangay || p.barangay || '').toLowerCase();
+                          const phone = (r.contact || '').toLowerCase();
+                          const q = manualClaimSearch.toLowerCase().trim();
+                          return name.includes(q) || em.includes(q) || brgy.includes(q) || phone.includes(q);
+                        }).length === 0 && (
+                          <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.84rem' }}>
+                            No approved resident found matching "{manualClaimSearch}".
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.78rem', color: '#94a3b8', padding: '4px 2px' }}>
+                        💡 Type a resident name or EM card number to find approved citizens.
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Selected Member Preview Card */
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '14px 16px',
+                    borderRadius: 12,
+                    background: '#f0fdf4',
+                    border: '1.5px solid #86efac',
+                    gap: 12
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                      <div style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        background: '#dcfce7',
+                        border: '2px solid #22c55e',
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        {manualClaimMember.photo_url || manualClaimMember.photo_base64 ? (
+                          <img src={manualClaimMember.photo_url || manualClaimMember.photo_base64} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <User size={26} color="#16a34a" />
+                        )}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#064e3b' }}>
+                            {(() => {
+                              const p = manualClaimMember.ValidResidents || {};
+                              return `${p.first_name || manualClaimMember.first_name || ''} ${p.middle_name || manualClaimMember.middle_name ? (p.middle_name || manualClaimMember.middle_name) + ' ' : ''}${p.last_name || manualClaimMember.last_name || ''}${p.suffix || manualClaimMember.suffix ? ' ' + (p.suffix || manualClaimMember.suffix) : ''}`.trim();
+                            })()}
+                          </span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#15803d', color: '#ffffff', fontSize: '0.68rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
+                            <ShieldCheck size={10} /> VERIFIED
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', fontSize: '0.78rem', color: '#166534', marginTop: 3 }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{manualClaimMember.em_card_no || 'EM-CARD'}</span>
+                          <span>•</span>
+                          <span><MapPin size={11} style={{ verticalAlign: 'text-bottom', marginRight: 2 }} />{manualClaimMember.barangay || manualClaimMember.ValidResidents?.barangay || 'Balagtas'}</span>
+                          {manualClaimMember.purok && <span>({manualClaimMember.purok})</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      style={{
+                        background: '#ffffff',
+                        color: '#475569',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 8,
+                        padding: '6px 12px',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        flexShrink: 0
+                      }}
+                      onClick={() => setManualClaimMember(null)}
+                    >
+                      Change
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Optional Claim Notes */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: 6 }}>
+                  3. Distribution Notes (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={manualClaimNotes}
+                  onChange={e => setManualClaimNotes(e.target.value)}
+                  placeholder="e.g. Claimed via authorized representative Juan Dela Cruz / Special welfare release"
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.84rem',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* 4. Override Duplicate Policy Option */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                padding: '10px 14px',
+                borderRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10
+              }}>
+                <input
+                  type="checkbox"
+                  id="manualClaimOverrideDup"
+                  checked={manualClaimOverrideDup}
+                  onChange={e => setManualClaimOverrideDup(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: '#059669', cursor: 'pointer' }}
+                />
+                <label htmlFor="manualClaimOverrideDup" style={{ fontSize: '0.8rem', color: '#475569', cursor: 'pointer', margin: 0, fontWeight: 500 }}>
+                  Override duplicate policy (allow recording multiple claims for this aid program)
+                </label>
+              </div>
+
+              {/* Footer Actions */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 10,
+                marginTop: 6,
+                paddingTop: 14,
+                borderTop: '1px solid #e2e8f0'
+              }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => !manualClaimLoading && setShowManualClaimModal(false)}
+                  disabled={manualClaimLoading}
+                  style={{ padding: '9px 16px', borderRadius: 8, fontSize: '0.85rem' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn"
+                  disabled={!manualClaimMember || !manualClaimCategory || manualClaimLoading}
+                  style={{
+                    background: (!manualClaimMember || !manualClaimCategory || manualClaimLoading)
+                      ? '#94a3b8'
+                      : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontWeight: 600,
+                    padding: '9px 20px',
+                    borderRadius: 8,
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: (!manualClaimMember || !manualClaimCategory || manualClaimLoading) ? 'not-allowed' : 'pointer',
+                    boxShadow: (!manualClaimMember || !manualClaimCategory || manualClaimLoading) ? 'none' : '0 2px 8px rgba(16,185,129,0.3)'
+                  }}
+                >
+                  {manualClaimLoading ? (
+                    <>
+                      <RotateCw size={15} className="spin" /> Recording Claim...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={15} /> Confirm &amp; Record Claim
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* FULLSCREEN CAPTURED PHOTO INSPECTOR MODAL */}
