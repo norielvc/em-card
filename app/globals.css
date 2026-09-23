@@ -22394,11 +22394,18 @@ html, body {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-weight: 600;
+  font-weight: 700;
   color: #64748b;
+  display: block;
 }
-.kpi-value { font-size: 1.65rem; font-weight: 800; color: #0f172a; }
-.kpi-change { font-size: 0.72rem; }
+.kpi-value { 
+  font-size: 1.65rem; 
+  font-weight: 800; 
+  color: #0f172a !important; 
+  line-height: 1.15;
+  margin: 2px 0;
+}
+.kpi-change { font-size: 0.72rem; font-weight: 600; }
 .kpi-change.up { color: #059669; }
 .kpi-change.down { color: #dc2626; }
 
@@ -29359,7 +29366,7 @@ html, body {
   flex: 1;
 }
 
-.kpi-label {
+.finance-kpi-card .kpi-label {
   display: block;
   font-size: 0.75rem;
   font-weight: 700;
@@ -29369,7 +29376,7 @@ html, body {
   margin-bottom: 4px;
 }
 
-.kpi-value {
+.finance-kpi-card .kpi-value {
   font-size: 1.6rem;
   font-weight: 800;
   color: #ffffff;
@@ -29377,7 +29384,7 @@ html, body {
   margin-bottom: 4px;
 }
 
-.kpi-sub {
+.finance-kpi-card .kpi-sub {
   font-size: 0.74rem;
   color: #64748b;
 }

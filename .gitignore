@@ -35,7 +35,7 @@ __pycache__/
 *.xlsx
 
 # IDE
-.vscode/
-.idea/
-
-.vercel
+# Database Backups
+backups/
+*.dump
+*.sql.bak
