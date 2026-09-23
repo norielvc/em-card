@@ -157,19 +157,11 @@ export default function Home() {
             <a href="#faqs" onClick={() => setMenuOpen(false)}>FAQs</a>
             <a href="#contact" onClick={() => setMenuOpen(false)}>Contact</a>
             <a href="#track" onClick={() => setMenuOpen(false)}>Track Application</a>
-            <a href="/employee" className="nav-link-mobile-login" onClick={() => setMenuOpen(false)} style={{ backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
-              <Smartphone size={20} /> Staff Portal
-            </a>
             <a href="/admin" className="nav-link-mobile-login" onClick={() => setMenuOpen(false)} style={{ backgroundColor: '#10b981', color: '#fff' }}>
               <LogIn size={20} /> Admin Login
             </a>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <a href="/employee" className="btn btn-outline nav-login" style={{ borderColor: 'rgba(16, 185, 129, 0.4)', color: '#10b981' }}>
-              Employee Portal
-            </a>
-            <a href="/admin" className="btn btn-outline nav-login">Login</a>
-          </div>
+          <a href="/admin" className="btn btn-outline nav-login">Login</a>
           <button className="nav-menu-toggle" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">
             {menuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
@@ -1082,8 +1074,6 @@ export default function Home() {
               <a href="#leadership">Leadership</a>
               <a href="#programs">Programs</a>
               <a href="#events">Events</a>
-              <a href="/employee" style={{ color: '#10b981', fontWeight: 'bold' }}>Employee Portal (Mobile)</a>
-              <a href="/finance">Finance & Biometrics</a>
               <a href="#faqs">FAQs</a>
             </div>
           </div>

@@ -919,10 +919,6 @@ export default function AdminPage() {
           setUsername(data.session.user.email);
           const role = data.session.user.user_metadata?.role || 'admin';
           setUserRole(role);
-          if (role === 'finance') {
-            window.location.href = '/finance';
-            return;
-          }
           if (role === 'staff') {
             setActiveTab('eventScanner');
           }
@@ -941,10 +937,6 @@ export default function AdminPage() {
         setUsername(session.user.email);
         const role = session.user.user_metadata?.role || 'admin';
         setUserRole(role);
-        if (role === 'finance') {
-          window.location.href = '/finance';
-          return;
-        }
         if (role === 'staff') {
           setActiveTab('eventScanner');
         }
