@@ -14,6 +14,9 @@ export const metadata = {
   title: 'EM Card | Epektibong Mamamayan',
   description: 'Ang EM Card ay isang Non-Government Organization na nagpapalakas ng komunidad sa pamamagitan ng serbisyo, aksyon, at pagiging bukas.',
   manifest: '/manifest.json',
+  other: {
+    'google': 'notranslate',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -27,9 +30,10 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="tl" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
+        <meta name="google" content="notranslate" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

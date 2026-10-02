@@ -1687,18 +1687,48 @@ export default function RegisterForm({ embedded = false }) {
 
                   <div className="premium-form-group">
                     <label className="premium-form-label">{t.birthdayLabel} <span className="req-star">*</span></label>
-                    <div className="premium-date-row">
-                      <select value={birthMonth} onChange={(e) => setBirthMonth(e.target.value)} required>
-                        <option value="">{t.month}</option>
-                        {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    <div className="premium-date-row notranslate" translate="no">
+                      <select 
+                        value={birthMonth} 
+                        onChange={(e) => setBirthMonth(e.target.value)} 
+                        required 
+                        translate="no" 
+                        className="notranslate"
+                      >
+                        <option value="" translate="no" className="notranslate">{t.month}</option>
+                        {months.map(m => (
+                          <option key={m.value} value={m.value} translate="no" className="notranslate">
+                            {m.label}
+                          </option>
+                        ))}
                       </select>
-                      <select value={birthDay} onChange={(e) => setBirthDay(e.target.value)} required>
-                        <option value="">{t.day}</option>
-                        {days.map(d => <option key={d} value={d}>{parseInt(d, 10)}</option>)}
+                      <select 
+                        value={birthDay} 
+                        onChange={(e) => setBirthDay(e.target.value)} 
+                        required 
+                        translate="no" 
+                        className="notranslate"
+                      >
+                        <option value="" translate="no" className="notranslate">{t.day}</option>
+                        {days.map(d => (
+                          <option key={d} value={d} translate="no" className="notranslate">
+                            {parseInt(d, 10)}
+                          </option>
+                        ))}
                       </select>
-                      <select value={birthYear} onChange={(e) => setBirthYear(e.target.value)} required>
-                        <option value="">{t.year}</option>
-                        {years.map(y => <option key={y} value={y}>{y}</option>)}
+                      <select 
+                        value={birthYear} 
+                        onChange={(e) => setBirthYear(e.target.value)} 
+                        required 
+                        translate="no" 
+                        className="notranslate"
+                      >
+                        <option value="" translate="no" className="notranslate">{t.year}</option>
+                        {years.map(y => (
+                          <option key={y} value={y} translate="no" className="notranslate">
+                            {y}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
