@@ -2482,15 +2482,16 @@ export default function AdminPage() {
   const openEditMember = (reg) => {
     const r = reg.ValidResidents || {};
     setEditMemberForm({
-      first_name: r.first_name || reg.first_name || '',
-      middle_name: r.middle_name || reg.middle_name || '',
-      last_name: r.last_name || reg.last_name || '',
-      suffix: r.suffix || reg.suffix || '',
-      barangay: r.barangay || reg.barangay || '',
+      first_name: reg.first_name || r.first_name || '',
+      middle_name: reg.middle_name || r.middle_name || '',
+      last_name: reg.last_name || r.last_name || '',
+      suffix: reg.suffix || r.suffix || '',
+      barangay: reg.barangay || r.barangay || '',
       house_no: reg.house_no || '',
       purok: reg.purok || '',
       contact: reg.contact || '',
       sector_category: reg.sector_category || '',
+      organization: reg.organization || '',
       gender: reg.gender || '',
       civil_status: reg.civil_status || '',
       religion: reg.religion || '',
@@ -2675,7 +2676,7 @@ export default function AdminPage() {
     if (!selectedMember) return;
     setEditMemberLoading(true);
     try {
-      // Update ValidResidents (name + barangay)
+      // 1. Update ValidResidents (name + barangay) if linked
       if (selectedMember.resident_id) {
         const { error: resError } = await supabase
           .from('ValidResidents')
@@ -2683,14 +2684,14 @@ export default function AdminPage() {
             first_name: editMemberForm.first_name,
             middle_name: editMemberForm.middle_name,
             last_name: editMemberForm.last_name,
-            suffix: editMemberForm.suffix,
+            suffix: editMemberForm.suffix || null,
             barangay: editMemberForm.barangay,
           })
           .eq('id', selectedMember.resident_id);
         if (resError) throw resError;
       }
 
-      // Upload photo to storage if it's a base64 data URL (avoid PG index row size limit)
+      // 2. Upload photo to storage if it's a base64 data URL (avoid PG index row size limit)
       let photoUrl = editMemberForm.photo_url || null;
       if (photoUrl && photoUrl.startsWith('data:image')) {
         try {
@@ -2706,10 +2707,14 @@ export default function AdminPage() {
         }
       }
 
-      // Update registrations
+      // 3. Update registrations table (all name, demographic, sector & address fields)
       const { error: regError } = await supabase
         .from('registrations')
         .update({
+          first_name: editMemberForm.first_name,
+          middle_name: editMemberForm.middle_name,
+          last_name: editMemberForm.last_name,
+          suffix: editMemberForm.suffix || null,
           house_no: SUBDIVISION_PUROKS.includes(editMemberForm.purok) ? null : editMemberForm.house_no,
           purok: editMemberForm.purok,
           barangay: editMemberForm.barangay,
@@ -2722,7 +2727,7 @@ export default function AdminPage() {
           block: SUBDIVISION_PUROKS.includes(editMemberForm.purok) ? editMemberForm.block : null,
           phase: SUBDIVISION_PUROKS.includes(editMemberForm.purok) ? editMemberForm.phase : null,
           referral_name: editMemberForm.referral_name,
-          organization: editMemberForm.organization,
+          organization: editMemberForm.organization || null,
           birthday: editMemberForm.birthday,
           photo_url: photoUrl,
         })
@@ -2732,11 +2737,12 @@ export default function AdminPage() {
       showToast('Member details updated successfully', 'success');
       logAdminAction('edit_member', 'registrations', selectedMember.id, `${editMemberForm.last_name}, ${editMemberForm.first_name}`, { barangay: editMemberForm.barangay, sector: editMemberForm.sector_category });
       setMemberEditMode(false);
-      fetchAllRegistrations();
+      await fetchAllRegistrations();
+      
       // Refresh selectedMember with new data
       const { data: fresh } = await supabase
         .from('registrations')
-        .select('id, resident_id, reference_no, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, religion, sector_category, referral_name, organization, photo_base64, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+        .select('id, resident_id, reference_no, first_name, middle_name, last_name, suffix, is_valid_resident, house_no, purok, lot, block, phase, barangay, contact, status, gender, civil_status, religion, sector_category, referral_name, organization, photo_base64, photo_url, birthday, created_at, qr_token, em_card_no, scan_count, last_scanned_at, printed_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
         .eq('id', selectedMember.id)
         .single();
       if (fresh) setSelectedMember(fresh);
