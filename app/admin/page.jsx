@@ -103,14 +103,23 @@ export default function AdminPage() {
   const [unreadInquiries, setUnreadInquiries] = useState([]);
   const [unreadFeedback, setUnreadFeedback] = useState([]);
 
+  // Staff permitted tabs
+  const STAFF_ALLOWED_TABS = useMemo(() => new Set(['distributionScanner', 'eventScanner', 'registerMember']), []);
+
   // Persist / Restore admin active tab on refresh
   const ADMIN_TAB_KEY = 'emcard_admin_tab';
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(ADMIN_TAB_KEY);
-      if (saved) setActiveTab(saved);
+      if (saved) {
+        if (userRole === 'staff' && !STAFF_ALLOWED_TABS.has(saved)) {
+          setActiveTab('eventScanner');
+        } else {
+          setActiveTab(saved);
+        }
+      }
     } catch { /* ignore */ }
-  }, []);
+  }, [userRole, STAFF_ALLOWED_TABS]);
   useEffect(() => {
     try {
       sessionStorage.setItem(ADMIN_TAB_KEY, activeTab);
@@ -979,7 +988,7 @@ export default function AdminPage() {
           const role = data.session.user.user_metadata?.role || 'admin';
           setUserRole(role);
           if (role === 'staff') {
-            setActiveTab('eventScanner');
+            setActiveTab(prev => (STAFF_ALLOWED_TABS.has(prev) ? prev : 'eventScanner'));
           }
         }
       } catch (err) {
@@ -997,7 +1006,7 @@ export default function AdminPage() {
         const role = session.user.user_metadata?.role || 'admin';
         setUserRole(role);
         if (role === 'staff') {
-          setActiveTab('eventScanner');
+          setActiveTab(prev => (STAFF_ALLOWED_TABS.has(prev) ? prev : 'eventScanner'));
         }
       } else {
         setUsername('');
@@ -1007,7 +1016,7 @@ export default function AdminPage() {
     });
 
     return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [STAFF_ALLOWED_TABS]);
 
   // ── Auto-logout after 30 minutes of inactivity (mobile-safe) ──
   useEffect(() => {
@@ -2925,9 +2934,14 @@ export default function AdminPage() {
 
   const handleLogout = useCallback(async () => {
     logAdminAction('logout', null, null, null, { email: username });
+    try {
+      sessionStorage.removeItem(ADMIN_TAB_KEY);
+    } catch (_) {}
     await supabase.auth.signOut();
     setPassword('');
     setLoginError('');
+    setActiveTab('dashboard');
+    setUserRole('admin');
     setSidebarOpen(false);
   }, [username]);
 
@@ -3051,6 +3065,7 @@ export default function AdminPage() {
     if (tab === 'network' && allRegs.length === 0) fetchAllRegistrations();
     if (tab === 'eventScanner') fetchEvents();
     if (tab === 'events') fetchUpcomingEvents();
+    if (tab === 'distributionScanner') fetchDistributionRecords();
     if (tab === 'accounts') fetchAccounts();
     if (tab === 'adminLogs') { fetchAdminLogs(); if (accounts.length === 0) fetchAccounts(); }
     if (tab === 'system') fetchSystemStats();
@@ -3509,8 +3524,7 @@ export default function AdminPage() {
     ...group,
     items: group.items.filter(item => {
       if (userRole !== 'staff') return true;
-      const staffTabs = new Set(['distributionScanner', 'eventScanner', 'registerMember']);
-      return staffTabs.has(item.id);
+      return STAFF_ALLOWED_TABS.has(item.id);
     })
   })).filter(group => group.items.length > 0);
 
@@ -13389,118 +13403,120 @@ export default function AdminPage() {
           <div className="admin-topbar-right">
             <span className="topbar-date">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
 
-            <div className="topbar-notify-wrap">
-              <div className="topbar-notify" onClick={() => {
-                const newOpenState = !notifOpen;
-                setNotifOpen(newOpenState);
-                if (newOpenState) {
-                  // Mark notifications as seen when opening
-                  const now = new Date().toISOString();
-                  setLastNotifSeen(now);
-                  localStorage.setItem('emcard_last_notif_seen', now);
-                }
-              }}>
-                <Bell size={18} />
-                {(() => {
-                  const pendingRegs = allRegs.filter(r => r.status === 'Pending');
-                  const newCount = lastNotifSeen 
-                    ? pendingRegs.filter(r => new Date(r.created_at) > new Date(lastNotifSeen)).length
-                    : pendingRegs.length;
-                  const total = newCount + unreadInquiries.length + unreadFeedback.length;
-                  return total > 0 ? (
-                    <span className="topbar-notify-count">{total}</span>
-                  ) : null;
-                })()}
-              </div>
-              {notifOpen && (
-                <div className="notif-dropdown">
-                  <div className="notif-dropdown-header">
-                    <h4>Notifications</h4>
-                    {(allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length) > 0 && (
-                      <span className="notif-badge">{allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length} new</span>
-                    )}
-                  </div>
-                  <div className="notif-dropdown-body">
-                    {(allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length) === 0 ? (
-                      <div className="notif-empty">
-                        <Info size={24} />
-                        <span>No new notifications</span>
-                      </div>
-                    ) : (
-                      <>
-                        {[
-                          ...allRegs.filter(r => r.status === 'Pending').map(reg => ({ _type: 'reg', _date: reg.created_at, reg })),
-                          ...unreadInquiries.map(msg => ({ _type: 'inquiry', _date: msg.created_at, msg })),
-                          ...unreadFeedback.map(g => ({ _type: 'feedback', _date: g.created_at, g })),
-                        ]
-                          .sort((a, b) => new Date(b._date) - new Date(a._date))
-                          .slice(0, 8)
-                          .map((item, idx) => {
-                            if (item._type === 'reg') {
-                              const { reg } = item;
-                              const fullName = getResidentName(reg);
-                              const shortName = fullName.length > 25 ? fullName.slice(0, 22) + '...' : fullName;
-                              const barangay = reg.barangay || 'No barangay';
-                              const shortBarangay = barangay.length > 15 ? barangay.slice(0, 12) + '...' : barangay;
-                              return (
-                                <div key={`reg-${reg.id}`} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('registrations'); }}>
-                                  <div className="notif-icon"><UserCheck size={16} /></div>
-                                  <div className="notif-content">
-                                    <p className="notif-title">New registration</p>
-                                    <p className="notif-desc" title={`${fullName} — ${barangay}`}>{shortName} — {shortBarangay}</p>
-                                    <span className="notif-time">{new Date(reg.created_at).toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              );
-                            }
-                            if (item._type === 'inquiry') {
-                              const { msg } = item;
-                              return (
-                                <div key={`inq-${msg.id}`} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('inquiries'); fetchContactInquiries(); }}>
-                                  <div className="notif-icon" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}><Inbox size={16} /></div>
-                                  <div className="notif-content">
-                                    <p className="notif-title">New inquiry</p>
-                                    <p className="notif-desc">{msg.name || 'Anonymous'} — {msg.inquiry_type || 'General'}</p>
-                                    <span className="notif-time">{new Date(msg.created_at).toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              );
-                            }
-                            if (item._type === 'feedback') {
-                              const { g } = item;
-                              return (
-                                <div key={`fb-${g.id}`} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('feedback'); fetchGrievances(); }}>
-                                  <div className="notif-icon" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}><MessageSquare size={16} /></div>
-                                  <div className="notif-content">
-                                    <p className="notif-title">New feedback</p>
-                                    <p className="notif-desc">{g.type || 'Feedback'} — {g.status || 'open'}</p>
-                                    <span className="notif-time">{new Date(g.created_at).toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })
-                        }
-                      </>
-                    )}
-                  </div>
-                  {(allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length) > 0 && (
-                    <div className="notif-dropdown-footer" style={{ display: 'flex', gap: 8 }}>
-                      {allRegs.filter(r => r.status === 'Pending').length > 0 && (
-                        <button onClick={() => { setNotifOpen(false); setActiveTab('registrations'); }}>Registrations</button>
-                      )}
-                      {unreadInquiries.length > 0 && (
-                        <button onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('inquiries'); fetchContactInquiries(); }}>Inquiries</button>
-                      )}
-                      {unreadFeedback.length > 0 && (
-                        <button onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('feedback'); fetchGrievances(); }}>Feedback</button>
+            {userRole !== 'staff' && (
+              <div className="topbar-notify-wrap">
+                <div className="topbar-notify" onClick={() => {
+                  const newOpenState = !notifOpen;
+                  setNotifOpen(newOpenState);
+                  if (newOpenState) {
+                    // Mark notifications as seen when opening
+                    const now = new Date().toISOString();
+                    setLastNotifSeen(now);
+                    localStorage.setItem('emcard_last_notif_seen', now);
+                  }
+                }}>
+                  <Bell size={18} />
+                  {(() => {
+                    const pendingRegs = allRegs.filter(r => r.status === 'Pending');
+                    const newCount = lastNotifSeen 
+                      ? pendingRegs.filter(r => new Date(r.created_at) > new Date(lastNotifSeen)).length
+                      : pendingRegs.length;
+                    const total = newCount + unreadInquiries.length + unreadFeedback.length;
+                    return total > 0 ? (
+                      <span className="topbar-notify-count">{total}</span>
+                    ) : null;
+                  })()}
+                </div>
+                {notifOpen && (
+                  <div className="notif-dropdown">
+                    <div className="notif-dropdown-header">
+                      <h4>Notifications</h4>
+                      {(allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length) > 0 && (
+                        <span className="notif-badge">{allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length} new</span>
                       )}
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    <div className="notif-dropdown-body">
+                      {(allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length) === 0 ? (
+                        <div className="notif-empty">
+                          <Info size={24} />
+                          <span>No new notifications</span>
+                        </div>
+                      ) : (
+                        <>
+                          {[
+                            ...allRegs.filter(r => r.status === 'Pending').map(reg => ({ _type: 'reg', _date: reg.created_at, reg })),
+                            ...unreadInquiries.map(msg => ({ _type: 'inquiry', _date: msg.created_at, msg })),
+                            ...unreadFeedback.map(g => ({ _type: 'feedback', _date: g.created_at, g })),
+                          ]
+                            .sort((a, b) => new Date(b._date) - new Date(a._date))
+                            .slice(0, 8)
+                            .map((item, idx) => {
+                              if (item._type === 'reg') {
+                                const { reg } = item;
+                                const fullName = getResidentName(reg);
+                                const shortName = fullName.length > 25 ? fullName.slice(0, 22) + '...' : fullName;
+                                const barangay = reg.barangay || 'No barangay';
+                                const shortBarangay = barangay.length > 15 ? barangay.slice(0, 12) + '...' : barangay;
+                                return (
+                                  <div key={`reg-${reg.id}`} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('registrations'); }}>
+                                    <div className="notif-icon"><UserCheck size={16} /></div>
+                                    <div className="notif-content">
+                                      <p className="notif-title">New registration</p>
+                                      <p className="notif-desc" title={`${fullName} — ${barangay}`}>{shortName} — {shortBarangay}</p>
+                                      <span className="notif-time">{new Date(reg.created_at).toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              if (item._type === 'inquiry') {
+                                const { msg } = item;
+                                return (
+                                  <div key={`inq-${msg.id}`} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('inquiries'); fetchContactInquiries(); }}>
+                                    <div className="notif-icon" style={{ background: 'rgba(59,130,246,0.1)', color: '#3b82f6' }}><Inbox size={16} /></div>
+                                    <div className="notif-content">
+                                      <p className="notif-title">New inquiry</p>
+                                      <p className="notif-desc">{msg.name || 'Anonymous'} — {msg.inquiry_type || 'General'}</p>
+                                      <span className="notif-time">{new Date(msg.created_at).toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              if (item._type === 'feedback') {
+                                const { g } = item;
+                                return (
+                                  <div key={`fb-${g.id}`} className="notif-item" onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('feedback'); fetchGrievances(); }}>
+                                    <div className="notif-icon" style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981' }}><MessageSquare size={16} /></div>
+                                    <div className="notif-content">
+                                      <p className="notif-title">New feedback</p>
+                                      <p className="notif-desc">{g.type || 'Feedback'} — {g.status || 'open'}</p>
+                                      <span className="notif-time">{new Date(g.created_at).toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })
+                          }
+                        </>
+                      )}
+                    </div>
+                    {(allRegs.filter(r => r.status === 'Pending').length + unreadInquiries.length + unreadFeedback.length) > 0 && (
+                      <div className="notif-dropdown-footer" style={{ display: 'flex', gap: 8 }}>
+                        {allRegs.filter(r => r.status === 'Pending').length > 0 && (
+                          <button onClick={() => { setNotifOpen(false); setActiveTab('registrations'); }}>Registrations</button>
+                        )}
+                        {unreadInquiries.length > 0 && (
+                          <button onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('inquiries'); fetchContactInquiries(); }}>Inquiries</button>
+                        )}
+                        {unreadFeedback.length > 0 && (
+                          <button onClick={() => { setNotifOpen(false); setActiveTab('messages'); setMsgTab('feedback'); fetchGrievances(); }}>Feedback</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="topbar-user">
               <div className="topbar-user-avatar">{(username || 'A').charAt(0).toUpperCase()}</div>
@@ -13530,59 +13546,104 @@ export default function AdminPage() {
 
         {/* ─── MOBILE BOTTOM NAVIGATION BAR (Screen <= 768px) ─── */}
         <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
-          <button 
-            type="button" 
-            className={`mobile-nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('dashboard'); setSidebarOpen(false); }}
-          >
-            <LayoutDashboard size={19} />
-            <span>Overview</span>
-          </button>
-          
-          <button 
-            type="button" 
-            className={`mobile-nav-btn ${activeTab === 'residents' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('residents'); setSidebarOpen(false); }}
-          >
-            <Users size={19} />
-            <span>Voters</span>
-          </button>
-          
-          {/* Floating Center Scan FAB */}
-          <button 
-            type="button" 
-            className={`mobile-nav-fab ${activeTab === 'distributionScanner' || activeTab === 'eventScanner' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('distributionScanner'); setSidebarOpen(false); }}
-            title="Fast QR Code Scanner"
-          >
-            <div className="mobile-nav-fab-inner">
-              <QrCode size={22} />
-            </div>
-            <span className="mobile-fab-label">Scan QR</span>
-          </button>
+          {userRole === 'staff' ? (
+            <>
+              <button 
+                type="button" 
+                className={`mobile-nav-btn ${activeTab === 'eventScanner' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('eventScanner'); setSidebarOpen(false); }}
+              >
+                <ScanLine size={19} />
+                <span>Events</span>
+              </button>
 
-          <button 
-            type="button" 
-            className={`mobile-nav-btn ${activeTab === 'registrations' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('registrations'); setSidebarOpen(false); }}
-          >
-            <div className="mobile-nav-icon-wrap">
-              <ClipboardList size={19} />
-              {pendingRegCount > 0 && (
-                <span className="mobile-nav-badge-dot">{pendingRegCount}</span>
-              )}
-            </div>
-            <span>Requests</span>
-          </button>
+              <button 
+                type="button" 
+                className={`mobile-nav-fab ${activeTab === 'distributionScanner' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('distributionScanner'); setSidebarOpen(false); }}
+                title="Aid Distribution Scanner"
+              >
+                <div className="mobile-nav-fab-inner">
+                  <Gift size={22} />
+                </div>
+                <span className="mobile-fab-label">Aid Scan</span>
+              </button>
 
-          <button 
-            type="button" 
-            className={`mobile-nav-btn ${sidebarOpen ? 'active' : ''}`}
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            <Menu size={19} />
-            <span>Menu</span>
-          </button>
+              <button 
+                type="button" 
+                className={`mobile-nav-btn ${activeTab === 'registerMember' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('registerMember'); setSidebarOpen(false); }}
+              >
+                <UserPlus size={19} />
+                <span>Register</span>
+              </button>
+
+              <button 
+                type="button" 
+                className={`mobile-nav-btn ${sidebarOpen ? 'active' : ''}`}
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+              >
+                <Menu size={19} />
+                <span>Menu</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                type="button" 
+                className={`mobile-nav-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('dashboard'); setSidebarOpen(false); }}
+              >
+                <LayoutDashboard size={19} />
+                <span>Overview</span>
+              </button>
+              
+              <button 
+                type="button" 
+                className={`mobile-nav-btn ${activeTab === 'residents' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('residents'); setSidebarOpen(false); }}
+              >
+                <Users size={19} />
+                <span>Voters</span>
+              </button>
+              
+              {/* Floating Center Scan FAB */}
+              <button 
+                type="button" 
+                className={`mobile-nav-fab ${activeTab === 'distributionScanner' || activeTab === 'eventScanner' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('distributionScanner'); setSidebarOpen(false); }}
+                title="Fast QR Code Scanner"
+              >
+                <div className="mobile-nav-fab-inner">
+                  <QrCode size={22} />
+                </div>
+                <span className="mobile-fab-label">Scan QR</span>
+              </button>
+
+              <button 
+                type="button" 
+                className={`mobile-nav-btn ${activeTab === 'registrations' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('registrations'); setSidebarOpen(false); }}
+              >
+                <div className="mobile-nav-icon-wrap">
+                  <ClipboardList size={19} />
+                  {pendingRegCount > 0 && (
+                    <span className="mobile-nav-badge-dot">{pendingRegCount}</span>
+                  )}
+                </div>
+                <span>Requests</span>
+              </button>
+
+              <button 
+                type="button" 
+                className={`mobile-nav-btn ${sidebarOpen ? 'active' : ''}`}
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+              >
+                <Menu size={19} />
+                <span>Menu</span>
+              </button>
+            </>
+          )}
         </nav>
       </main>
 
