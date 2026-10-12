@@ -20,8 +20,21 @@ import {
   ArrowRight, Ban, Building, Cake, CreditCard, Database, Folder, Globe, HardDrive, Hash,
   History, Inbox, Lock, Mail, Megaphone, Monitor, Phone, Plus, Server, ShieldAlert,
   ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award, XCircle, Sparkles,
-  ShoppingBag, Package, Coins, Pill, Droplets, Banknote
+  ShoppingBag, Package, Coins, Pill, Droplets, Banknote, Target
 } from 'lucide-react';
+
+// 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays
+const BARANGAY_VOTER_DATA = {
+  'Santol': { totalVoters: 10696, target60: 6418, subLeaderTarget: 18, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
+  'Panginay': { totalVoters: 8918, target60: 5351, subLeaderTarget: 15, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
+  'Borol 1st': { totalVoters: 7806, target60: 4684, subLeaderTarget: 13, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
+  'San Juan': { totalVoters: 7319, target60: 4392, subLeaderTarget: 12, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
+  'Pulong Gubat': { totalVoters: 6335, target60: 3801, subLeaderTarget: 11, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
+  'Borol 2nd': { totalVoters: 5355, target60: 3213, subLeaderTarget: 9, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
+  'Wawa': { totalVoters: 3676, target60: 2206, subLeaderTarget: 6, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
+  'Longos': { totalVoters: 2477, target60: 1487, subLeaderTarget: 5, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
+  'Dalig': { totalVoters: 1676, target60: 1006, subLeaderTarget: 3, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
+};
 
 
 // Subdivision puroks that use Lot/Block/Phase instead of House Number
@@ -791,6 +804,11 @@ export default function AdminPage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+
+  // 60% Electoral Campaign Quota Tracker States (Option 1)
+  const [networkBarangayFilter, setNetworkBarangayFilter] = useState('Santol');
+  const [networkTabMode, setNetworkTabMode] = useState('campaign'); // 'campaign' | 'trees'
+  const [networkActiveSubLeaderModal, setNetworkActiveSubLeaderModal] = useState(null);
 
   // Messages
   const [messages, setMessages] = useState([]);
@@ -7685,6 +7703,78 @@ export default function AdminPage() {
       </div>
     );
 
+    // ── Barangay 60% Electoral Campaign Calculations (Option 1: 20-8-1) ──
+    const activeBrgyConfig = BARANGAY_VOTER_DATA[networkBarangayFilter] || BARANGAY_VOTER_DATA['Santol'];
+    const brgyRegs = approvedRegs.filter(r => (r.barangay || '').toLowerCase().includes((networkBarangayFilter || '').toLowerCase()));
+    const totalBrgyVotersEnrolled = brgyRegs.length;
+    const brgyPctProgress = Math.min(100, Math.round((totalBrgyVotersEnrolled / activeBrgyConfig.target60) * 100));
+    const votesNeededToWin = Math.max(0, activeBrgyConfig.target60 - totalBrgyVotersEnrolled);
+
+    // Active recruiters in this specific barangay
+    const brgyLeaderMap = computeLeadersFromRegs(brgyRegs);
+
+    // Sub-Leader cluster slots (18 slots for Santol)
+    const subLeaderTargetCount = activeBrgyConfig.subLeaderTarget;
+    const subLeaderSlots = [];
+    for (let i = 0; i < subLeaderTargetCount; i++) {
+      const existing = brgyLeaderMap[i] || null;
+      if (existing) {
+        // Direct recruits of this sub-leader are their Coordinators
+        const coordinators = getChildren(existing.name);
+        let totalClusterVotes = coordinators.length;
+        const coordsWithMembers = coordinators.map(coord => {
+          const coordName = getResidentName(coord);
+          const members = getChildren(coordName);
+          totalClusterVotes += members.length;
+          let coordRecruitsCount = 0;
+          members.forEach(mem => {
+            const memName = getResidentName(mem);
+            const recruits = getChildren(memName);
+            coordRecruitsCount += recruits.length;
+            totalClusterVotes += recruits.length;
+          });
+          return {
+            coord,
+            coordName,
+            members,
+            membersCount: members.length,
+            recruitsCount: coordRecruitsCount,
+            status: members.length >= activeBrgyConfig.memberQuota ? 'met' : 'progress'
+          };
+        });
+
+        subLeaderSlots.push({
+          slotNumber: i + 1,
+          isAssigned: true,
+          leaderName: existing.name,
+          leaderData: existing,
+          coordinatorsCount: coordinators.length,
+          coordinatorQuota: activeBrgyConfig.coordinatorQuota,
+          coordinators: coordsWithMembers,
+          totalClusterVotes,
+          status: coordinators.length >= activeBrgyConfig.coordinatorQuota ? 'met' : 'progress'
+        });
+      } else {
+        subLeaderSlots.push({
+          slotNumber: i + 1,
+          isAssigned: false,
+          leaderName: null,
+          leaderData: null,
+          coordinatorsCount: 0,
+          coordinatorQuota: activeBrgyConfig.coordinatorQuota,
+          coordinators: [],
+          totalClusterVotes: 0,
+          status: 'open'
+        });
+      }
+    }
+
+    const activeSubLeadersCount = subLeaderSlots.filter(s => s.isAssigned).length;
+    const activeCoordinatorsCount = subLeaderSlots.reduce((acc, s) => acc + s.coordinatorsCount, 0);
+    const targetCoordinatorsTotal = activeBrgyConfig.subLeaderTarget * activeBrgyConfig.coordinatorQuota; // 18 * 20 = 360
+    const targetMembersTotal = targetCoordinatorsTotal * activeBrgyConfig.memberQuota; // 360 * 8 = 2,880
+    const projectedTargetVoters = 379 + targetMembersTotal + (targetMembersTotal * activeBrgyConfig.recruitQuota); // 6,516 total
+
     return (
       <div className="admin-panel network-page-container">
         {/* Header Section */}
@@ -7693,117 +7783,325 @@ export default function AdminPage() {
             <div className="network-title-row">
               <h3 className="network-page-title">Referral Network Hierarchy</h3>
               <span className="network-status-chip">
-                <Network size={13} /> {allTimeLeaders.length} Active Trees · {totalReferrals} Members
+                <Target size={13} /> {networkBarangayFilter} 60% Goal: {activeBrgyConfig.target60.toLocaleString()} Voters
               </span>
             </div>
             <p className="network-page-subtitle">
-              Monitor multi-tier recruitment distribution (Direct L1, Secondary L2, Tertiary L3, Deep L4+) across community leaders.
+              Electoral command center: monitor 60% voter victory milestones, sub-leader quotas, and coordinator networks.
             </p>
           </div>
-          <div className="network-header-actions">
-            <button 
-              type="button" 
-              className="btn btn-sm btn-outline-emerald" 
-              onClick={expandAllTrees}
-              title="Expand all tree branches"
-            >
-              Expand All
-            </button>
-            <button 
-              type="button" 
-              className="btn btn-sm btn-secondary" 
-              onClick={collapseAllTrees}
-              title="Collapse all tree branches"
-            >
-              Collapse All
-            </button>
+          <div className="network-header-actions" style={{ gap: 10, flexWrap: 'wrap' }}>
+            {/* View Mode Toggle: Campaign vs Trees */}
+            <div className="campaign-mode-tabs">
+              <button 
+                type="button" 
+                className={`campaign-mode-tab ${networkTabMode === 'campaign' ? 'active' : ''}`}
+                onClick={() => setNetworkTabMode('campaign')}
+              >
+                <Target size={14} /> 60% Campaign Mode (Option 1)
+              </button>
+              <button 
+                type="button" 
+                className={`campaign-mode-tab ${networkTabMode === 'trees' ? 'active' : ''}`}
+                onClick={() => setNetworkTabMode('trees')}
+              >
+                <Network size={14} /> Global Trees View
+              </button>
+            </div>
+
+            {networkTabMode === 'trees' && (
+              <>
+                <button 
+                  type="button" 
+                  className="btn btn-sm btn-outline-emerald" 
+                  onClick={expandAllTrees}
+                  title="Expand all tree branches"
+                >
+                  Expand All
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-sm btn-secondary" 
+                  onClick={collapseAllTrees}
+                  title="Collapse all tree branches"
+                >
+                  Collapse All
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Global Level Metrics Ribbon */}
-        <div className="network-metrics-grid">
-          {/* Total Referrals Card */}
-          <div 
-            className={`network-metric-card total-card ${networkLevelFilter === 'all' ? 'active' : ''}`}
-            onClick={() => selectLevelFilter('all')}
-          >
-            <div className="network-metric-accent total" />
-            <div className="network-metric-card-top">
-              <span className="network-metric-label">All Referrals</span>
-              <div className="network-metric-icon total"><Users size={16} /></div>
-            </div>
-            <div className="network-metric-val">{totalReferrals}</div>
-            <div className="network-metric-sub">
-              <strong>{allTimeLeaders.length}</strong> active recruiters
-            </div>
-          </div>
+        {/* ── CAMPAIGN 60% VIEW (OPTION 1) ── */}
+        {networkTabMode === 'campaign' && (
+          <div className="campaign-view-container">
+            {/* Hero Progress Banner */}
+            <div className="campaign-hero-banner">
+              <div className="campaign-hero-top">
+                <div className="campaign-hero-title-area">
+                  <div className="campaign-hero-badge">
+                    <Target size={12} /> 60% Electoral Victory Threshold
+                  </div>
+                  <h2 className="campaign-hero-title">
+                    Brgy. {networkBarangayFilter} Campaign Command
+                  </h2>
+                  <p className="campaign-hero-sub">
+                    Target: Secure at least 60% ({activeBrgyConfig.target60.toLocaleString()}) of the {activeBrgyConfig.totalVoters.toLocaleString()} registered COMELEC voters in Brgy. {networkBarangayFilter} through our 4-tier network cascade.
+                  </p>
+                </div>
 
-          {/* Level 1 (Direct) Card */}
-          <div 
-            className={`network-metric-card l1-card ${networkLevelFilter === 'l1' ? 'active' : ''}`}
-            onClick={() => selectLevelFilter('l1')}
-          >
-            <div className="network-metric-accent l1" />
-            <div className="network-metric-card-top">
-              <span className="network-metric-label">Level 1 (Direct)</span>
-              <div className="network-metric-icon l1"><UserCheck size={16} /></div>
-            </div>
-            <div className="network-metric-val l1-text">{totalL1}</div>
-            <div className="network-metric-sub">
-              <strong>{countL1Leaders}</strong> leaders with L1 direct
-            </div>
-          </div>
-
-          {/* Level 2 (Secondary) Card */}
-          <div 
-            className={`network-metric-card l2-card ${networkLevelFilter === 'l2' ? 'active' : ''}`}
-            onClick={() => selectLevelFilter('l2')}
-          >
-            <div className="network-metric-accent l2" />
-            <div className="network-metric-card-top">
-              <span className="network-metric-label">Level 2 (Secondary)</span>
-              <div className="network-metric-icon l2"><Network size={16} /></div>
-            </div>
-            <div className="network-metric-val l2-text">{totalL2}</div>
-            <div className="network-metric-sub">
-              <strong>{countL2Leaders}</strong> leaders with L2 downlines
-            </div>
-          </div>
-
-          {/* Level 3 (Tertiary) Card */}
-          <div 
-            className={`network-metric-card l3-card ${networkLevelFilter === 'l3' ? 'active' : ''}`}
-            onClick={() => selectLevelFilter('l3')}
-          >
-            <div className="network-metric-accent l3" />
-            <div className="network-metric-card-top">
-              <span className="network-metric-label">Level 3 (Tertiary)</span>
-              <div className="network-metric-icon l3"><Share2 size={16} /></div>
-            </div>
-            <div className="network-metric-val l3-text">{totalL3}</div>
-            <div className="network-metric-sub">
-              <strong>{countL3Leaders}</strong> leaders with L3 downlines
-            </div>
-          </div>
-
-          {/* Level 4+ (Deep) Card */}
-          {totalL4plus > 0 && (
-            <div 
-              className={`network-metric-card l4-card ${networkLevelFilter === 'l4' ? 'active' : ''}`}
-              onClick={() => selectLevelFilter('l4')}
-            >
-              <div className="network-metric-accent l4" />
-              <div className="network-metric-card-top">
-                <span className="network-metric-label">Level 4+ (Deep)</span>
-                <div className="network-metric-icon l4"><Sparkles size={16} /></div>
+                <div className="campaign-brgy-select-box">
+                  <MapPin size={16} color="#a7f3d0" />
+                  <select
+                    value={networkBarangayFilter}
+                    onChange={(e) => setNetworkBarangayFilter(e.target.value)}
+                    aria-label="Select Barangay"
+                  >
+                    {Object.keys(BARANGAY_VOTER_DATA).map(b => (
+                      <option key={b} value={b}>Brgy. {b}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="network-metric-val l4-text">{totalL4plus}</div>
-              <div className="network-metric-sub">
-                <strong>{countL4Leaders}</strong> deep tier leaders
+
+              <div className="campaign-progress-card">
+                <div className="campaign-progress-stats">
+                  <div className="campaign-progress-main-stat">
+                    <span className="campaign-progress-curr">{totalBrgyVotersEnrolled.toLocaleString()}</span>
+                    <span className="campaign-progress-target">/ {activeBrgyConfig.target60.toLocaleString()} Voters Goal</span>
+                    <span className="campaign-progress-pct-badge">{brgyPctProgress}% Achieved</span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#d1fae5', fontWeight: 600 }}>
+                    {votesNeededToWin === 0 ? '🎉 60% Goal Met!' : `${votesNeededToWin.toLocaleString()} more voters needed to secure victory`}
+                  </div>
+                </div>
+
+                <div className="campaign-progress-track">
+                  <div className="campaign-progress-fill" style={{ width: `${Math.max(2, brgyPctProgress)}%` }} />
+                </div>
+
+                <div className="campaign-milestones-row">
+                  <span>0% (Start)</span>
+                  <span>25% ({Math.round(activeBrgyConfig.target60 * 0.416).toLocaleString()})</span>
+                  <span>50% ({Math.round(activeBrgyConfig.target60 * 0.833).toLocaleString()})</span>
+                  <span style={{ color: '#fef08a', fontWeight: 800 }}>★ 60% Win Target ({activeBrgyConfig.target60.toLocaleString()})</span>
+                  <span>75% Supermajority</span>
+                </div>
               </div>
             </div>
-          )}
-        </div>
+
+            {/* 4-Tier Pipeline Health Cards (Option 1 Blueprint) */}
+            <div className="campaign-tiers-ribbon">
+              {/* Tier 1: Sub-Leaders */}
+              <div className="campaign-tier-card tier-1">
+                <div className="campaign-tier-accent" />
+                <div className="campaign-tier-top">
+                  <span className="campaign-tier-title">Tier 1 · Sub-Leaders</span>
+                  <div className="campaign-tier-icon"><Users size={16} /></div>
+                </div>
+                <div className="campaign-tier-val">{activeSubLeadersCount} / {activeBrgyConfig.subLeaderTarget}</div>
+                <span className="campaign-tier-quota-pill">Quota: 20 Coordinators each</span>
+                <p className="campaign-tier-sub">Appointed sub-leaders covering sectors and puroks</p>
+              </div>
+
+              {/* Tier 2: Coordinators */}
+              <div className="campaign-tier-card tier-2">
+                <div className="campaign-tier-accent" />
+                <div className="campaign-tier-top">
+                  <span className="campaign-tier-title">Tier 2 · Coordinators</span>
+                  <div className="campaign-tier-icon"><UserCheck size={16} /></div>
+                </div>
+                <div className="campaign-tier-val">{activeCoordinatorsCount} / {targetCoordinatorsTotal}</div>
+                <span className="campaign-tier-quota-pill">Quota: 8 Members each</span>
+                <p className="campaign-tier-sub">Recruited by Sub-Leaders across community clusters</p>
+              </div>
+
+              {/* Tier 3: Members */}
+              <div className="campaign-tier-card tier-3">
+                <div className="campaign-tier-accent" />
+                <div className="campaign-tier-top">
+                  <span className="campaign-tier-title">Tier 3 · Citizen Members</span>
+                  <div className="campaign-tier-icon"><Shield size={16} /></div>
+                </div>
+                <div className="campaign-tier-val">Target: {targetMembersTotal.toLocaleString()}</div>
+                <span className="campaign-tier-quota-pill">Quota: 1 Voter (+1 Household)</span>
+                <p className="campaign-tier-sub">Recruited by Coordinators with EM-Cards</p>
+              </div>
+
+              {/* Tier 4: Total Expected Yield */}
+              <div className="campaign-tier-card tier-4">
+                <div className="campaign-tier-accent" />
+                <div className="campaign-tier-top">
+                  <span className="campaign-tier-title">Target Network Yield</span>
+                  <div className="campaign-tier-icon"><Award size={16} /></div>
+                </div>
+                <div className="campaign-tier-val">{projectedTargetVoters.toLocaleString()} Voters</div>
+                <span className="campaign-tier-quota-pill" style={{ color: '#b45309', background: '#fef3c7' }}>
+                  60.9% of Brgy. {networkBarangayFilter}
+                </span>
+                <p className="campaign-tier-sub">Full capacity when all quotas are fulfilled</p>
+              </div>
+            </div>
+
+            {/* 18 Sub-Leaders Cluster Roster */}
+            <div className="subleaders-section">
+              <div className="subleaders-header">
+                <div className="subleaders-title-wrap">
+                  <h4>{activeBrgyConfig.subLeaderTarget} Sub-Leaders Cluster Roster · Brgy. {networkBarangayFilter}</h4>
+                  <span>Each Sub-Leader is responsible for recruiting at least 20 Coordinators. Click any card to inspect their team.</span>
+                </div>
+                <span className="network-status-chip">
+                  {activeSubLeadersCount} of {activeBrgyConfig.subLeaderTarget} Active Positions Filled
+                </span>
+              </div>
+
+              <div className="subleaders-grid">
+                {subLeaderSlots.map((slot) => {
+                  const pct = Math.min(100, Math.round((slot.coordinatorsCount / slot.coordinatorQuota) * 100));
+                  return (
+                    <div 
+                      key={slot.slotNumber}
+                      className={`subleader-card ${slot.isAssigned ? 'assigned' : 'unassigned'}`}
+                      onClick={() => {
+                        if (slot.isAssigned) setNetworkActiveSubLeaderModal(slot);
+                      }}
+                    >
+                      <div className="subleader-card-top">
+                        <div className="subleader-slot-badge">#{slot.slotNumber}</div>
+                        <div className="subleader-avatar">
+                          {slot.isAssigned ? getInitials(slot.leaderName) : '?'}
+                        </div>
+                        <div className="subleader-info">
+                          <div className="subleader-name">
+                            {slot.isAssigned ? slot.leaderName : 'Open Sub-Leader Position'}
+                          </div>
+                          <div className="subleader-sub">
+                            <MapPin size={11} /> Brgy. {networkBarangayFilter}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="subleader-quota-wrap">
+                        <div className="subleader-quota-row">
+                          <span>Coordinators Recruited:</span>
+                          <strong>{slot.coordinatorsCount} / {slot.coordinatorQuota}</strong>
+                        </div>
+                        <div className="subleader-quota-track">
+                          <div 
+                            className="subleader-quota-fill" 
+                            style={{ 
+                              width: `${Math.max(2, pct)}%`,
+                              background: slot.status === 'met' ? '#059669' : '#3b82f6'
+                            }} 
+                          />
+                        </div>
+                      </div>
+
+                      <div className="subleader-card-footer">
+                        <span className={`subleader-status-chip ${slot.status}`}>
+                          {slot.status === 'met' ? '✓ Quota Met' : slot.status === 'progress' ? `In Progress (${pct}%)` : '⚪ Open Slot'}
+                        </span>
+                        {slot.isAssigned && (
+                          <span style={{ fontWeight: 700, color: '#047857' }}>
+                            {slot.totalClusterVotes} Total Votes →
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── GLOBAL TREES VIEW (PRESERVED) ── */}
+        {networkTabMode === 'trees' && (
+          <>
+            {/* Global Level Metrics Ribbon */}
+            <div className="network-metrics-grid">
+              {/* Total Referrals Card */}
+              <div 
+                className={`network-metric-card total-card ${networkLevelFilter === 'all' ? 'active' : ''}`}
+                onClick={() => selectLevelFilter('all')}
+              >
+                <div className="network-metric-accent total" />
+                <div className="network-metric-card-top">
+                  <span className="network-metric-label">All Referrals</span>
+                  <div className="network-metric-icon total"><Users size={16} /></div>
+                </div>
+                <div className="network-metric-val">{totalReferrals}</div>
+                <div className="network-metric-sub">
+                  <strong>{allTimeLeaders.length}</strong> active recruiters
+                </div>
+              </div>
+
+              {/* Level 1 (Direct) Card */}
+              <div 
+                className={`network-metric-card l1-card ${networkLevelFilter === 'l1' ? 'active' : ''}`}
+                onClick={() => selectLevelFilter('l1')}
+              >
+                <div className="network-metric-accent l1" />
+                <div className="network-metric-card-top">
+                  <span className="network-metric-label">Level 1 (Direct)</span>
+                  <div className="network-metric-icon l1"><UserCheck size={16} /></div>
+                </div>
+                <div className="network-metric-val l1-text">{totalL1}</div>
+                <div className="network-metric-sub">
+                  <strong>{countL1Leaders}</strong> leaders with L1 direct
+                </div>
+              </div>
+
+              {/* Level 2 (Secondary) Card */}
+              <div 
+                className={`network-metric-card l2-card ${networkLevelFilter === 'l2' ? 'active' : ''}`}
+                onClick={() => selectLevelFilter('l2')}
+              >
+                <div className="network-metric-accent l2" />
+                <div className="network-metric-card-top">
+                  <span className="network-metric-label">Level 2 (Secondary)</span>
+                  <div className="network-metric-icon l2"><Network size={16} /></div>
+                </div>
+                <div className="network-metric-val l2-text">{totalL2}</div>
+                <div className="network-metric-sub">
+                  <strong>{countL2Leaders}</strong> leaders with L2 downlines
+                </div>
+              </div>
+
+              {/* Level 3 (Tertiary) Card */}
+              <div 
+                className={`network-metric-card l3-card ${networkLevelFilter === 'l3' ? 'active' : ''}`}
+                onClick={() => selectLevelFilter('l3')}
+              >
+                <div className="network-metric-accent l3" />
+                <div className="network-metric-card-top">
+                  <span className="network-metric-label">Level 3 (Tertiary)</span>
+                  <div className="network-metric-icon l3"><Share2 size={16} /></div>
+                </div>
+                <div className="network-metric-val l3-text">{totalL3}</div>
+                <div className="network-metric-sub">
+                  <strong>{countL3Leaders}</strong> leaders with L3 downlines
+                </div>
+              </div>
+
+              {/* Level 4+ (Deep) Card */}
+              {totalL4plus > 0 && (
+                <div 
+                  className={`network-metric-card l4-card ${networkLevelFilter === 'l4' ? 'active' : ''}`}
+                  onClick={() => selectLevelFilter('l4')}
+                >
+                  <div className="network-metric-accent l4" />
+                  <div className="network-metric-card-top">
+                    <span className="network-metric-label">Level 4+ (Deep)</span>
+                    <div className="network-metric-icon l4"><Sparkles size={16} /></div>
+                  </div>
+                  <div className="network-metric-val l4-text">{totalL4plus}</div>
+                  <div className="network-metric-sub">
+                    <strong>{countL4Leaders}</strong> deep tier leaders
+                  </div>
+                </div>
+              )}
+            </div>
 
         {/* Level Filter & Sort Toolbar */}
         <div className="network-controls-bar">
@@ -8342,6 +8640,129 @@ export default function AdminPage() {
                   );
                 })
               )}
+            </div>
+          </div>
+        )}
+          </>
+        )}
+
+        {/* Modal for Sub-Leader's Coordinators Team */}
+        {networkActiveSubLeaderModal && (
+          <div className="modal-overlay" onClick={() => setNetworkActiveSubLeaderModal(null)}>
+            <div className="modal-content coordinator-modal-card" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div className="subleader-slot-badge" style={{ position: 'static' }}>
+                    #{networkActiveSubLeaderModal.slotNumber}
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+                      {networkActiveSubLeaderModal.leaderName}’s Coordinator Team
+                    </h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                      Sub-Leader Roster · Brgy. {networkBarangayFilter} · Quota: {networkActiveSubLeaderModal.coordinatorQuota} Coordinators (Each targeting 8 Members)
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  className="modal-close-btn" 
+                  onClick={() => setNetworkActiveSubLeaderModal(null)}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="modal-body" style={{ padding: '16px 20px' }}>
+                {/* Team Quota Summary Banner */}
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: 10,
+                  marginBottom: 16
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Coordinator Quota Status
+                    </span>
+                    <strong style={{ fontSize: '1.1rem', color: '#0f172a' }}>
+                      {networkActiveSubLeaderModal.coordinatorsCount} / {networkActiveSubLeaderModal.coordinatorQuota} Coordinators Recruited
+                    </strong>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Total Mobilized Downlines
+                    </span>
+                    <strong style={{ fontSize: '1.1rem', color: '#047857' }}>
+                      {networkActiveSubLeaderModal.totalClusterVotes} Total Downlines
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Coordinators List */}
+                <div className="coordinator-list-grid">
+                  {networkActiveSubLeaderModal.coordinators.length === 0 ? (
+                    <div className="network-empty-state" style={{ padding: 32 }}>
+                      <Users size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+                      <h5>No Coordinators Recruited Yet</h5>
+                      <p>This sub-leader has not yet recruited any Level 1 coordinators into the network.</p>
+                    </div>
+                  ) : (
+                    networkActiveSubLeaderModal.coordinators.map(({ coord, coordName, members, membersCount, recruitsCount, status }) => {
+                      const memberPct = Math.min(100, Math.round((membersCount / activeBrgyConfig.memberQuota) * 100));
+                      return (
+                        <div key={coordName} className="coordinator-row-item">
+                          <div className="coordinator-row-left">
+                            <div className="coordinator-row-avatar">
+                              {getInitials(coordName)}
+                            </div>
+                            <div className="coordinator-row-name-box">
+                              <strong>{coordName}</strong>
+                              <span>
+                                {coord.barangay || networkBarangayFilter} · {coord.contact || 'No phone'} · {coord.sector_category || 'General'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="coordinator-row-right">
+                            <div className="coordinator-meter-pill">
+                              <span>{membersCount} / {activeBrgyConfig.memberQuota} Members</span>
+                              <div className="coordinator-meter-track">
+                                <div 
+                                  className="coordinator-meter-fill" 
+                                  style={{ 
+                                    width: `${Math.max(4, memberPct)}%`,
+                                    background: status === 'met' ? '#059669' : '#3b82f6'
+                                  }} 
+                                />
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-emerald"
+                              style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                              onClick={() => {
+                                setNetworkActiveSubLeaderModal(null);
+                                setNetworkTabMode('trees');
+                                if (coord) setSelectedNetworkMember(coord);
+                                else setNetworkSearch(coordName);
+                              }}
+                              title="Inspect Coordinator downlines in tree view"
+                            >
+                              Trace →
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
