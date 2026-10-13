@@ -8440,7 +8440,7 @@ export default function AdminPage() {
                             <th style={{ padding: '12px 14px' }}>Status</th>
                             <th style={{ padding: '12px 14px' }}>Coordinators Quota</th>
                             <th style={{ padding: '12px 14px' }}>Citizen Members</th>
-                            <th style={{ padding: '12px 14px' }}>Total Mobilized</th>
+                            <th style={{ padding: '12px 14px' }}>Overall Recruits</th>
                             <th style={{ padding: '12px 14px', textAlign: 'right' }}>Action</th>
                           </tr>
                         </thead>
@@ -8530,7 +8530,7 @@ export default function AdminPage() {
                                   ) : '-'}
                                 </td>
                                 <td style={{ padding: '12px 14px', fontWeight: 800, color: '#047857', fontSize: '0.88rem' }}>
-                                  {slot.isAssigned ? `${slot.totalClusterVotes} Votes` : '0 Votes'}
+                                  {slot.isAssigned ? `${slot.totalClusterVotes} Recruits` : '0 Recruits'}
                                 </td>
                                 <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                                   {slot.isAssigned ? (
@@ -8686,9 +8686,9 @@ export default function AdminPage() {
                                 </span>
                               </div>
                               <div className="subleader-metric-cell">
-                                <span className="subleader-metric-label">Mobilized</span>
+                                <span className="subleader-metric-label">Overall Recruits</span>
                                 <span className="subleader-metric-val emerald">
-                                  {slot.totalClusterVotes} Votes
+                                  {slot.totalClusterVotes} Recruits
                                 </span>
                               </div>
                             </div>
@@ -9771,14 +9771,14 @@ export default function AdminPage() {
                     </span>
                   </div>
 
-                  {/* Total Cluster Votes */}
+                  {/* Overall Recruits */}
                   <div className="modal-cluster-metric-card" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
-                    <span className="modal-cluster-metric-lbl" style={{ color: '#047857' }}>Total Cluster Votes</span>
+                    <span className="modal-cluster-metric-lbl" style={{ color: '#047857' }}>Overall Recruits</span>
                     <span className="modal-cluster-metric-val" style={{ color: '#047857' }}>
                       {networkActiveSubLeaderModal.totalClusterVotes || 0}
                     </span>
                     <span className="modal-cluster-metric-sub" style={{ color: '#065f46' }}>
-                      Mobilized under this branch
+                      Recruited across downline
                     </span>
                   </div>
                 </div>
