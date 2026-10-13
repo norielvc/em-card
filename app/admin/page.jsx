@@ -8054,12 +8054,12 @@ export default function AdminPage() {
     const brgyTopRecruiters = filterAndSortLeaders(brgyLeaderMap, false);
 
     return (
-      <div className="admin-panel network-page-container">
-        {/* Header Section */}
-        <div className="panel-header network-top-header">
+      <div className="network-page-container">
+        {/* Header Section (Unboxed, clean page header directly on canvas) */}
+        <div className="network-page-header">
           <div className="network-header-left">
             <div className="network-title-row">
-              <h3 className="network-page-title">Referral Network Hierarchy</h3>
+              <h2 className="network-page-title">Referral Network Hierarchy</h2>
               <span className="network-status-chip">
                 <Target size={13} /> {networkBarangayFilter} 60% Goal: {activeBrgyConfig.target60.toLocaleString()} Voters
               </span>

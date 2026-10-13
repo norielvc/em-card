@@ -11607,37 +11607,31 @@ body:has(.admin-sidebar.open) {
   }
 }
 
-/* === REFERRAL NETWORK OPTIMIZED ENTERPRISE STYLES === */
-.admin-panel.network-page-container {
-  padding: 0 !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0 !important;
-  box-sizing: border-box !important;
-  overflow: hidden !important;
-  border-radius: 14px;
-}
-
+/* === REFERRAL NETWORK UNBOXED MODERN LAYOUT === */
 .network-page-container {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 0 0 24px;
+  gap: 18px;
+  padding: 0 0 32px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
-.network-top-header {
+.network-page-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--white);
+  padding: 2px 0 6px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
@@ -12793,8 +12787,9 @@ body:has(.admin-sidebar.open) {
     gap: 10px !important;
   }
 
+  .network-page-header,
   .network-top-header {
-    padding: 12px 14px !important;
+    padding: 0 0 8px !important;
     gap: 10px !important;
     flex-direction: column !important;
     align-items: stretch !important;
