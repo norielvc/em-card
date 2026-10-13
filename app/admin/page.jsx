@@ -822,6 +822,7 @@ export default function AdminPage() {
   });
   const [appointingSlot, setAppointingSlot] = useState(null); // { slotNumber, barangay }
   const [appointSearch, setAppointSearch] = useState('');
+  const [analyticsSearchQuery, setAnalyticsSearchQuery] = useState('');
 
   const saveAppointedSubLeader = (barangay, slotNumber, leaderName) => {
     setAppointedSubLeaders(prev => {
@@ -7807,6 +7808,84 @@ export default function AdminPage() {
     const projectedTargetVoters = 1 + activeBrgyConfig.subLeaderTarget + targetCoordinatorsTotal + targetMembersTotal + (targetMembersTotal * activeBrgyConfig.recruitQuota);
     const projectedYieldPct = ((projectedTargetVoters / activeBrgyConfig.totalVoters) * 100).toFixed(1);
 
+    // ── Municipal & Advanced Analytics Aggregations ──
+    const municipalStats = Object.entries(BARANGAY_VOTER_DATA).map(([bName, bCfg]) => {
+      const regs = approvedRegs.filter(r => (r.barangay || '').toLowerCase().includes(bName.toLowerCase()));
+      const currentCount = regs.length;
+      const target60 = bCfg.target60;
+      const pct = Math.min(100, Math.round((currentCount / target60) * 100));
+      const deficit = Math.max(0, target60 - currentCount);
+      const appointedMap = (appointedSubLeaders && appointedSubLeaders[bName]) || {};
+      const appointedSLCount = Object.keys(appointedMap).length;
+      let totalActiveCoords = 0;
+      Object.values(appointedMap).forEach(slName => {
+        if (slName) {
+          const coords = getChildren(slName);
+          totalActiveCoords += coords.length;
+        }
+      });
+      const targetCoords = bCfg.subLeaderTarget * bCfg.coordinatorQuota;
+      const targetMembers = targetCoords * bCfg.memberQuota;
+      const projectedTotal = 1 + bCfg.subLeaderTarget + targetCoords + targetMembers + (targetMembers * bCfg.recruitQuota);
+      const projectedPct = ((projectedTotal / bCfg.totalVoters) * 100).toFixed(1);
+
+      return {
+        name: bName,
+        config: bCfg,
+        totalVoters: bCfg.totalVoters,
+        target60: bCfg.target60,
+        currentCount,
+        pct,
+        deficit,
+        appointedSLCount,
+        subLeaderTarget: bCfg.subLeaderTarget,
+        totalActiveCoords,
+        targetCoords,
+        coordinatorQuota: bCfg.coordinatorQuota,
+        memberQuota: bCfg.memberQuota,
+        projectedTotal,
+        projectedPct,
+        hasOfficialRecord: bCfg.hasOfficialRecord
+      };
+    });
+
+    const municipalTotalVoters = municipalStats.reduce((sum, b) => sum + b.totalVoters, 0);
+    const municipalTarget60 = municipalStats.reduce((sum, b) => sum + b.target60, 0);
+    const municipalCurrentMobilized = municipalStats.reduce((sum, b) => sum + b.currentCount, 0);
+    const municipalPctProgress = Math.min(100, Math.round((municipalCurrentMobilized / municipalTarget60) * 100));
+    const municipalTotalAppointedSL = municipalStats.reduce((sum, b) => sum + b.appointedSLCount, 0);
+    const municipalTargetSL = municipalStats.reduce((sum, b) => sum + b.subLeaderTarget, 0);
+    const municipalTotalActiveCoords = municipalStats.reduce((sum, b) => sum + b.totalActiveCoords, 0);
+    const municipalTargetCoords = municipalStats.reduce((sum, b) => sum + b.targetCoords, 0);
+
+    const filteredMunicipalStats = municipalStats.filter(b => 
+      !analyticsSearchQuery || b.name.toLowerCase().includes(analyticsSearchQuery.toLowerCase())
+    );
+
+    // Coalition Sector Distribution in current selected barangay
+    const SECTOR_COLORS = {
+      'Senior Citizen': '#3b82f6',
+      'Solo Parent': '#ec4899',
+      'PWD': '#8b5cf6',
+      'Youth': '#10b981',
+      'Tricycle Driver': '#f59e0b',
+      'Farmer/Fisherfolk': '#14b8a6',
+      'General Resident': '#64748b'
+    };
+    const sectorCounts = {};
+    brgyRegs.forEach(r => {
+      const sec = r.sector_category || 'General Resident';
+      sectorCounts[sec] = (sectorCounts[sec] || 0) + 1;
+    });
+    const sectorDistribution = Object.entries(sectorCounts).map(([sector, count]) => ({
+      sector,
+      count,
+      pct: totalBrgyVotersEnrolled > 0 ? Math.round((count / totalBrgyVotersEnrolled) * 100) : 0,
+      color: SECTOR_COLORS[sector] || '#047857'
+    })).sort((a, b) => b.count - a.count);
+
+    const brgyTopRecruiters = filterAndSortLeaders(brgyLeaderMap, false);
+
     return (
       <div className="admin-panel network-page-container">
         {/* Header Section */}
@@ -7823,7 +7902,7 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="network-header-actions" style={{ gap: 10, flexWrap: 'wrap' }}>
-            {/* View Mode Toggle: Campaign vs Trees */}
+            {/* View Mode Toggle: Campaign vs Analytics vs Trees */}
             <div className="campaign-mode-tabs">
               <button 
                 type="button" 
@@ -7834,12 +7913,30 @@ export default function AdminPage() {
               </button>
               <button 
                 type="button" 
+                className={`campaign-mode-tab ${networkTabMode === 'analytics' ? 'active' : ''}`}
+                onClick={() => setNetworkTabMode('analytics')}
+              >
+                <BarChart3 size={14} /> Summary & Analytics
+              </button>
+              <button 
+                type="button" 
                 className={`campaign-mode-tab ${networkTabMode === 'trees' ? 'active' : ''}`}
                 onClick={() => setNetworkTabMode('trees')}
               >
                 <Network size={14} /> Global Trees View
               </button>
             </div>
+
+            {networkTabMode === 'analytics' && (
+              <button 
+                type="button" 
+                className="btn btn-sm btn-outline-emerald" 
+                onClick={() => window.print()}
+                title="Print executive campaign briefing report"
+              >
+                <Printer size={14} style={{ marginRight: 6 }} /> Print Briefing
+              </button>
+            )}
 
             {networkTabMode === 'trees' && (
               <>
@@ -8099,6 +8196,331 @@ export default function AdminPage() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── MUNICIPAL SUMMARY & ADVANCED ANALYTICS VIEW ── */}
+        {networkTabMode === 'analytics' && (
+          <div className="campaign-analytics-container">
+            {/* Executive Municipal Milestone Banner */}
+            <div className="campaign-hero-banner" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #047857 50%, #0f766e 100%)' }}>
+              <div className="campaign-hero-top">
+                <div className="campaign-hero-badge" style={{ background: 'rgba(255,255,255,0.2)' }}>
+                  <Globe size={14} /> Municipality of Balagtas • Official COMELEC Voter Base
+                </div>
+                <div className="campaign-hero-status-pill">
+                  {municipalPctProgress >= 100 ? '🎉 Municipal Victory Threshold Reached!' : `${(100 - municipalPctProgress)}% Remaining to Win`}
+                </div>
+              </div>
+
+              <div className="campaign-hero-main">
+                <div className="campaign-hero-target-wrap">
+                  <span className="campaign-target-label">Municipal 60% Victory Threshold</span>
+                  <div className="campaign-target-number">
+                    {municipalTarget60.toLocaleString()} <span className="campaign-target-sub">/ {municipalTotalVoters.toLocaleString()} Registered Voters</span>
+                  </div>
+                  <div className="campaign-target-helper">
+                    Calculated across all 9 Balagtas barangays based on official COMELEC census and validated resident lists.
+                  </div>
+                </div>
+
+                <div className="campaign-hero-progress-wrap">
+                  <div className="campaign-progress-head">
+                    <span className="campaign-progress-title">Current Municipal Mobilization</span>
+                    <span className="campaign-progress-pct">{municipalPctProgress}%</span>
+                  </div>
+                  <div className="campaign-progress-track" style={{ height: 16 }}>
+                    <div 
+                      className="campaign-progress-fill" 
+                      style={{ 
+                        width: `${municipalPctProgress}%`,
+                        background: 'linear-gradient(90deg, #10b981 0%, #34d399 50%, #6ee7b7 100%)'
+                      }} 
+                    />
+                  </div>
+                  <div className="campaign-progress-foot">
+                    <span><strong>{municipalCurrentMobilized.toLocaleString()}</strong> Enrolled EM-Card Voters</span>
+                    <span><strong>{Math.max(0, municipalTarget60 - municipalCurrentMobilized).toLocaleString()}</strong> Votes Needed for Total Victory</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Municipal Macro Metrics Grid */}
+            <div className="analytics-metrics-grid">
+              <div className="analytics-card">
+                <div className="analytics-card-label">Total Balagtas Registered Voters</div>
+                <div className="analytics-card-val">{municipalTotalVoters.toLocaleString()}</div>
+                <div className="analytics-card-sub"><Building size={13} /> Across 9 Local Barangays</div>
+              </div>
+              <div className="analytics-card" style={{ borderColor: 'rgba(16, 185, 129, 0.4)' }}>
+                <div className="analytics-card-label" style={{ color: '#047857' }}>60% Win Target (All Barangays)</div>
+                <div className="analytics-card-val" style={{ color: '#047857' }}>{municipalTarget60.toLocaleString()}</div>
+                <div className="analytics-card-sub"><Target size={13} /> Electoral Win Threshold</div>
+              </div>
+              <div className="analytics-card" style={{ borderColor: 'rgba(59, 130, 246, 0.4)' }}>
+                <div className="analytics-card-label" style={{ color: '#2563eb' }}>Sub-Leaders Appointed</div>
+                <div className="analytics-card-val" style={{ color: '#2563eb' }}>
+                  {municipalTotalAppointedSL} <span style={{ fontSize: '1rem', fontWeight: 500, color: '#64748b' }}>/ {municipalTargetSL}</span>
+                </div>
+                <div className="analytics-card-sub">
+                  <Award size={13} /> {Math.round((municipalTotalAppointedSL / municipalTargetSL) * 100)}% Leadership Fill Rate
+                </div>
+              </div>
+              <div className="analytics-card" style={{ borderColor: 'rgba(139, 92, 246, 0.4)' }}>
+                <div className="analytics-card-label" style={{ color: '#7c3aed' }}>Active Coordinators Recruited</div>
+                <div className="analytics-card-val" style={{ color: '#7c3aed' }}>
+                  {municipalTotalActiveCoords.toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: 500, color: '#64748b' }}>/ {municipalTargetCoords.toLocaleString()}</span>
+                </div>
+                <div className="analytics-card-sub">
+                  <Users size={13} /> {Math.round((municipalTotalActiveCoords / (municipalTargetCoords || 1)) * 100)}% of Target Capacity
+                </div>
+              </div>
+            </div>
+
+            {/* Municipal Barangay Electoral Table */}
+            <div className="analytics-table-container">
+              <div className="analytics-table-header">
+                <div>
+                  <h4 className="analytics-table-title">Barangay Mobilization & Quota Master Table</h4>
+                  <p className="analytics-table-desc">
+                    Comprehensive view of COMELEC registered voters, 60% victory quotas, and real-time field mobilization for all 9 Balagtas barangays.
+                  </p>
+                </div>
+                <div className="analytics-search-box">
+                  <Search size={15} color="#64748b" />
+                  <input 
+                    type="text" 
+                    placeholder="Search barangay..." 
+                    value={analyticsSearchQuery}
+                    onChange={(e) => setAnalyticsSearchQuery(e.target.value)}
+                    className="analytics-search-input"
+                  />
+                  {analyticsSearchQuery && (
+                    <button 
+                      type="button" 
+                      className="analytics-search-clear"
+                      onClick={() => setAnalyticsSearchQuery('')}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="analytics-table-wrapper">
+                <table className="analytics-master-table">
+                  <thead>
+                    <tr>
+                      <th>Barangay</th>
+                      <th style={{ textAlign: 'right' }}>Total Voters</th>
+                      <th style={{ textAlign: 'right' }}>60% Target</th>
+                      <th style={{ textAlign: 'center' }}>Mobilized</th>
+                      <th style={{ textAlign: 'center' }}>Progress</th>
+                      <th style={{ textAlign: 'right' }}>Deficit</th>
+                      <th style={{ textAlign: 'center' }}>Sub-Leaders</th>
+                      <th style={{ textAlign: 'center' }}>Coordinators</th>
+                      <th style={{ textAlign: 'center' }}>Target Model</th>
+                      <th style={{ textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredMunicipalStats.map(b => (
+                      <tr 
+                        key={b.name} 
+                        className={b.name === networkBarangayFilter ? 'selected-row' : ''}
+                      >
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontWeight: 700, color: '#0f172a' }}>{b.name}</span>
+                            {b.hasOfficialRecord && (
+                              <span className="badge-official" title="Verified against COMELEC Resident Records">Verified</span>
+                            )}
+                            {b.name === networkBarangayFilter && (
+                              <span className="badge-active">Selected</span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                          {b.totalVoters.toLocaleString()}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#047857' }}>
+                          {b.target60.toLocaleString()}
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: 700 }}>
+                          {b.currentCount.toLocaleString()}
+                        </td>
+                        <td style={{ textAlign: 'center', minWidth: 140 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                            <div className="table-progress-bar">
+                              <div 
+                                className="table-progress-fill" 
+                                style={{ width: `${b.pct}%` }} 
+                              />
+                            </div>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: b.pct >= 60 ? '#047857' : '#334155' }}>
+                              {b.pct}%
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'right', color: b.deficit === 0 ? '#10b981' : '#e11d48', fontWeight: 700 }}>
+                          {b.deficit === 0 ? '✓ Goal Met' : `-${b.deficit.toLocaleString()}`}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ 
+                            padding: '3px 8px', 
+                            borderRadius: 6, 
+                            fontSize: '0.78rem', 
+                            fontWeight: 700,
+                            background: b.appointedSLCount >= b.subLeaderTarget ? '#dcfce7' : '#f1f5f9',
+                            color: b.appointedSLCount >= b.subLeaderTarget ? '#166534' : '#475569'
+                          }}>
+                            {b.appointedSLCount} / {b.subLeaderTarget}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>
+                            {b.totalActiveCoords} <span style={{ color: '#94a3b8' }}>/ {b.targetCoords}</span>
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', background: '#f8fafc', padding: '2px 6px', borderRadius: 4 }}>
+                            {b.subLeaderTarget}SL × {b.coordinatorQuota}C × {b.memberQuota}M (+1)
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button 
+                            type="button" 
+                            className="btn btn-xs btn-outline-emerald"
+                            onClick={() => {
+                              setNetworkBarangayFilter(b.name);
+                              setNetworkTabMode('campaign');
+                            }}
+                          >
+                            Open Command →
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
+                      <td>MUNICIPAL TOTAL</td>
+                      <td style={{ textAlign: 'right' }}>{municipalTotalVoters.toLocaleString()}</td>
+                      <td style={{ textAlign: 'right', color: '#047857' }}>{municipalTarget60.toLocaleString()}</td>
+                      <td style={{ textAlign: 'center' }}>{municipalCurrentMobilized.toLocaleString()}</td>
+                      <td style={{ textAlign: 'center' }}>{municipalPctProgress}%</td>
+                      <td style={{ textAlign: 'right', color: '#e11d48' }}>-{Math.max(0, municipalTarget60 - municipalCurrentMobilized).toLocaleString()}</td>
+                      <td style={{ textAlign: 'center' }}>{municipalTotalAppointedSL} / {municipalTargetSL}</td>
+                      <td style={{ textAlign: 'center' }}>{municipalTotalActiveCoords} / {municipalTargetCoords}</td>
+                      <td style={{ textAlign: 'center' }}>60% All Barangays</td>
+                      <td style={{ textAlign: 'center' }}>-</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            {/* Selected Barangay Deep-Dive Section */}
+            <div className="analytics-deepdive-grid">
+              {/* Sector / Coalition Demographics */}
+              <div className="analytics-deepdive-card">
+                <div className="deepdive-card-header">
+                  <div>
+                    <h4 className="deepdive-card-title">Brgy. {networkBarangayFilter} • Sector Mobilization</h4>
+                    <p className="deepdive-card-desc">Voters categorized by key voting sectors and community groups</p>
+                  </div>
+                  <span className="badge-tag">{totalBrgyVotersEnrolled} Total Enrolled</span>
+                </div>
+
+                <div className="sector-breakdown-list">
+                  {sectorDistribution.map(sec => (
+                    <div key={sec.sector} className="sector-item">
+                      <div className="sector-item-info">
+                        <span className="sector-dot" style={{ background: sec.color }} />
+                        <span className="sector-name">{sec.sector}</span>
+                        <span className="sector-stats">{sec.count} ({sec.pct}%)</span>
+                      </div>
+                      <div className="sector-bar-track">
+                        <div 
+                          className="sector-bar-fill" 
+                          style={{ width: `${sec.pct}%`, background: sec.color }} 
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {sectorDistribution.length === 0 && (
+                    <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8' }}>
+                      No registered voters categorized yet for this barangay.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Top Recruiters Leaderboard */}
+              <div className="analytics-deepdive-card">
+                <div className="deepdive-card-header">
+                  <div>
+                    <h4 className="deepdive-card-title">Brgy. {networkBarangayFilter} • Field Network Leaders</h4>
+                    <p className="deepdive-card-desc">Active organizers with direct downstream recruits</p>
+                  </div>
+                  <span className="badge-tag">{brgyTopRecruiters.length} Active Recruiters</span>
+                </div>
+
+                <div className="recruiter-list-compact">
+                  {brgyTopRecruiters.slice(0, 7).map((ldr, idx) => (
+                    <div key={ldr.name} className="recruiter-item">
+                      <div className="recruiter-rank">#{idx + 1}</div>
+                      <div className="recruiter-info">
+                        <div className="recruiter-name">{ldr.name}</div>
+                        <div className="recruiter-sub">
+                          {ldr.count} direct recruits • Network Depth: Level {ldr.maxDepth || 1}
+                        </div>
+                      </div>
+                      <div className="recruiter-score">
+                        <span className="score-val">{ldr.count}</span>
+                        <span className="score-lbl">recruits</span>
+                      </div>
+                    </div>
+                  ))}
+                  {brgyTopRecruiters.length === 0 && (
+                    <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8' }}>
+                      No active recruiters recorded yet for {networkBarangayFilter}.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Campaign Formula Execution Blueprint */}
+            <div className="campaign-blueprint-box">
+              <h4 className="blueprint-title">Strategic Electoral Multiplier Formula (Option 1: 20-8-1 Architecture)</h4>
+              <p className="blueprint-desc">
+                Mathematical proof of victory: how structured field quotas systematically guarantee 60% voter victory in every barangay.
+              </p>
+              <div className="blueprint-grid">
+                <div className="blueprint-col">
+                  <div className="blueprint-step-num">Step 1</div>
+                  <div className="blueprint-step-title">1 Barangay Leader</div>
+                  <div className="blueprint-step-desc">Oversees all field operations, clusters, and logistical support across the entire barangay.</div>
+                </div>
+                <div className="blueprint-col">
+                  <div className="blueprint-step-num">Step 2</div>
+                  <div className="blueprint-step-title">{activeBrgyConfig.subLeaderTarget} Sub-Leaders</div>
+                  <div className="blueprint-step-desc">Each appointed sub-leader leads an independent zone and commits to recruiting <strong>{activeBrgyConfig.coordinatorQuota} Coordinators</strong>.</div>
+                </div>
+                <div className="blueprint-col">
+                  <div className="blueprint-step-num">Step 3</div>
+                  <div className="blueprint-step-title">{activeBrgyConfig.subLeaderTarget * activeBrgyConfig.coordinatorQuota} Coordinators</div>
+                  <div className="blueprint-step-desc">Each coordinator activates their neighborhood cluster by enlisting <strong>{activeBrgyConfig.memberQuota} EM-Card Members</strong>.</div>
+                </div>
+                <div className="blueprint-col">
+                  <div className="blueprint-step-num">Step 4</div>
+                  <div className="blueprint-step-title">+{activeBrgyConfig.recruitQuota} Voter Multiplier</div>
+                  <div className="blueprint-step-desc">Each cardholder brings <strong>{activeBrgyConfig.recruitQuota} voter</strong> (family member/neighbor), yielding <strong>{projectedYieldPct}%</strong> of total voters!</div>
+                </div>
               </div>
             </div>
           </div>
