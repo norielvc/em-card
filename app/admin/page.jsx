@@ -10690,7 +10690,7 @@ export default function AdminPage() {
 
                       {/* VIEW 2: Community Sector Categories Quotas */}
                       {(howItWorksCategoryView === 'sectors' || howItWorksCategoryView === 'all') && (() => {
-                        const brgyRegs = registrations.filter(r => (r.barangay || '').trim().toLowerCase() === bKey.toLowerCase() && r.status !== 'rejected');
+                        const brgyRegs = approvedRegs.filter(r => (r.barangay || '').trim().toLowerCase() === bKey.toLowerCase());
                         const totalRegs = brgyRegs.length;
 
                         return (
