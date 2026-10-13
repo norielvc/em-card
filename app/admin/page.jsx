@@ -827,6 +827,7 @@ export default function AdminPage() {
   const [modalExpandedMembers, setModalExpandedMembers] = useState({});
   const [modalSearchFilter, setModalSearchFilter] = useState('');
   const [modalShowOpenSlots, setModalShowOpenSlots] = useState(true);
+  const [modalCoordFilterStatus, setModalCoordFilterStatus] = useState('all'); // 'all' | 'met' | 'progress' | 'dormant'
   const [subLeaderFilterStatus, setSubLeaderFilterStatus] = useState('all'); // 'all' | 'appointed' | 'unassigned'
   const [subLeaderSearchQuery, setSubLeaderSearchQuery] = useState('');
   const [subLeaderViewMode, setSubLeaderViewMode] = useState('grid'); // 'grid' | 'table'
@@ -7831,7 +7832,10 @@ export default function AdminPage() {
     // Sub-Leader cluster slots (18 slots for Santol)
     const subLeaderTargetCount = activeBrgyConfig.subLeaderTarget;
     const brgyAppointedMap = (appointedSubLeaders && appointedSubLeaders[networkBarangayFilter]) || {};
+    const nowTimestamp = Date.now();
+    const sevenDaysAgo = nowTimestamp - 7 * 24 * 60 * 60 * 1000;
     const subLeaderSlots = [];
+
     for (let i = 0; i < subLeaderTargetCount; i++) {
       const slotNum = i + 1;
       const appointedLeaderName = brgyAppointedMap[slotNum] || null;
@@ -7841,18 +7845,47 @@ export default function AdminPage() {
         let totalClusterVotes = coordinators.length;
         let totalMembersCount = 0;
         let totalRecruitsCount = 0;
+        let activeCoordinatorsCount = 0;
+        let clusterRecruits7d = 0;
+        let latestRecruitTimestamp = 0;
+
         const coordsWithMembers = coordinators.map(coord => {
           const coordName = getResidentName(coord);
+          const coordCreated = coord.created_at ? new Date(coord.created_at).getTime() : 0;
+          if (coordCreated > sevenDaysAgo) clusterRecruits7d++;
+          if (coordCreated > latestRecruitTimestamp) latestRecruitTimestamp = coordCreated;
+
           const rawMembers = getChildren(coordName);
           totalClusterVotes += rawMembers.length;
           totalMembersCount += rawMembers.length;
+          if (rawMembers.length > 0) activeCoordinatorsCount++;
+
           let coordRecruitsCount = 0;
+          let coordRecruits7d = 0;
+
           const members = rawMembers.map(mem => {
             const memName = getResidentName(mem);
+            const memCreated = mem.created_at ? new Date(mem.created_at).getTime() : 0;
+            if (memCreated > sevenDaysAgo) {
+              clusterRecruits7d++;
+              coordRecruits7d++;
+            }
+            if (memCreated > latestRecruitTimestamp) latestRecruitTimestamp = memCreated;
+
             const recruits = getChildren(memName);
             coordRecruitsCount += recruits.length;
             totalClusterVotes += recruits.length;
             totalRecruitsCount += recruits.length;
+
+            recruits.forEach(r => {
+              const rCreated = r.created_at ? new Date(r.created_at).getTime() : 0;
+              if (rCreated > sevenDaysAgo) {
+                clusterRecruits7d++;
+                coordRecruits7d++;
+              }
+              if (rCreated > latestRecruitTimestamp) latestRecruitTimestamp = rCreated;
+            });
+
             return {
               mem,
               memName,
@@ -7860,17 +7893,40 @@ export default function AdminPage() {
               recruitsCount: recruits.length
             };
           });
+
+          let coordStatus = 'dormant';
+          if (rawMembers.length >= activeBrgyConfig.memberQuota) {
+            coordStatus = 'met';
+          } else if (rawMembers.length > 0) {
+            coordStatus = 'progress';
+          }
+
           return {
             coord,
             coordName,
             members,
             membersCount: rawMembers.length,
             recruitsCount: coordRecruitsCount,
-            status: rawMembers.length >= activeBrgyConfig.memberQuota ? 'met' : 'progress'
+            recent7DaysRecruits: coordRecruits7d,
+            status: coordStatus
           };
         });
 
         const leaderReg = approvedRegs.find(r => getResidentName(r).toLowerCase() === appointedLeaderName.toLowerCase());
+        const memberQuota = activeBrgyConfig.coordinatorQuota * activeBrgyConfig.memberQuota;
+        const daysSinceLastRecruit = latestRecruitTimestamp > 0 ? Math.floor((nowTimestamp - latestRecruitTimestamp) / (24 * 60 * 60 * 1000)) : null;
+
+        // Health Status Calculation
+        let healthStatus = 'progress';
+        if (coordinators.length >= activeBrgyConfig.coordinatorQuota && totalMembersCount >= memberQuota) {
+          healthStatus = 'met';
+        } else if (clusterRecruits7d > 0 || (coordinators.length > 0 && activeCoordinatorsCount / coordinators.length >= 0.5)) {
+          healthStatus = 'on_track';
+        } else if (coordinators.length > 0 && activeCoordinatorsCount === 0) {
+          healthStatus = 'bottleneck';
+        } else if (coordinators.length === 0) {
+          healthStatus = 'dormant';
+        }
 
         subLeaderSlots.push({
           slotNumber: slotNum,
@@ -7879,11 +7935,16 @@ export default function AdminPage() {
           leaderContact: leaderReg?.contact || null,
           leaderSector: leaderReg?.sector_category || null,
           coordinatorsCount: coordinators.length,
+          activeCoordinatorsCount,
           coordinatorQuota: activeBrgyConfig.coordinatorQuota,
           coordinators: coordsWithMembers,
           totalMembersCount,
+          memberQuota,
           totalRecruitsCount,
           totalClusterVotes,
+          recent7DaysRecruits: clusterRecruits7d,
+          daysSinceLastRecruit,
+          healthStatus,
           status: coordinators.length >= activeBrgyConfig.coordinatorQuota ? 'met' : 'progress'
         });
       } else {
@@ -7892,9 +7953,16 @@ export default function AdminPage() {
           isAssigned: false,
           leaderName: null,
           coordinatorsCount: 0,
+          activeCoordinatorsCount: 0,
           coordinatorQuota: activeBrgyConfig.coordinatorQuota,
           coordinators: [],
+          totalMembersCount: 0,
+          memberQuota: activeBrgyConfig.coordinatorQuota * activeBrgyConfig.memberQuota,
+          totalRecruitsCount: 0,
           totalClusterVotes: 0,
+          recent7DaysRecruits: 0,
+          daysSinceLastRecruit: null,
+          healthStatus: 'open',
           status: 'open'
         });
       }
@@ -8295,17 +8363,21 @@ export default function AdminPage() {
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', background: '#ffffff' }}>
                         <thead>
                           <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', textAlign: 'left' }}>
-                            <th style={{ padding: '10px 12px', width: 60 }}>Slot</th>
+                            <th style={{ padding: '10px 12px', width: 50 }}>Slot</th>
                             <th style={{ padding: '10px 12px' }}>Sub-Leader</th>
-                            <th style={{ padding: '10px 12px' }}>Status</th>
-                            <th style={{ padding: '10px 12px', minWidth: 160 }}>Coordinators Quota</th>
-                            <th style={{ padding: '10px 12px' }}>Total Votes</th>
+                            <th style={{ padding: '10px 12px' }}>Cascade Health</th>
+                            <th style={{ padding: '10px 12px' }}>Tier 1: Coords</th>
+                            <th style={{ padding: '10px 12px' }}>Tier 2: Members</th>
+                            <th style={{ padding: '10px 12px' }}>Tier 3: +1s</th>
+                            <th style={{ padding: '10px 12px' }}>Velocity</th>
+                            <th style={{ padding: '10px 12px' }}>Cluster Votes</th>
                             <th style={{ padding: '10px 12px', textAlign: 'right' }}>Action</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredSlots.map(slot => {
-                            const pct = Math.min(100, Math.round((slot.coordinatorsCount / slot.coordinatorQuota) * 100));
+                            const coordPct = Math.min(100, Math.round((slot.coordinatorsCount / slot.coordinatorQuota) * 100));
+                            const memPct = Math.min(100, Math.round((slot.totalMembersCount / slot.memberQuota) * 100));
                             return (
                               <tr 
                                 key={slot.slotNumber} 
@@ -8338,28 +8410,65 @@ export default function AdminPage() {
                                         {slot.isAssigned ? slot.leaderName : `Sub-Leader Position #${slot.slotNumber}`}
                                       </strong>
                                       <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                                        Brgy. {networkBarangayFilter} {slot.isAssigned ? '· Official' : '· Vacant'}
+                                        {slot.isAssigned ? (slot.leaderSector || `Brgy. ${networkBarangayFilter}`) : 'Vacant Position'}
                                       </span>
                                     </div>
                                   </div>
                                 </td>
                                 <td style={{ padding: '10px 12px' }}>
-                                  <span className={`subleader-status-chip ${slot.status}`}>
-                                    {slot.status === 'met' ? '✓ Quota Met' : slot.status === 'progress' ? `In Progress (${pct}%)` : '⚪ Pending'}
-                                  </span>
+                                  {slot.isAssigned ? (
+                                    <span className={`cascade-health-badge ${slot.healthStatus}`}>
+                                      {slot.healthStatus === 'met' && '✓ Completed'}
+                                      {slot.healthStatus === 'on_track' && '🟢 Active'}
+                                      {slot.healthStatus === 'bottleneck' && '🟡 Bottleneck'}
+                                      {slot.healthStatus === 'dormant' && '🔴 Stalled'}
+                                      {slot.healthStatus === 'progress' && '🔵 Growing'}
+                                    </span>
+                                  ) : (
+                                    <span className="cascade-health-badge open">⚪ Vacant</span>
+                                  )}
                                 </td>
                                 <td style={{ padding: '10px 12px' }}>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem' }}>
-                                      <span>{slot.coordinatorsCount} / {slot.coordinatorQuota}</span>
-                                      <span style={{ fontWeight: 700 }}>{pct}%</span>
+                                  {slot.isAssigned ? (
+                                    <div>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', gap: 8 }}>
+                                        <span><strong>{slot.coordinatorsCount}</strong> / {slot.coordinatorQuota}</span>
+                                        <span style={{ color: '#059669', fontWeight: 600 }}>({slot.activeCoordinatorsCount} act)</span>
+                                      </div>
+                                      <div style={{ width: 100, height: 4, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden', marginTop: 3 }}>
+                                        <div style={{ width: `${Math.max(3, coordPct)}%`, height: '100%', background: '#059669' }} />
+                                      </div>
                                     </div>
-                                    <div style={{ width: '100%', height: 5, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden' }}>
-                                      <div style={{ width: `${Math.max(2, pct)}%`, height: '100%', background: slot.status === 'met' ? '#059669' : '#3b82f6' }} />
-                                    </div>
-                                  </div>
+                                  ) : '-'}
                                 </td>
-                                <td style={{ padding: '10px 12px', fontWeight: 700, color: '#047857' }}>
+                                <td style={{ padding: '10px 12px' }}>
+                                  {slot.isAssigned ? (
+                                    <div>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', gap: 8 }}>
+                                        <span><strong>{slot.totalMembersCount}</strong> / {slot.memberQuota}</span>
+                                        <span style={{ fontWeight: 700 }}>{memPct}%</span>
+                                      </div>
+                                      <div style={{ width: 100, height: 4, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden', marginTop: 3 }}>
+                                        <div style={{ width: `${Math.max(3, memPct)}%`, height: '100%', background: '#3b82f6' }} />
+                                      </div>
+                                    </div>
+                                  ) : '-'}
+                                </td>
+                                <td style={{ padding: '10px 12px' }}>
+                                  {slot.isAssigned ? (
+                                    <span style={{ fontWeight: 700, color: '#7c3aed' }}>
+                                      {slot.totalRecruitsCount}
+                                    </span>
+                                  ) : '-'}
+                                </td>
+                                <td style={{ padding: '10px 12px' }}>
+                                  {slot.isAssigned ? (
+                                    <span style={{ fontSize: '0.74rem', color: slot.recent7DaysRecruits > 0 ? '#047857' : '#64748b', fontWeight: 700 }}>
+                                      {slot.recent7DaysRecruits > 0 ? `⚡ +${slot.recent7DaysRecruits}/wk` : (slot.daysSinceLastRecruit !== null ? `🕒 ${slot.daysSinceLastRecruit}d ago` : '⚪ Idle')}
+                                    </span>
+                                  ) : '-'}
+                                </td>
+                                <td style={{ padding: '10px 12px', fontWeight: 800, color: '#047857' }}>
                                   {slot.isAssigned ? `${slot.totalClusterVotes} Votes` : '0 Votes'}
                                 </td>
                                 <td style={{ padding: '10px 12px', textAlign: 'right' }}>
@@ -8372,7 +8481,7 @@ export default function AdminPage() {
                                         setNetworkActiveSubLeaderModal(slot);
                                       }}
                                     >
-                                      Inspect Team →
+                                      Inspect →
                                     </button>
                                   ) : (
                                     <button 
@@ -8400,7 +8509,6 @@ export default function AdminPage() {
                 return (
                   <div className="subleaders-grid">
                     {filteredSlots.map((slot) => {
-                      const pct = Math.min(100, Math.round((slot.coordinatorsCount / slot.coordinatorQuota) * 100));
                       return (
                         <div 
                           key={slot.slotNumber}
@@ -8420,29 +8528,71 @@ export default function AdminPage() {
                               {slot.isAssigned ? getInitials(slot.leaderName) : '?'}
                             </div>
                             <div className="subleader-info">
-                              <div className="subleader-name">
-                                {slot.isAssigned ? slot.leaderName : `Sub-Leader Position #${slot.slotNumber}`}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                                <div className="subleader-name">
+                                  {slot.isAssigned ? slot.leaderName : `Sub-Leader Position #${slot.slotNumber}`}
+                                </div>
+                                {slot.isAssigned && (
+                                  <span className={`cascade-health-badge ${slot.healthStatus}`}>
+                                    {slot.healthStatus === 'met' && '✓ Quota Met'}
+                                    {slot.healthStatus === 'on_track' && '🟢 Active'}
+                                    {slot.healthStatus === 'bottleneck' && '🟡 Bottleneck'}
+                                    {slot.healthStatus === 'dormant' && '🔴 Stalled'}
+                                    {slot.healthStatus === 'progress' && '🔵 Growing'}
+                                  </span>
+                                )}
                               </div>
                               <div className="subleader-sub">
-                                <MapPin size={11} /> Brgy. {networkBarangayFilter} · {slot.isAssigned ? 'Appointed' : 'Pending Appointment'}
+                                <MapPin size={11} /> Brgy. {networkBarangayFilter} · {slot.isAssigned ? (slot.leaderSector || 'Appointed') : 'Pending Appointment'}
                               </div>
                             </div>
                           </div>
 
                           {slot.isAssigned ? (
-                            <div className="subleader-quota-wrap">
-                              <div className="subleader-quota-row">
-                                <span>Coordinators Recruited:</span>
-                                <strong>{slot.coordinatorsCount} / {slot.coordinatorQuota}</strong>
+                            <div className="subleader-triple-meters">
+                              {/* Tier 1: Coordinators */}
+                              <div className="micro-meter-row">
+                                <div className="micro-meter-lbl">
+                                  <span>Tier 1 · Coords</span>
+                                  <strong>
+                                    {slot.coordinatorsCount} / {slot.coordinatorQuota} 
+                                    <span style={{ color: '#059669', fontSize: '0.66rem', marginLeft: 4 }}>({slot.activeCoordinatorsCount} active)</span>
+                                  </strong>
+                                </div>
+                                <div className="micro-meter-track">
+                                  <div 
+                                    className="micro-meter-fill t1" 
+                                    style={{ width: `${Math.min(100, Math.max(3, (slot.coordinatorsCount / slot.coordinatorQuota) * 100))}%` }} 
+                                  />
+                                </div>
                               </div>
-                              <div className="subleader-quota-track">
-                                <div 
-                                  className="subleader-quota-fill" 
-                                  style={{ 
-                                    width: `${Math.max(2, pct)}%`,
-                                    background: slot.status === 'met' ? '#059669' : '#3b82f6'
-                                  }} 
-                                />
+
+                              {/* Tier 2: Citizen Members */}
+                              <div className="micro-meter-row">
+                                <div className="micro-meter-lbl">
+                                  <span>Tier 2 · Members</span>
+                                  <strong>{slot.totalMembersCount} / {slot.memberQuota}</strong>
+                                </div>
+                                <div className="micro-meter-track">
+                                  <div 
+                                    className="micro-meter-fill t2" 
+                                    style={{ width: `${Math.min(100, Math.max(3, (slot.totalMembersCount / slot.memberQuota) * 100))}%` }} 
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Tier 3: +1 Recruits */}
+                              <div className="micro-meter-row">
+                                <div className="micro-meter-lbl">
+                                  <span>Tier 3 · +1 Recruits</span>
+                                  <strong>{slot.totalRecruitsCount} Recruited</strong>
+                                </div>
+                                <div className="micro-meter-track">
+                                  <div 
+                                    className="micro-meter-fill t3" 
+                                    style={{ width: `${Math.min(100, Math.max(3, slot.totalMembersCount > 0 ? (slot.totalRecruitsCount / slot.totalMembersCount) * 100 : 0))}%` }} 
+                                  />
+                                </div>
                               </div>
                             </div>
                           ) : (
@@ -8450,14 +8600,14 @@ export default function AdminPage() {
                               background: '#f8fafc',
                               border: '1px dashed #cbd5e1',
                               borderRadius: 8,
-                              padding: '8px 10px',
+                              padding: '12px 10px',
                               textAlign: 'center',
                               display: 'flex',
                               flexDirection: 'column',
                               alignItems: 'center',
-                              gap: 4
+                              gap: 6
                             }}>
-                              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Position Open</span>
+                              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Position Vacant</span>
                               <button 
                                 type="button" 
                                 className="btn btn-xs btn-outline-emerald"
@@ -8474,17 +8624,22 @@ export default function AdminPage() {
                           )}
 
                           <div className="subleader-card-footer">
-                            <span className={`subleader-status-chip ${slot.status}`}>
-                              {slot.status === 'met' ? '✓ Quota Met' : slot.status === 'progress' ? `In Progress (${pct}%)` : '⚪ Open Slot'}
-                            </span>
                             {slot.isAssigned ? (
-                              <span style={{ fontWeight: 700, color: '#047857', display: 'flex', alignItems: 'center', gap: 2 }}>
-                                {slot.totalClusterVotes} Total Votes →
-                              </span>
+                              <>
+                                <span style={{ fontSize: '0.72rem', color: slot.recent7DaysRecruits > 0 ? '#047857' : '#64748b', fontWeight: 700 }}>
+                                  {slot.recent7DaysRecruits > 0 ? `⚡ +${slot.recent7DaysRecruits} this wk` : (slot.daysSinceLastRecruit !== null ? `🕒 ${slot.daysSinceLastRecruit}d ago` : '⚪ Idle')}
+                                </span>
+                                <span style={{ fontWeight: 800, color: '#047857', display: 'flex', alignItems: 'center', gap: 2 }}>
+                                  {slot.totalClusterVotes} Total Votes →
+                                </span>
+                              </>
                             ) : (
-                              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                                Target: {slot.coordinatorQuota} Coordinators
-                              </span>
+                              <>
+                                <span className="subleader-status-chip open">⚪ Vacant</span>
+                                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                                  Target: {slot.coordinatorQuota} Coords
+                                </span>
+                              </>
                             )}
                           </div>
                         </div>
@@ -9617,11 +9772,44 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* Coordinator Status Filter Pills */}
+                <div className="modal-filter-pills" style={{ marginBottom: 12 }}>
+                  <button 
+                    type="button" 
+                    className={`modal-filter-pill ${modalCoordFilterStatus === 'all' ? 'active' : ''}`}
+                    onClick={() => setModalCoordFilterStatus('all')}
+                  >
+                    All Coordinators ({networkActiveSubLeaderModal.coordinators?.length || 0})
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`modal-filter-pill ${modalCoordFilterStatus === 'met' ? 'active' : ''}`}
+                    onClick={() => setModalCoordFilterStatus('met')}
+                  >
+                    ✓ Quota Met ({networkActiveSubLeaderModal.coordinators?.filter(c => c.status === 'met').length || 0})
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`modal-filter-pill ${modalCoordFilterStatus === 'progress' ? 'active' : ''}`}
+                    onClick={() => setModalCoordFilterStatus('progress')}
+                  >
+                    ⏳ In Progress ({networkActiveSubLeaderModal.coordinators?.filter(c => c.status === 'progress').length || 0})
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`modal-filter-pill ${modalCoordFilterStatus === 'dormant' ? 'active' : ''}`}
+                    onClick={() => setModalCoordFilterStatus('dormant')}
+                  >
+                    🔴 Dormant / Needs Follow-up ({networkActiveSubLeaderModal.coordinators?.filter(c => c.status === 'dormant').length || 0})
+                  </button>
+                </div>
+
                 {/* Coordinators Accordion List */}
                 <div className="coordinator-list-grid">
                   {(() => {
                     const query = modalSearchFilter.trim().toLowerCase();
                     const filteredCoordinators = (networkActiveSubLeaderModal.coordinators || []).filter(cItem => {
+                      if (modalCoordFilterStatus !== 'all' && cItem.status !== modalCoordFilterStatus) return false;
                       if (!query) return true;
                       if (cItem.coordName.toLowerCase().includes(query)) return true;
                       if (cItem.coord?.contact && cItem.coord.contact.includes(query)) return true;
@@ -9663,7 +9851,7 @@ export default function AdminPage() {
                     return (
                       <>
                         {filteredCoordinators.map((cItem, cIdx) => {
-                          const { coord, coordName, members = [], membersCount = 0, recruitsCount = 0, status } = cItem;
+                          const { coord, coordName, members = [], membersCount = 0, recruitsCount = 0, recent7DaysRecruits = 0, status } = cItem;
                           const isCoordExpanded = modalExpandedCoords[coordName] ?? Boolean(query);
                           const memberPct = Math.min(100, Math.round((membersCount / activeBrgyConfig.memberQuota) * 100));
 
@@ -9698,12 +9886,12 @@ export default function AdminPage() {
                                       <span style={{ 
                                         fontSize: '0.68rem', 
                                         fontWeight: 800, 
-                                        background: '#eff6ff', 
-                                        color: '#2563eb', 
+                                        background: status === 'met' ? '#ecfdf5' : status === 'progress' ? '#eff6ff' : '#fef2f2', 
+                                        color: status === 'met' ? '#047857' : status === 'progress' ? '#2563eb' : '#b91c1c', 
                                         padding: '1px 6px', 
                                         borderRadius: 4 
                                       }}>
-                                        COORDINATOR
+                                        {status === 'met' ? 'QUOTA MET ✓' : status === 'progress' ? 'COORDINATOR' : 'DORMANT (0 RECRUITS)'}
                                       </span>
                                     </div>
                                     <span>
@@ -9713,6 +9901,11 @@ export default function AdminPage() {
                                 </div>
 
                                 <div className="coordinator-row-right" onClick={e => e.stopPropagation()}>
+                                  {recent7DaysRecruits > 0 && (
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#047857', background: '#ecfdf5', padding: '2px 6px', borderRadius: 4 }}>
+                                      ⚡ +{recent7DaysRecruits} this wk
+                                    </span>
+                                  )}
                                   <div className="coordinator-meter-pill">
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                       <span>{membersCount} / {activeBrgyConfig.memberQuota} Members</span>
@@ -9724,7 +9917,7 @@ export default function AdminPage() {
                                         background: status === 'met' ? '#ecfdf5' : '#f1f5f9',
                                         color: status === 'met' ? '#047857' : '#475569'
                                       }}>
-                                        {status === 'met' ? '✓ Quota Met' : `${memberPct}%`}
+                                        {status === 'met' ? '✓ Met' : `${memberPct}%`}
                                       </span>
                                     </div>
                                     <div className="coordinator-meter-track">
@@ -9737,6 +9930,17 @@ export default function AdminPage() {
                                       />
                                     </div>
                                   </div>
+
+                                  {coord?.contact && (
+                                    <a
+                                      href={`tel:${coord.contact}`}
+                                      className="btn btn-xs btn-outline-secondary"
+                                      title={`Contact ${coordName}`}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '3px 7px' }}
+                                    >
+                                      <Phone size={10} /> Call
+                                    </a>
+                                  )}
 
                                   <button
                                     type="button"
