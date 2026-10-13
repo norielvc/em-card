@@ -11608,11 +11608,25 @@ body:has(.admin-sidebar.open) {
 }
 
 /* === REFERRAL NETWORK OPTIMIZED ENTERPRISE STYLES === */
+.admin-panel.network-page-container {
+  padding: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  border-radius: 14px;
+}
+
 .network-page-container {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 0 0 24px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .network-top-header {
@@ -11624,6 +11638,9 @@ body:has(.admin-sidebar.open) {
   padding: 20px 24px 16px;
   border-bottom: 1px solid var(--border);
   background: var(--white);
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .network-header-left {
@@ -21712,6 +21729,9 @@ html, body {
 }
 .admin-main {
   margin-left: 250px;
+  min-width: 0;
+  max-width: calc(100vw - 250px);
+  box-sizing: border-box;
 }
 @media (max-width: 1024px) {
   .admin-main { 
@@ -22850,7 +22870,11 @@ html, body {
 /* Content padding override */
 .admin-content {
   padding: 20px 24px !important;
+  width: 100% !important;
   max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
 }
 @media (max-width: 768px) {
   .admin-content { padding: 14px !important; }
@@ -35755,10 +35779,12 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 0 24px;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
+  padding: 0 24px 24px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden;
 }
 
 .campaign-hero-status-pill {
@@ -35773,6 +35799,7 @@ html, body {
   font-size: 0.8rem;
   font-weight: 800;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .campaign-mode-tabs {
@@ -35782,6 +35809,7 @@ html, body {
   border-radius: 10px;
   border: 1px solid #e2e8f0;
   gap: 4px;
+  max-width: 100%;
 }
 
 .campaign-mode-tab {
@@ -35797,6 +35825,7 @@ html, body {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .campaign-mode-tab:hover {
@@ -35817,6 +35846,10 @@ html, body {
   box-shadow: 0 10px 25px -5px rgba(6, 78, 59, 0.25);
   position: relative;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .campaign-hero-banner::after {
@@ -35838,12 +35871,20 @@ html, body {
   flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 20px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .campaign-hero-title-area {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1;
+  min-width: 260px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .campaign-hero-badge {
@@ -35887,6 +35928,7 @@ html, body {
   padding: 8px 14px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
 }
 
 .campaign-brgy-select-box select {
@@ -35909,6 +35951,10 @@ html, body {
   border-radius: 12px;
   padding: 18px 20px;
   border: 1px solid rgba(255, 255, 255, 0.12);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .campaign-progress-stats {
@@ -35918,12 +35964,15 @@ html, body {
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .campaign-progress-main-stat {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .campaign-progress-curr {
@@ -35946,6 +35995,7 @@ html, body {
   border-radius: 999px;
   font-size: 0.82rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .campaign-progress-track {
@@ -35969,17 +36019,42 @@ html, body {
 .campaign-milestones-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
   margin-top: 8px;
   font-size: 0.72rem;
   font-weight: 600;
   color: #a7f3d0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.campaign-milestones-row span {
+  white-space: nowrap;
 }
 
 /* 4-Tier Pipeline Cards Ribbon */
 .campaign-tiers-ribbon {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .campaign-tiers-ribbon {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .campaign-tiers-ribbon {
+    grid-template-columns: 1fr;
+  }
 }
 
 .campaign-tier-card {
@@ -36702,7 +36777,7 @@ html, body {
   box-sizing: border-box;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1250px) {
   .analytics-metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -36724,6 +36799,7 @@ html, body {
   gap: 6px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
 }
 
@@ -36767,8 +36843,10 @@ html, body {
   flex-direction: column;
   gap: 16px;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
   overflow: hidden;
+  min-width: 0;
 }
 
 .analytics-table-header {
@@ -36828,10 +36906,16 @@ html, body {
 
 .analytics-table-wrapper {
   overflow-x: auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
 }
 
 .analytics-master-table {
   width: 100%;
+  min-width: 820px;
   border-collapse: collapse;
   font-size: 0.84rem;
 }
@@ -36900,8 +36984,18 @@ html, body {
 
 .analytics-deepdive-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .analytics-deepdive-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .analytics-deepdive-card {
@@ -37058,10 +37152,14 @@ html, body {
   background: #f8fafc;
   border: 1.5px dashed #cbd5e1;
   border-radius: 16px;
-  padding: 24px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .blueprint-title {
@@ -37079,9 +37177,25 @@ html, body {
 
 .blueprint-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-top: 6px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .blueprint-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .blueprint-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .blueprint-col {
