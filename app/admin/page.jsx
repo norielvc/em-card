@@ -25,15 +25,15 @@ import {
 
 // 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays
 const BARANGAY_VOTER_DATA = {
-  'Santol': { totalVoters: 10696, target60: 6418, subLeaderTarget: 18, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
-  'Panginay': { totalVoters: 8918, target60: 5351, subLeaderTarget: 15, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
-  'Borol 1st': { totalVoters: 7806, target60: 4684, subLeaderTarget: 13, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
-  'San Juan': { totalVoters: 7319, target60: 4392, subLeaderTarget: 12, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
-  'Pulong Gubat': { totalVoters: 6335, target60: 3801, subLeaderTarget: 11, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
-  'Borol 2nd': { totalVoters: 5355, target60: 3213, subLeaderTarget: 9, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
-  'Wawa': { totalVoters: 3676, target60: 2206, subLeaderTarget: 6, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
-  'Longos': { totalVoters: 2477, target60: 1487, subLeaderTarget: 5, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
-  'Dalig': { totalVoters: 1676, target60: 1006, subLeaderTarget: 3, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1 },
+  'Santol': { totalVoters: 10696, target60: 6418, subLeaderTarget: 18, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: true },
+  'Panginay': { totalVoters: 8918, target60: 5351, subLeaderTarget: 15, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: true },
+  'Borol 1st': { totalVoters: 7806, target60: 4684, subLeaderTarget: 10, coordinatorQuota: 20, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
+  'Pulong Gubat': { totalVoters: 6335, target60: 3801, subLeaderTarget: 16, coordinatorQuota: 20, memberQuota: 6, recruitQuota: 1, hasOfficialRecord: true },
+  'Borol 2nd': { totalVoters: 5355, target60: 3213, subLeaderTarget: 9, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: true },
+  'Longos': { totalVoters: 2477, target60: 1487, subLeaderTarget: 14, coordinatorQuota: 20, memberQuota: 3, recruitQuota: 1, hasOfficialRecord: true },
+  'San Juan': { totalVoters: 7319, target60: 4392, subLeaderTarget: 12, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: false },
+  'Wawa': { totalVoters: 3676, target60: 2206, subLeaderTarget: 6, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: false },
+  'Dalig': { totalVoters: 1676, target60: 1006, subLeaderTarget: 3, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1, hasOfficialRecord: false },
 };
 
 
@@ -7802,9 +7802,10 @@ export default function AdminPage() {
 
     const activeSubLeadersCount = subLeaderSlots.filter(s => s.isAssigned).length;
     const activeCoordinatorsCount = subLeaderSlots.reduce((acc, s) => acc + s.coordinatorsCount, 0);
-    const targetCoordinatorsTotal = activeBrgyConfig.subLeaderTarget * activeBrgyConfig.coordinatorQuota; // 18 * 20 = 360
-    const targetMembersTotal = targetCoordinatorsTotal * activeBrgyConfig.memberQuota; // 360 * 8 = 2,880
-    const projectedTargetVoters = 379 + targetMembersTotal + (targetMembersTotal * activeBrgyConfig.recruitQuota); // 6,516 total
+    const targetCoordinatorsTotal = activeBrgyConfig.subLeaderTarget * activeBrgyConfig.coordinatorQuota;
+    const targetMembersTotal = targetCoordinatorsTotal * activeBrgyConfig.memberQuota;
+    const projectedTargetVoters = 1 + activeBrgyConfig.subLeaderTarget + targetCoordinatorsTotal + targetMembersTotal + (targetMembersTotal * activeBrgyConfig.recruitQuota);
+    const projectedYieldPct = ((projectedTargetVoters / activeBrgyConfig.totalVoters) * 100).toFixed(1);
 
     return (
       <div className="admin-panel network-page-container">
@@ -7968,23 +7969,43 @@ export default function AdminPage() {
                 </div>
                 <div className="campaign-tier-val">{projectedTargetVoters.toLocaleString()} Voters</div>
                 <span className="campaign-tier-quota-pill" style={{ color: '#b45309', background: '#fef3c7' }}>
-                  60.9% of Brgy. {networkBarangayFilter}
+                  {projectedYieldPct}% of Brgy. {networkBarangayFilter}
                 </span>
                 <p className="campaign-tier-sub">Full capacity when all quotas are fulfilled</p>
               </div>
             </div>
 
-            {/* 18 Sub-Leaders Cluster Roster */}
+            {/* Sub-Leaders Cluster Roster */}
             <div className="subleaders-section">
               <div className="subleaders-header">
                 <div className="subleaders-title-wrap">
                   <h4>{activeBrgyConfig.subLeaderTarget} Sub-Leaders Cluster Roster · Brgy. {networkBarangayFilter}</h4>
-                  <span>Each Sub-Leader is responsible for recruiting at least 20 Coordinators. Click any card to inspect their team.</span>
+                  <span>Each Sub-Leader is responsible for recruiting at least {activeBrgyConfig.coordinatorQuota} Coordinators. Click any card to inspect their team.</span>
                 </div>
                 <span className="network-status-chip">
                   {activeSubLeadersCount} of {activeBrgyConfig.subLeaderTarget} Appointed Positions
                 </span>
               </div>
+
+              {!activeBrgyConfig.hasOfficialRecord && (
+                <div style={{
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 10,
+                  padding: '12px 16px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  fontSize: '0.82rem',
+                  color: '#475569'
+                }}>
+                  <Info size={18} color="#64748b" style={{ flexShrink: 0 }} />
+                  <span>
+                    <strong>Preliminary Quota Model:</strong> No official Sub-Leader list has been submitted yet for Brgy. {networkBarangayFilter}. Displaying recommended structure of <strong>{activeBrgyConfig.subLeaderTarget} Sub-Leaders</strong> (each mobilizing {activeBrgyConfig.coordinatorQuota} Coordinators) to secure the 60% voter victory threshold.
+                  </span>
+                </div>
+              )}
 
               <div className="subleaders-grid">
                 {subLeaderSlots.map((slot) => {
