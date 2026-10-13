@@ -36262,16 +36262,17 @@ html, body {
   margin: auto !important;
   display: flex !important;
   flex-direction: column !important;
+  max-height: 85vh !important;
 }
 
 .coordinator-modal-card {
   max-width: 720px !important;
-  width: 95% !important;
+  width: min(720px, 95vw) !important;
 }
 
 .appointing-modal-card {
   max-width: 560px !important;
-  width: 95% !important;
+  width: min(560px, 95vw) !important;
 }
 
 .coordinator-modal-card .modal-header,
@@ -36282,12 +36283,16 @@ html, body {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
+  flex-shrink: 0 !important;
 }
 
 .coordinator-modal-card .modal-body,
 .appointing-modal-card .modal-body {
   background: #ffffff !important;
   padding: 20px 24px !important;
+  overflow-y: auto !important;
+  flex: 1 !important;
+  min-height: 0 !important;
 }
 
 .coordinator-list-grid {

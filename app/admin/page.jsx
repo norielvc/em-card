@@ -8715,7 +8715,7 @@ export default function AdminPage() {
         )}
 
         {/* Modal for Sub-Leader's Coordinators Team */}
-        {networkActiveSubLeaderModal && (
+        {networkActiveSubLeaderModal && typeof document !== 'undefined' && createPortal(
           <div className="modal-overlay" onClick={() => setNetworkActiveSubLeaderModal(null)}>
             <div className="modal-card coordinator-modal-card" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
@@ -8848,11 +8848,12 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Modal: Appoint Sub-Leader to Slot */}
-        {appointingSlot && (
+        {appointingSlot && typeof document !== 'undefined' && createPortal(
           <div className="modal-overlay" onClick={() => setAppointingSlot(null)}>
             <div className="modal-card appointing-modal-card" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
@@ -8974,7 +8975,8 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     );
