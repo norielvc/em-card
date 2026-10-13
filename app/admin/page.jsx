@@ -823,6 +823,86 @@ export default function AdminPage() {
   const [appointingSlot, setAppointingSlot] = useState(null); // { slotNumber, barangay }
   const [appointSearch, setAppointSearch] = useState('');
   const [analyticsSearchQuery, setAnalyticsSearchQuery] = useState('');
+  const [modalExpandedCoords, setModalExpandedCoords] = useState({});
+  const [modalExpandedMembers, setModalExpandedMembers] = useState({});
+  const [modalSearchFilter, setModalSearchFilter] = useState('');
+  const [modalShowOpenSlots, setModalShowOpenSlots] = useState(true);
+
+  const exportSubLeaderTeamExcel = (slot) => {
+    if (!slot || !slot.leaderName) return;
+    try {
+      const rows = [];
+      const brgyConfig = BARANGAY_VOTER_DATA[networkBarangayFilter] || BARANGAY_VOTER_DATA['Santol'];
+
+      // Tier 1: Sub-Leader
+      rows.push({
+        Tier: 'Tier 1 (Sub-Leader)',
+        'Full Name': slot.leaderName,
+        'Recruited By': 'Barangay Leader',
+        'Contact Number': slot.leaderContact || '-',
+        'Barangay': networkBarangayFilter,
+        'Sector Category': slot.leaderSector || 'Field Leadership',
+        'Quota Target': `${slot.coordinatorQuota} Coordinators`,
+        'Direct Mobilized': `${slot.coordinatorsCount} Coordinators`,
+        'Status': slot.coordinatorsCount >= slot.coordinatorQuota ? 'Quota Met' : 'In Progress'
+      });
+
+      // Tier 2: Coordinators
+      (slot.coordinators || []).forEach((cItem, cIdx) => {
+        rows.push({
+          Tier: `Tier 2 (Coordinator #${cIdx + 1})`,
+          'Full Name': cItem.coordName,
+          'Recruited By': slot.leaderName,
+          'Contact Number': cItem.coord?.contact || '-',
+          'Barangay': cItem.coord?.barangay || networkBarangayFilter,
+          'Sector Category': cItem.coord?.sector_category || 'General',
+          'Quota Target': `${brgyConfig.memberQuota} Members`,
+          'Direct Mobilized': `${cItem.membersCount} Members`,
+          'Status': cItem.membersCount >= brgyConfig.memberQuota ? 'Quota Met' : `${cItem.membersCount}/${brgyConfig.memberQuota} Members`
+        });
+
+        // Tier 3: Members
+        (cItem.members || []).forEach((mItem, mIdx) => {
+          rows.push({
+            Tier: `Tier 3 (Member #${mIdx + 1})`,
+            'Full Name': mItem.memName,
+            'Recruited By': cItem.coordName,
+            'Contact Number': mItem.mem?.contact || '-',
+            'Barangay': mItem.mem?.barangay || networkBarangayFilter,
+            'Sector Category': mItem.mem?.sector_category || 'General',
+            'Quota Target': '1 Voter (+1 Recruit)',
+            'Direct Mobilized': `${mItem.recruitsCount || 0} Recruits`,
+            'Status': (mItem.recruitsCount || 0) >= 1 ? 'Quota Met (+1)' : 'Pending +1'
+          });
+
+          // Tier 4: +1 Recruits
+          (mItem.recruits || []).forEach((rItem, rIdx) => {
+            rows.push({
+              Tier: `Tier 4 (+1 Recruit #${rIdx + 1})`,
+              'Full Name': getResidentName(rItem),
+              'Recruited By': mItem.memName,
+              'Contact Number': rItem.contact || '-',
+              'Barangay': rItem.barangay || networkBarangayFilter,
+              'Sector Category': rItem.sector_category || 'General',
+              'Quota Target': 'Target Mobilized',
+              'Direct Mobilized': '1 Voter',
+              'Status': 'Voter Mobilized'
+            });
+          });
+        });
+      });
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Cluster_Roster');
+      const safeName = slot.leaderName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      XLSX.writeFile(wb, `${safeName}_Team_Roster_${networkBarangayFilter}.xlsx`);
+      showToast(`Exported ${slot.leaderName}'s downline team to Excel!`, 'success');
+    } catch (e) {
+      console.error('Failed to export team roster', e);
+      showToast('Failed to export team roster', 'error');
+    }
+  };
 
   const saveAppointedSubLeader = (barangay, slotNumber, leaderName) => {
     setAppointedSubLeaders(prev => {
@@ -7756,34 +7836,50 @@ export default function AdminPage() {
         // Direct recruits of this appointed sub-leader are their Coordinators
         const coordinators = getChildren(appointedLeaderName);
         let totalClusterVotes = coordinators.length;
+        let totalMembersCount = 0;
+        let totalRecruitsCount = 0;
         const coordsWithMembers = coordinators.map(coord => {
           const coordName = getResidentName(coord);
-          const members = getChildren(coordName);
-          totalClusterVotes += members.length;
+          const rawMembers = getChildren(coordName);
+          totalClusterVotes += rawMembers.length;
+          totalMembersCount += rawMembers.length;
           let coordRecruitsCount = 0;
-          members.forEach(mem => {
+          const members = rawMembers.map(mem => {
             const memName = getResidentName(mem);
             const recruits = getChildren(memName);
             coordRecruitsCount += recruits.length;
             totalClusterVotes += recruits.length;
+            totalRecruitsCount += recruits.length;
+            return {
+              mem,
+              memName,
+              recruits,
+              recruitsCount: recruits.length
+            };
           });
           return {
             coord,
             coordName,
             members,
-            membersCount: members.length,
+            membersCount: rawMembers.length,
             recruitsCount: coordRecruitsCount,
-            status: members.length >= activeBrgyConfig.memberQuota ? 'met' : 'progress'
+            status: rawMembers.length >= activeBrgyConfig.memberQuota ? 'met' : 'progress'
           };
         });
+
+        const leaderReg = approvedRegs.find(r => getResidentName(r).toLowerCase() === appointedLeaderName.toLowerCase());
 
         subLeaderSlots.push({
           slotNumber: slotNum,
           isAssigned: true,
           leaderName: appointedLeaderName,
+          leaderContact: leaderReg?.contact || null,
+          leaderSector: leaderReg?.sector_category || null,
           coordinatorsCount: coordinators.length,
           coordinatorQuota: activeBrgyConfig.coordinatorQuota,
           coordinators: coordsWithMembers,
+          totalMembersCount,
+          totalRecruitsCount,
           totalClusterVotes,
           status: coordinators.length >= activeBrgyConfig.coordinatorQuota ? 'met' : 'progress'
         });
@@ -9166,10 +9262,11 @@ export default function AdminPage() {
           </>
         )}
 
-        {/* Modal for Sub-Leader's Coordinators Team */}
+        {/* Multi-Tier Drill-Down Modal for Sub-Leader's Downlines (Option 1) */}
         {networkActiveSubLeaderModal && typeof document !== 'undefined' && createPortal(
           <div className="modal-overlay" onClick={() => setNetworkActiveSubLeaderModal(null)}>
             <div className="modal-card coordinator-modal-card" onClick={e => e.stopPropagation()}>
+              {/* Modal Header */}
               <div className="modal-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div className="subleader-slot-badge" style={{ position: 'static' }}>
@@ -9177,14 +9274,23 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
-                      {networkActiveSubLeaderModal.leaderName}’s Coordinator Team
+                      {networkActiveSubLeaderModal.leaderName}’s Downline Team
                     </h3>
                     <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
-                      Sub-Leader Roster · Brgy. {networkBarangayFilter} · Quota: {networkActiveSubLeaderModal.coordinatorQuota} Coordinators (Each targeting {activeBrgyConfig.memberQuota} Members)
+                      Sub-Leader Multi-Tier Roster · Brgy. {networkBarangayFilter} · Quota: {networkActiveSubLeaderModal.coordinatorQuota} Coordinators (Each targeting {activeBrgyConfig.memberQuota} Members +1)
                     </p>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-outline-emerald" 
+                    style={{ fontSize: '0.74rem', padding: '4px 12px' }}
+                    onClick={() => exportSubLeaderTeamExcel(networkActiveSubLeaderModal)}
+                    title="Export complete multi-tier cluster roster to Excel"
+                  >
+                    <Download size={13} style={{ marginRight: 4 }} /> Export Excel
+                  </button>
                   <button 
                     type="button" 
                     className="btn btn-sm btn-outline-danger" 
@@ -9209,94 +9315,431 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="modal-body" style={{ padding: '16px 20px' }}>
-                {/* Team Quota Summary Banner */}
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 10,
-                  marginBottom: 16
-                }}>
-                  <div>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>
-                      Coordinator Quota Status
+              <div className="modal-body">
+                {/* 4-Tier Pipeline Health Cards */}
+                <div className="modal-cluster-metrics-row">
+                  {/* Tier 1: Coordinators */}
+                  <div className="modal-cluster-metric-card">
+                    <span className="modal-cluster-metric-lbl">Tier 1 · Coordinators</span>
+                    <span className="modal-cluster-metric-val">
+                      {networkActiveSubLeaderModal.coordinatorsCount} / {networkActiveSubLeaderModal.coordinatorQuota}
                     </span>
-                    <strong style={{ fontSize: '1.1rem', color: '#0f172a' }}>
-                      {networkActiveSubLeaderModal.coordinatorsCount} / {networkActiveSubLeaderModal.coordinatorQuota} Coordinators Recruited
-                    </strong>
+                    <span className="modal-cluster-metric-sub">
+                      {Math.min(100, Math.round((networkActiveSubLeaderModal.coordinatorsCount / networkActiveSubLeaderModal.coordinatorQuota) * 100))}% of assigned quota
+                    </span>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>
-                      Total Mobilized Downlines
+
+                  {/* Tier 2: Citizen Members */}
+                  <div className="modal-cluster-metric-card">
+                    <span className="modal-cluster-metric-lbl">Tier 2 · Citizen Members</span>
+                    <span className="modal-cluster-metric-val">
+                      {networkActiveSubLeaderModal.totalMembersCount || 0}
                     </span>
-                    <strong style={{ fontSize: '1.1rem', color: '#047857' }}>
-                      {networkActiveSubLeaderModal.totalClusterVotes} Total Downlines
-                    </strong>
+                    <span className="modal-cluster-metric-sub">
+                      Goal: {networkActiveSubLeaderModal.coordinatorQuota * activeBrgyConfig.memberQuota} ({activeBrgyConfig.memberQuota}/coord)
+                    </span>
+                  </div>
+
+                  {/* Tier 3: +1 Recruits */}
+                  <div className="modal-cluster-metric-card">
+                    <span className="modal-cluster-metric-lbl">Tier 3 · +1 Recruits</span>
+                    <span className="modal-cluster-metric-val">
+                      {networkActiveSubLeaderModal.totalRecruitsCount || 0}
+                    </span>
+                    <span className="modal-cluster-metric-sub">
+                      Household / neighbor voters
+                    </span>
+                  </div>
+
+                  {/* Total Cluster Votes */}
+                  <div className="modal-cluster-metric-card" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+                    <span className="modal-cluster-metric-lbl" style={{ color: '#047857' }}>Total Cluster Votes</span>
+                    <span className="modal-cluster-metric-val" style={{ color: '#047857' }}>
+                      {networkActiveSubLeaderModal.totalClusterVotes || 0}
+                    </span>
+                    <span className="modal-cluster-metric-sub" style={{ color: '#065f46' }}>
+                      Mobilized under this branch
+                    </span>
                   </div>
                 </div>
 
-                {/* Coordinators List */}
+                {/* Search & Toolbar Bar */}
+                <div className="modal-search-toolbar">
+                  <div className="modal-search-input-box">
+                    <Search size={14} color="#64748b" />
+                    <input 
+                      type="text" 
+                      placeholder="Search coordinator, member, or phone in this team..." 
+                      value={modalSearchFilter}
+                      onChange={e => setModalSearchFilter(e.target.value)}
+                    />
+                    {modalSearchFilter && (
+                      <X size={14} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => setModalSearchFilter('')} />
+                    )}
+                  </div>
+
+                  <div className="modal-toolbar-actions">
+                    <button 
+                      type="button" 
+                      className="btn btn-xs btn-outline-secondary"
+                      onClick={() => {
+                        const allKeys = {};
+                        (networkActiveSubLeaderModal.coordinators || []).forEach(c => {
+                          allKeys[c.coordName] = true;
+                          (c.members || []).forEach(m => { allKeys[m.memName] = true; });
+                        });
+                        setModalExpandedCoords(allKeys);
+                        setModalExpandedMembers(allKeys);
+                      }}
+                      title="Expand all coordinators and members"
+                    >
+                      <ChevronDown size={12} style={{ marginRight: 2 }} /> Expand All
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn btn-xs btn-outline-secondary"
+                      onClick={() => {
+                        setModalExpandedCoords({});
+                        setModalExpandedMembers({});
+                      }}
+                      title="Collapse all"
+                    >
+                      Collapse All
+                    </button>
+                    <button 
+                      type="button" 
+                      className={`btn btn-xs ${modalShowOpenSlots ? 'btn-outline-emerald' : 'btn-outline-secondary'}`}
+                      onClick={() => setModalShowOpenSlots(prev => !prev)}
+                      title="Toggle open coordinator slots"
+                    >
+                      {modalShowOpenSlots ? 'Hide Open Slots' : 'Show Open Slots'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Coordinators Accordion List */}
                 <div className="coordinator-list-grid">
-                  {networkActiveSubLeaderModal.coordinators.length === 0 ? (
-                    <div className="network-empty-state" style={{ padding: 32 }}>
-                      <Users size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-                      <h5>No Coordinators Recruited Yet</h5>
-                      <p>This sub-leader has not yet recruited any Level 1 coordinators into the network.</p>
-                    </div>
-                  ) : (
-                    networkActiveSubLeaderModal.coordinators.map(({ coord, coordName, members, membersCount, recruitsCount, status }) => {
-                      const memberPct = Math.min(100, Math.round((membersCount / activeBrgyConfig.memberQuota) * 100));
+                  {(() => {
+                    const query = modalSearchFilter.trim().toLowerCase();
+                    const filteredCoordinators = (networkActiveSubLeaderModal.coordinators || []).filter(cItem => {
+                      if (!query) return true;
+                      if (cItem.coordName.toLowerCase().includes(query)) return true;
+                      if (cItem.coord?.contact && cItem.coord.contact.includes(query)) return true;
+                      // Match inside members
+                      const matchMember = (cItem.members || []).some(m => 
+                        m.memName.toLowerCase().includes(query) || 
+                        (m.mem?.contact && m.mem.contact.includes(query)) ||
+                        (m.recruits || []).some(r => getResidentName(r).toLowerCase().includes(query))
+                      );
+                      return matchMember;
+                    });
+
+                    if (networkActiveSubLeaderModal.coordinators.length === 0) {
                       return (
-                        <div key={coordName} className="coordinator-row-item">
-                          <div className="coordinator-row-left">
-                            <div className="coordinator-row-avatar">
-                              {getInitials(coordName)}
-                            </div>
-                            <div className="coordinator-row-name-box">
-                              <strong>{coordName}</strong>
-                              <span>
-                                {coord.barangay || networkBarangayFilter} · {coord.contact || 'No phone'} · {coord.sector_category || 'General'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="coordinator-row-right">
-                            <div className="coordinator-meter-pill">
-                              <span>{membersCount} / {activeBrgyConfig.memberQuota} Members</span>
-                              <div className="coordinator-meter-track">
-                                <div 
-                                  className="coordinator-meter-fill" 
-                                  style={{ 
-                                    width: `${Math.max(4, memberPct)}%`,
-                                    background: status === 'met' ? '#059669' : '#3b82f6'
-                                  }} 
-                                />
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-emerald"
-                              style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-                              onClick={() => {
-                                setNetworkActiveSubLeaderModal(null);
-                                setNetworkTabMode('trees');
-                                if (coord) setSelectedNetworkMember(coord);
-                                else setNetworkSearch(coordName);
-                              }}
-                              title="Inspect Coordinator downlines in tree view"
-                            >
-                              Trace →
-                            </button>
+                        <div className="network-empty-state" style={{ padding: '28px 20px', textAlign: 'center' }}>
+                          <Users size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+                          <h5 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 800 }}>No Coordinators Recruited Yet</h5>
+                          <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>
+                            {networkActiveSubLeaderModal.leaderName} has not recruited any Level 1 Coordinators yet.
+                          </p>
+                          <div style={{ marginTop: 12, fontSize: '0.78rem', color: '#047857', background: '#ecfdf5', padding: '8px 14px', borderRadius: 8, display: 'inline-block' }}>
+                            Target Quota: <strong>{networkActiveSubLeaderModal.coordinatorQuota} Coordinators</strong> (Each bringing {activeBrgyConfig.memberQuota} Members)
                           </div>
                         </div>
                       );
-                    })
-                  )}
+                    }
+
+                    if (filteredCoordinators.length === 0) {
+                      return (
+                        <div className="network-empty-state" style={{ padding: '24px 16px', textAlign: 'center' }}>
+                          <Search size={28} style={{ opacity: 0.3, marginBottom: 6 }} />
+                          <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748b' }}>
+                            No team members match "{modalSearchFilter}".
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <>
+                        {filteredCoordinators.map((cItem, cIdx) => {
+                          const { coord, coordName, members = [], membersCount = 0, recruitsCount = 0, status } = cItem;
+                          const isCoordExpanded = modalExpandedCoords[coordName] ?? Boolean(query);
+                          const memberPct = Math.min(100, Math.round((membersCount / activeBrgyConfig.memberQuota) * 100));
+
+                          return (
+                            <div 
+                              key={coordName} 
+                              className={`coord-accordion-block ${isCoordExpanded ? 'is-expanded' : ''}`}
+                            >
+                              {/* Coordinator Card Header */}
+                              <div 
+                                className="coord-accordion-header"
+                                onClick={() => {
+                                  setModalExpandedCoords(prev => ({
+                                    ...prev,
+                                    [coordName]: !isCoordExpanded
+                                  }));
+                                }}
+                              >
+                                <div className="coordinator-row-left">
+                                  <span className="coord-chevron-icon">
+                                    <ChevronRight size={16} />
+                                  </span>
+                                  <div className="subleader-slot-badge" style={{ width: 26, height: 26, fontSize: '0.72rem' }}>
+                                    C{cIdx + 1}
+                                  </div>
+                                  <div className="coordinator-row-avatar">
+                                    {getInitials(coordName)}
+                                  </div>
+                                  <div className="coordinator-row-name-box">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <strong>{coordName}</strong>
+                                      <span style={{ 
+                                        fontSize: '0.68rem', 
+                                        fontWeight: 800, 
+                                        background: '#eff6ff', 
+                                        color: '#2563eb', 
+                                        padding: '1px 6px', 
+                                        borderRadius: 4 
+                                      }}>
+                                        COORDINATOR
+                                      </span>
+                                    </div>
+                                    <span>
+                                      <MapPin size={10} style={{ marginRight: 2 }} /> {coord?.barangay || networkBarangayFilter} · <Phone size={10} style={{ marginRight: 2 }} /> {coord?.contact || 'No phone'} · {coord?.sector_category || 'General'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="coordinator-row-right" onClick={e => e.stopPropagation()}>
+                                  <div className="coordinator-meter-pill">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span>{membersCount} / {activeBrgyConfig.memberQuota} Members</span>
+                                      <span style={{ 
+                                        fontSize: '0.68rem', 
+                                        fontWeight: 800, 
+                                        padding: '1px 6px', 
+                                        borderRadius: 4,
+                                        background: status === 'met' ? '#ecfdf5' : '#f1f5f9',
+                                        color: status === 'met' ? '#047857' : '#475569'
+                                      }}>
+                                        {status === 'met' ? '✓ Quota Met' : `${memberPct}%`}
+                                      </span>
+                                    </div>
+                                    <div className="coordinator-meter-track">
+                                      <div 
+                                        className="coordinator-meter-fill" 
+                                        style={{ 
+                                          width: `${Math.max(4, memberPct)}%`,
+                                          background: status === 'met' ? '#059669' : '#3b82f6'
+                                        }} 
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-xs btn-outline-emerald"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setNetworkActiveSubLeaderModal(null);
+                                      setNetworkTabMode('trees');
+                                      if (coord) setSelectedNetworkMember(coord);
+                                      else setNetworkSearch(coordName);
+                                    }}
+                                    title="Inspect Coordinator downlines in tree view"
+                                  >
+                                    Trace →
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Expanded Tier 3 (Citizen Members) */}
+                              {isCoordExpanded && (
+                                <div className="coord-accordion-children">
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#334155' }}>
+                                      Citizen Members ({membersCount} of {activeBrgyConfig.memberQuota} Quota):
+                                    </span>
+                                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                      {recruitsCount} Total +1 Voter Recruits
+                                    </span>
+                                  </div>
+
+                                  {members.length === 0 ? (
+                                    <div style={{
+                                      padding: '12px 14px',
+                                      background: '#ffffff',
+                                      border: '1px dashed #cbd5e1',
+                                      borderRadius: 8,
+                                      fontSize: '0.78rem',
+                                      color: '#64748b',
+                                      textAlign: 'center'
+                                    }}>
+                                      No members registered under {coordName} yet. Need {activeBrgyConfig.memberQuota} members to complete this coordinator's quota.
+                                    </div>
+                                  ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                      {members.map((mItem, mIdx) => {
+                                        const { mem, memName, recruits = [], recruitsCount = 0 } = mItem;
+                                        const isMemExpanded = modalExpandedMembers[memName] ?? Boolean(query);
+
+                                        return (
+                                          <div key={memName} className="member-row-card">
+                                            <div className="member-row-top">
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                                {recruitsCount > 0 ? (
+                                                  <span 
+                                                    style={{ cursor: 'pointer', display: 'flex', color: '#64748b' }}
+                                                    onClick={() => {
+                                                      setModalExpandedMembers(prev => ({
+                                                        ...prev,
+                                                        [memName]: !isMemExpanded
+                                                      }));
+                                                    }}
+                                                  >
+                                                    <ChevronRight size={14} style={{ transform: isMemExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                                                  </span>
+                                                ) : (
+                                                  <span style={{ width: 14 }} />
+                                                )}
+
+                                                <span style={{ 
+                                                  fontSize: '0.68rem', 
+                                                  fontWeight: 800, 
+                                                  background: '#f1f5f9', 
+                                                  color: '#475569', 
+                                                  padding: '1px 5px', 
+                                                  borderRadius: 4 
+                                                }}>
+                                                  M{mIdx + 1}
+                                                </span>
+
+                                                <div style={{ 
+                                                  width: 26, 
+                                                  height: 26, 
+                                                  borderRadius: '50%', 
+                                                  background: '#f5f3ff', 
+                                                  color: '#7c3aed', 
+                                                  fontSize: '0.7rem', 
+                                                  fontWeight: 800, 
+                                                  display: 'flex', 
+                                                  alignItems: 'center', 
+                                                  justifyContent: 'center',
+                                                  flexShrink: 0
+                                                }}>
+                                                  {getInitials(memName)}
+                                                </div>
+
+                                                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                                  <strong style={{ fontSize: '0.82rem', color: '#0f172a' }}>{memName}</strong>
+                                                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                                                    {mem?.contact || 'No phone'} · {mem?.sector_category || 'General'}
+                                                  </span>
+                                                </div>
+                                              </div>
+
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                {recruitsCount >= 1 ? (
+                                                  <span style={{ 
+                                                    fontSize: '0.7rem', 
+                                                    fontWeight: 800, 
+                                                    background: '#ecfdf5', 
+                                                    color: '#047857', 
+                                                    border: '1px solid #a7f3d0', 
+                                                    padding: '2px 8px', 
+                                                    borderRadius: 6 
+                                                  }}>
+                                                    ✓ +1 Recruited ({recruitsCount})
+                                                  </span>
+                                                ) : (
+                                                  <span style={{ 
+                                                    fontSize: '0.7rem', 
+                                                    fontWeight: 600, 
+                                                    background: '#fffbeb', 
+                                                    color: '#b45309', 
+                                                    border: '1px solid #fde68a', 
+                                                    padding: '2px 8px', 
+                                                    borderRadius: 6 
+                                                  }}>
+                                                    ⏳ Pending +1
+                                                  </span>
+                                                )}
+
+                                                <button
+                                                  type="button"
+                                                  className="btn btn-xs btn-outline-secondary"
+                                                  style={{ padding: '2px 6px', fontSize: '0.7rem' }}
+                                                  onClick={() => {
+                                                    setNetworkActiveSubLeaderModal(null);
+                                                    setNetworkTabMode('trees');
+                                                    if (mem) setSelectedNetworkMember(mem);
+                                                    else setNetworkSearch(memName);
+                                                  }}
+                                                  title="Trace member in tree view"
+                                                >
+                                                  Trace
+                                                </button>
+                                              </div>
+                                            </div>
+
+                                            {/* Tier 4 (+1 Recruits) */}
+                                            {isMemExpanded && recruitsCount > 0 && (
+                                              <div className="recruits-branch-wrap">
+                                                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#047857', textTransform: 'uppercase' }}>
+                                                  Tier 4 · Recruited Voters (+1):
+                                                </span>
+                                                {recruits.map((rItem, rIdx) => {
+                                                  const rName = getResidentName(rItem);
+                                                  return (
+                                                    <div key={rName || rIdx} className="recruit-leaf-item">
+                                                      <span style={{ fontWeight: 800, color: '#047857' }}>↳ +1 Recruit:</span>
+                                                      <span style={{ fontWeight: 700 }}>{rName}</span>
+                                                      <span style={{ color: '#64748b' }}>({rItem.contact || 'No phone'} · {rItem.sector_category || 'General'})</span>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* Open Coordinator Slots */}
+                        {modalShowOpenSlots && networkActiveSubLeaderModal.coordinatorsCount < networkActiveSubLeaderModal.coordinatorQuota && (
+                          <div style={{ marginTop: 10 }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: 8, textTransform: 'uppercase' }}>
+                              Open Coordinator Positions ({networkActiveSubLeaderModal.coordinatorQuota - networkActiveSubLeaderModal.coordinatorsCount} Remaining):
+                            </div>
+                            {Array.from({ length: networkActiveSubLeaderModal.coordinatorQuota - networkActiveSubLeaderModal.coordinatorsCount }).map((_, oIdx) => {
+                              const posNum = networkActiveSubLeaderModal.coordinatorsCount + oIdx + 1;
+                              return (
+                                <div key={posNum} className="open-coord-slot-row">
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div className="subleader-slot-badge" style={{ width: 24, height: 24, fontSize: '0.7rem' }}>
+                                      C{posNum}
+                                    </div>
+                                    <span>Coordinator Position #{posNum} · Open Position</span>
+                                  </div>
+                                  <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                                    Target: {activeBrgyConfig.memberQuota} Members
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
