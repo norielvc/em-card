@@ -23,9 +23,9 @@ import {
   ShoppingBag, Package, Coins, Pill, Droplets, Banknote, Target, HelpCircle, Table
 } from 'lucide-react';
 
-// 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays (Option 1: 20-8-1 Campaign Blueprint)
+// 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays (Campaign Blueprint: 20-9-1)
 const BARANGAY_VOTER_DATA = {
-  'Santol': { totalVoters: 10696, target60: 6418, subLeaderTarget: 18, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1, hasOfficialRecord: true },
+  'Santol': { totalVoters: 10696, target60: 6418, subLeaderTarget: 18, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: true },
   'Panginay': { totalVoters: 8918, target60: 5351, subLeaderTarget: 15, coordinatorQuota: 14, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
   'Borol 1st': { totalVoters: 7806, target60: 4684, subLeaderTarget: 10, coordinatorQuota: 15, memberQuota: 15, recruitQuota: 1, hasOfficialRecord: true },
   'Pulong Gubat': { totalVoters: 6335, target60: 3801, subLeaderTarget: 16, coordinatorQuota: 10, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
@@ -10600,7 +10600,7 @@ export default function AdminPage() {
                               Hierarchy Categories & Mandatory Target Quotas
                             </span>
                             <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 700, background: '#ecfdf5', padding: '2px 8px', borderRadius: 999 }}>
-                              {bKey === 'Santol' ? 'Option 1 Blueprint (20 Coords × 8 Members)' : 'Tailored Multiplier Pipeline'}
+                              {bKey === 'Santol' ? `Campaign Blueprint (${coordQuota} Coords × ${memberQuota} Members)` : 'Tailored Multiplier Pipeline'}
                             </span>
                           </div>
 
@@ -10835,9 +10835,9 @@ export default function AdminPage() {
                           color: '#475569',
                           lineHeight: 1.5
                         }}>
-                          <strong style={{ color: '#0f172a' }}>🎯 Official Option 1 Formula for Brgy. Santol:</strong><br />
-                          • <strong>Target Quota Breakdown</strong>: 1 Leader + 18 Sub-Leaders (each recruits 20 Coords = 360 Coords) + 360 Coords (each recruits 8 Members = 2,880 Members) + 2,880 Members (each recruits +1 Voter = 2,880 Recruits).<br />
-                          • <strong>Total Mobilized Yield</strong>: <strong>6,516 Voters (60.9% of Santol)</strong>, ensuring the required 6,418 vote threshold is reached with a +98 vote winning cushion!
+                          <strong style={{ color: '#0f172a' }}>🎯 Official 60% Victory Model for Brgy. Santol:</strong><br />
+                          • <strong>Target Quota Breakdown</strong>: 1 Leader + 18 Sub-Leaders (each recruits 20 Coords = 360 Coords) + 360 Coords (each recruits 9 Members = 3,240 Members) + 3,240 Members (each recruits +1 Voter = 3,240 Recruits).<br />
+                          • <strong>Total Mobilized Yield</strong>: <strong>6,859 Voters (64.1% of Santol)</strong>, securing the 6,418 vote threshold with a strong <strong>+{surplus.toLocaleString()} vote winning safety buffer</strong>!
                         </div>
                       )}
                     </div>
