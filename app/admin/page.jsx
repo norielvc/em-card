@@ -8899,16 +8899,42 @@ export default function AdminPage() {
                   />
                 </div>
 
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
+                  <span style={{ fontSize: '0.76rem', color: '#047857', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <CheckCircle size={13} /> Showing Approved Members Only
+                  </span>
+                  <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                    Brgy. {appointingSlot.barangay}
+                  </span>
+                </div>
+
                 <div style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
                   {(() => {
                     const query = appointSearch.trim().toLowerCase();
-                    const pool = approvedRegs.filter(r => {
+                    const targetBrgy = (appointingSlot.barangay || '').toLowerCase();
+
+                    // Track already appointed leaders so they don't appear in other slots
+                    const alreadyAppointedNames = new Set(
+                      subLeaderSlots
+                        .filter(s => s.isAssigned && s.slotNumber !== appointingSlot.slotNumber)
+                        .map(s => (s.leaderName || '').toLowerCase().trim())
+                    );
+
+                    // STRICT FILTER: Must be status === 'Approved', in this barangay, and not yet assigned
+                    const pool = (allRegs || []).filter(r => {
+                      const isApproved = (r.status || '').trim().toLowerCase() === 'approved';
+                      if (!isApproved) return false;
+
                       const rBrgy = (r.barangay || '').toLowerCase();
-                      const matchBrgy = rBrgy.includes(appointingSlot.barangay.toLowerCase());
-                      const name = getResidentName(r).toLowerCase();
+                      if (!rBrgy.includes(targetBrgy)) return false;
+
+                      const name = getResidentName(r).toLowerCase().trim();
+                      if (alreadyAppointedNames.has(name)) return false;
+
+                      if (!query) return true;
                       const contact = (r.contact || '').toLowerCase();
-                      if (!query) return matchBrgy;
-                      return (matchBrgy || query.length > 2) && (name.includes(query) || contact.includes(query));
+                      const emNo = (r.em_card_no || '').toLowerCase();
+                      return name.includes(query) || contact.includes(query) || emNo.includes(query);
                     });
 
                     if (pool.length === 0) {
@@ -8916,13 +8942,15 @@ export default function AdminPage() {
                         <div className="network-empty-state" style={{ padding: 24 }}>
                           <Users size={28} style={{ opacity: 0.3, marginBottom: 6 }} />
                           <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>
-                            {appointSearch ? `No registered members match "${appointSearch}".` : `No approved members found in Brgy. ${appointingSlot.barangay}.`}
+                            {appointSearch 
+                              ? `No approved members match "${appointSearch}".` 
+                              : `No approved members found in Brgy. ${appointingSlot.barangay}.`}
                           </p>
                         </div>
                       );
                     }
 
-                    return pool.slice(0, 20).map(member => {
+                    return pool.slice(0, 30).map(member => {
                       const mName = getResidentName(member);
                       const directCount = getChildren(mName).length;
                       return (
@@ -8942,17 +8970,34 @@ export default function AdminPage() {
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
                             <div style={{ 
-                              width: 36, height: 36, borderRadius: '50%', background: '#eff6ff', color: '#2563eb',
-                              fontWeight: 800, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 
+                              width: 36, height: 36, borderRadius: '50%', background: '#ecfdf5', color: '#047857',
+                              fontWeight: 800, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                              border: '1.5px solid #a7f3d0'
                             }}>
                               {getInitials(mName)}
                             </div>
                             <div style={{ minWidth: 0, flex: 1 }}>
-                              <strong style={{ fontSize: '0.88rem', color: '#0f172a', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {mName}
-                              </strong>
-                              <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block' }}>
-                                {member.barangay || '-'} {member.purok ? `· ${member.purok}` : ''} {directCount > 0 ? `· 👥 ${directCount} recruits` : ''}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <strong style={{ fontSize: '0.88rem', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {mName}
+                                </strong>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 3,
+                                  background: '#ecfdf5',
+                                  color: '#047857',
+                                  border: '1px solid #a7f3d0',
+                                  borderRadius: 999,
+                                  padding: '1px 7px',
+                                  fontSize: '0.66rem',
+                                  fontWeight: 700
+                                }}>
+                                  ✓ Approved Member
+                                </span>
+                              </div>
+                              <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', marginTop: 2 }}>
+                                {member.barangay || '-'} {member.purok ? `· Purok ${member.purok}` : ''} {member.em_card_no ? `· 💳 ${member.em_card_no}` : ''} {directCount > 0 ? `· 👥 ${directCount} recruits` : ''}
                               </span>
                             </div>
                           </div>
