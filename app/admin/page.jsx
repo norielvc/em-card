@@ -10429,45 +10429,6 @@ export default function AdminPage() {
 
               {/* Body */}
               <div className="how-it-works-body">
-                {/* Strategic Callout Cards */}
-                <div className="how-it-works-callouts-grid">
-                  <div className="how-it-works-callout-card">
-                    <div className="how-it-works-callout-title">
-                      <div className="how-it-works-callout-icon">
-                        <Target size={14} color="#059669" />
-                      </div>
-                      Why the 60% Victory Target?
-                    </div>
-                    <p className="how-it-works-callout-desc">
-                      In Philippine municipal elections, capturing <strong>60% of registered COMELEC voters</strong> guarantees a decisive supermajority that insulates the campaign against turnout variations and opposition ticket splits.
-                    </p>
-                  </div>
-
-                  <div className="how-it-works-callout-card">
-                    <div className="how-it-works-callout-title">
-                      <div className="how-it-works-callout-icon">
-                        <Network size={14} color="#0f172a" />
-                      </div>
-                      The 4-Tier Multiplier Principle
-                    </div>
-                    <p className="how-it-works-callout-desc">
-                      Instead of overwhelming canvassers, the model cascades manageable quotas: Sub-Leaders recruit Coordinators, Coordinators recruit Members, and each Member mobilizes <strong>1 household voter (+1)</strong>.
-                    </p>
-                  </div>
-
-                  <div className="how-it-works-callout-card">
-                    <div className="how-it-works-callout-title">
-                      <div className="how-it-works-callout-icon">
-                        <ShieldCheck size={14} color="#059669" />
-                      </div>
-                      Verified Registry Authentication
-                    </div>
-                    <p className="how-it-works-callout-desc">
-                      Every enrolled resident is authenticated against official Balagtas registered voter records with QR tracking, eliminating duplicates and securing verifiable precinct-level downline turnout.
-                    </p>
-                  </div>
-                </div>
-
                 {/* Barangay Tabs Navigation */}
                 <div className="how-it-works-nav-wrapper">
                   <div className="how-it-works-nav-header">
