@@ -8261,21 +8261,47 @@ export default function AdminPage() {
                     className={`subleader-filter-pill ${subLeaderFilterStatus === 'all' ? 'active' : ''}`}
                     onClick={() => setSubLeaderFilterStatus('all')}
                   >
-                    All Positions ({subLeaderSlots.length})
+                    All ({subLeaderSlots.length})
                   </button>
                   <button 
                     type="button" 
-                    className={`subleader-filter-pill ${subLeaderFilterStatus === 'appointed' ? 'active' : ''}`}
-                    onClick={() => setSubLeaderFilterStatus('appointed')}
+                    className={`subleader-filter-pill ${subLeaderFilterStatus === 'on_track' ? 'active' : ''}`}
+                    onClick={() => setSubLeaderFilterStatus('on_track')}
+                    title="Teams that actively recruited voters in the last 7 days"
                   >
-                    ✓ Appointed ({activeSubLeadersCount})
+                    🟢 Active ({subLeaderSlots.filter(s => s.healthStatus === 'on_track').length})
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`subleader-filter-pill ${subLeaderFilterStatus === 'bottleneck' ? 'active' : ''}`}
+                    onClick={() => setSubLeaderFilterStatus('bottleneck')}
+                    title="Has coordinators, but waiting for them to recruit members"
+                  >
+                    🟡 Needs Members ({subLeaderSlots.filter(s => s.healthStatus === 'bottleneck').length})
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`subleader-filter-pill ${subLeaderFilterStatus === 'dormant' ? 'active' : ''}`}
+                    onClick={() => setSubLeaderFilterStatus('dormant')}
+                    title="0 recruits so far. Needs a follow-up call."
+                  >
+                    🔴 No Recruits ({subLeaderSlots.filter(s => s.healthStatus === 'dormant').length})
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`subleader-filter-pill ${subLeaderFilterStatus === 'met' ? 'active' : ''}`}
+                    onClick={() => setSubLeaderFilterStatus('met')}
+                    title="100% quota achieved"
+                  >
+                    ✓ Quota Reached ({subLeaderSlots.filter(s => s.healthStatus === 'met').length})
                   </button>
                   <button 
                     type="button" 
                     className={`subleader-filter-pill ${subLeaderFilterStatus === 'unassigned' ? 'active' : ''}`}
                     onClick={() => setSubLeaderFilterStatus('unassigned')}
+                    title="Vacant slots ready for appointment"
                   >
-                    ⚪ Open Slots ({subLeaderSlots.length - activeSubLeadersCount})
+                    ⚪ Vacant ({subLeaderSlots.filter(s => !s.isAssigned).length})
                   </button>
                 </div>
 
@@ -8314,6 +8340,40 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {/* User-Friendly Campaign Status Guide */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                padding: '9px 14px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px 18px',
+                alignItems: 'center',
+                fontSize: '0.75rem',
+                color: '#475569'
+              }}>
+                <div style={{ fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Info size={13} color="#2563eb" /> Status Guide:
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span className="cascade-health-badge on_track" style={{ padding: '2px 7px' }}>🟢 Active</span>
+                  <span><strong>Moving fast:</strong> Recruited voters this week</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span className="cascade-health-badge bottleneck" style={{ padding: '2px 7px' }}>🟡 Needs Members</span>
+                  <span><strong>Waiting for members:</strong> Has coordinators, waiting for them to list voters</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span className="cascade-health-badge dormant" style={{ padding: '2px 7px' }}>🔴 No Recruits</span>
+                  <span><strong>Needs follow-up:</strong> 0 recruits yet, call to assist</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span className="cascade-health-badge met" style={{ padding: '2px 7px' }}>✓ Quota Reached</span>
+                  <span><strong>Target complete:</strong> 100% full!</span>
+                </div>
+              </div>
+
               {!activeBrgyConfig.hasOfficialRecord && (
                 <div style={{
                   background: '#f8fafc',
@@ -8338,6 +8398,7 @@ export default function AdminPage() {
                 const filteredSlots = subLeaderSlots.filter(slot => {
                   if (subLeaderFilterStatus === 'appointed' && !slot.isAssigned) return false;
                   if (subLeaderFilterStatus === 'unassigned' && slot.isAssigned) return false;
+                  if (['on_track', 'bottleneck', 'dormant', 'met'].includes(subLeaderFilterStatus) && slot.healthStatus !== subLeaderFilterStatus) return false;
                   if (subLeaderSearchQuery.trim()) {
                     const q = subLeaderSearchQuery.toLowerCase().trim();
                     if (slot.isAssigned) {
@@ -8417,11 +8478,20 @@ export default function AdminPage() {
                                 </td>
                                 <td style={{ padding: '10px 12px' }}>
                                   {slot.isAssigned ? (
-                                    <span className={`cascade-health-badge ${slot.healthStatus}`}>
-                                      {slot.healthStatus === 'met' && '✓ Completed'}
+                                    <span 
+                                      className={`cascade-health-badge ${slot.healthStatus}`}
+                                      title={
+                                        slot.healthStatus === 'met' ? '100% target reached! Complete roster of voters.' :
+                                        slot.healthStatus === 'on_track' ? 'Actively recruiting! Added new voters this week.' :
+                                        slot.healthStatus === 'bottleneck' ? 'Has coordinators, waiting for them to recruit members.' :
+                                        slot.healthStatus === 'dormant' ? '0 recruits so far. Needs a follow-up call.' :
+                                        'Growing cluster'
+                                      }
+                                    >
+                                      {slot.healthStatus === 'met' && '✓ Quota Reached'}
                                       {slot.healthStatus === 'on_track' && '🟢 Active'}
-                                      {slot.healthStatus === 'bottleneck' && '🟡 Bottleneck'}
-                                      {slot.healthStatus === 'dormant' && '🔴 Stalled'}
+                                      {slot.healthStatus === 'bottleneck' && '🟡 Needs Members'}
+                                      {slot.healthStatus === 'dormant' && '🔴 No Recruits'}
                                       {slot.healthStatus === 'progress' && '🔵 Growing'}
                                     </span>
                                   ) : (
@@ -8533,11 +8603,20 @@ export default function AdminPage() {
                                   {slot.isAssigned ? slot.leaderName : `Sub-Leader Position #${slot.slotNumber}`}
                                 </div>
                                 {slot.isAssigned && (
-                                  <span className={`cascade-health-badge ${slot.healthStatus}`}>
-                                    {slot.healthStatus === 'met' && '✓ Quota Met'}
+                                  <span 
+                                    className={`cascade-health-badge ${slot.healthStatus}`}
+                                    title={
+                                      slot.healthStatus === 'met' ? '100% target reached! Complete roster of voters.' :
+                                      slot.healthStatus === 'on_track' ? 'Actively recruiting! Added new voters this week.' :
+                                      slot.healthStatus === 'bottleneck' ? 'Has coordinators, waiting for them to recruit members.' :
+                                      slot.healthStatus === 'dormant' ? '0 recruits so far. Needs a follow-up call.' :
+                                      'Growing cluster'
+                                    }
+                                  >
+                                    {slot.healthStatus === 'met' && '✓ Quota Reached'}
                                     {slot.healthStatus === 'on_track' && '🟢 Active'}
-                                    {slot.healthStatus === 'bottleneck' && '🟡 Bottleneck'}
-                                    {slot.healthStatus === 'dormant' && '🔴 Stalled'}
+                                    {slot.healthStatus === 'bottleneck' && '🟡 Needs Members'}
+                                    {slot.healthStatus === 'dormant' && '🔴 No Recruits'}
                                     {slot.healthStatus === 'progress' && '🔵 Growing'}
                                   </span>
                                 )}
