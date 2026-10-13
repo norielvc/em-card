@@ -8253,7 +8253,7 @@ export default function AdminPage() {
                 </span>
               </div>
 
-              {/* High-Efficiency Filter Toolbar */}
+              {/* Modern Campaign Controls & Filter Toolbar */}
               <div className="subleaders-toolbar">
                 <div className="subleaders-filter-pills">
                   <button 
@@ -8275,7 +8275,7 @@ export default function AdminPage() {
                     type="button" 
                     className={`subleader-filter-pill ${subLeaderFilterStatus === 'bottleneck' ? 'active' : ''}`}
                     onClick={() => setSubLeaderFilterStatus('bottleneck')}
-                    title="Has coordinators, but waiting for them to recruit members"
+                    title="Has coordinators, waiting for them to recruit members"
                   >
                     🟡 Needs Members ({subLeaderSlots.filter(s => s.healthStatus === 'bottleneck').length})
                   </button>
@@ -8293,7 +8293,7 @@ export default function AdminPage() {
                     onClick={() => setSubLeaderFilterStatus('met')}
                     title="100% quota achieved"
                   >
-                    ✓ Quota Reached ({subLeaderSlots.filter(s => s.healthStatus === 'met').length})
+                    ✓ Quota Met ({subLeaderSlots.filter(s => s.healthStatus === 'met').length})
                   </button>
                   <button 
                     type="button" 
@@ -8337,40 +8337,6 @@ export default function AdminPage() {
                       Table
                     </button>
                   </div>
-                </div>
-              </div>
-
-              {/* User-Friendly Campaign Status Guide */}
-              <div style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: 8,
-                padding: '9px 14px',
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '8px 18px',
-                alignItems: 'center',
-                fontSize: '0.75rem',
-                color: '#475569'
-              }}>
-                <div style={{ fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Info size={13} color="#2563eb" /> Status Guide:
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span className="cascade-health-badge on_track" style={{ padding: '2px 7px' }}>🟢 Active</span>
-                  <span><strong>Moving fast:</strong> Recruited voters this week</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span className="cascade-health-badge bottleneck" style={{ padding: '2px 7px' }}>🟡 Needs Members</span>
-                  <span><strong>Waiting for members:</strong> Has coordinators, waiting for them to list voters</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span className="cascade-health-badge dormant" style={{ padding: '2px 7px' }}>🔴 No Recruits</span>
-                  <span><strong>Needs follow-up:</strong> 0 recruits yet, call to assist</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span className="cascade-health-badge met" style={{ padding: '2px 7px' }}>✓ Quota Reached</span>
-                  <span><strong>Target complete:</strong> 100% full!</span>
                 </div>
               </div>
 
@@ -8420,19 +8386,17 @@ export default function AdminPage() {
 
                 if (subLeaderViewMode === 'table') {
                   return (
-                    <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', background: '#ffffff' }}>
+                    <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 10, background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', background: '#ffffff' }}>
                         <thead>
                           <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', textAlign: 'left' }}>
-                            <th style={{ padding: '10px 12px', width: 50 }}>Slot</th>
-                            <th style={{ padding: '10px 12px' }}>Sub-Leader</th>
-                            <th style={{ padding: '10px 12px' }}>Cascade Health</th>
-                            <th style={{ padding: '10px 12px' }}>Tier 1: Coords</th>
-                            <th style={{ padding: '10px 12px' }}>Tier 2: Members</th>
-                            <th style={{ padding: '10px 12px' }}>Tier 3: +1s</th>
-                            <th style={{ padding: '10px 12px' }}>Velocity</th>
-                            <th style={{ padding: '10px 12px' }}>Cluster Votes</th>
-                            <th style={{ padding: '10px 12px', textAlign: 'right' }}>Action</th>
+                            <th style={{ padding: '12px 14px', width: 60 }}>Slot</th>
+                            <th style={{ padding: '12px 14px' }}>Sub-Leader</th>
+                            <th style={{ padding: '12px 14px' }}>Status</th>
+                            <th style={{ padding: '12px 14px' }}>Coordinators Quota</th>
+                            <th style={{ padding: '12px 14px' }}>Citizen Members</th>
+                            <th style={{ padding: '12px 14px' }}>Total Mobilized</th>
+                            <th style={{ padding: '12px 14px', textAlign: 'right' }}>Action</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -8452,43 +8416,43 @@ export default function AdminPage() {
                                   }
                                 }}
                               >
-                                <td style={{ padding: '10px 12px', fontWeight: 800, color: '#64748b' }}>
+                                <td style={{ padding: '12px 14px', fontWeight: 800, color: '#64748b' }}>
                                   #{slot.slotNumber}
                                 </td>
-                                <td style={{ padding: '10px 12px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <td style={{ padding: '12px 14px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                     <div style={{ 
-                                      width: 28, height: 28, borderRadius: '50%', 
-                                      background: slot.isAssigned ? '#eff6ff' : '#f1f5f9', 
-                                      color: slot.isAssigned ? '#2563eb' : '#64748b', 
+                                      width: 32, height: 32, borderRadius: 10, 
+                                      background: slot.isAssigned ? 'linear-gradient(135deg, #10b981 0%, #047857 100%)' : '#f1f5f9', 
+                                      color: slot.isAssigned ? '#ffffff' : '#64748b', 
                                       display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                                      fontWeight: 800, fontSize: '0.72rem' 
+                                      fontWeight: 800, fontSize: '0.76rem', flexShrink: 0
                                     }}>
                                       {slot.isAssigned ? getInitials(slot.leaderName) : '?'}
                                     </div>
                                     <div>
-                                      <strong style={{ color: '#0f172a', display: 'block' }}>
+                                      <strong style={{ color: '#0f172a', display: 'block', fontSize: '0.86rem' }}>
                                         {slot.isAssigned ? slot.leaderName : `Sub-Leader Position #${slot.slotNumber}`}
                                       </strong>
-                                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                      <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
                                         {slot.isAssigned ? (slot.leaderSector || `Brgy. ${networkBarangayFilter}`) : 'Vacant Position'}
                                       </span>
                                     </div>
                                   </div>
                                 </td>
-                                <td style={{ padding: '10px 12px' }}>
+                                <td style={{ padding: '12px 14px' }}>
                                   {slot.isAssigned ? (
                                     <span 
                                       className={`cascade-health-badge ${slot.healthStatus}`}
                                       title={
-                                        slot.healthStatus === 'met' ? '100% target reached! Complete roster of voters.' :
-                                        slot.healthStatus === 'on_track' ? 'Actively recruiting! Added new voters this week.' :
-                                        slot.healthStatus === 'bottleneck' ? 'Has coordinators, waiting for them to recruit members.' :
-                                        slot.healthStatus === 'dormant' ? '0 recruits so far. Needs a follow-up call.' :
-                                        'Growing cluster'
+                                        slot.healthStatus === 'met' ? '100% quota achieved!' :
+                                        slot.healthStatus === 'on_track' ? 'Recruiting new voters this week' :
+                                        slot.healthStatus === 'bottleneck' ? 'Has coordinators, waiting for members' :
+                                        slot.healthStatus === 'dormant' ? '0 recruits so far' :
+                                        'Growing team'
                                       }
                                     >
-                                      {slot.healthStatus === 'met' && '✓ Quota Reached'}
+                                      {slot.healthStatus === 'met' && '✓ Quota Met'}
                                       {slot.healthStatus === 'on_track' && '🟢 Active'}
                                       {slot.healthStatus === 'bottleneck' && '🟡 Needs Members'}
                                       {slot.healthStatus === 'dormant' && '🔴 No Recruits'}
@@ -8498,54 +8462,37 @@ export default function AdminPage() {
                                     <span className="cascade-health-badge open">⚪ Vacant</span>
                                   )}
                                 </td>
-                                <td style={{ padding: '10px 12px' }}>
+                                <td style={{ padding: '12px 14px' }}>
                                   {slot.isAssigned ? (
-                                    <div>
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', gap: 8 }}>
+                                    <div style={{ maxWidth: 140 }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: 3 }}>
                                         <span><strong>{slot.coordinatorsCount}</strong> / {slot.coordinatorQuota}</span>
-                                        <span style={{ color: '#059669', fontWeight: 600 }}>({slot.activeCoordinatorsCount} act)</span>
+                                        <span style={{ color: '#64748b' }}>{coordPct}%</span>
                                       </div>
-                                      <div style={{ width: 100, height: 4, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden', marginTop: 3 }}>
-                                        <div style={{ width: `${Math.max(3, coordPct)}%`, height: '100%', background: '#059669' }} />
-                                      </div>
-                                    </div>
-                                  ) : '-'}
-                                </td>
-                                <td style={{ padding: '10px 12px' }}>
-                                  {slot.isAssigned ? (
-                                    <div>
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', gap: 8 }}>
-                                        <span><strong>{slot.totalMembersCount}</strong> / {slot.memberQuota}</span>
-                                        <span style={{ fontWeight: 700 }}>{memPct}%</span>
-                                      </div>
-                                      <div style={{ width: 100, height: 4, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden', marginTop: 3 }}>
-                                        <div style={{ width: `${Math.max(3, memPct)}%`, height: '100%', background: '#3b82f6' }} />
+                                      <div style={{ width: '100%', height: 6, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden' }}>
+                                        <div style={{ width: `${Math.max(4, coordPct)}%`, height: '100%', background: coordPct >= 100 ? '#059669' : '#10b981' }} />
                                       </div>
                                     </div>
-                                  ) : '-'}
+                                  ) : (
+                                    <span style={{ color: '#94a3b8', fontSize: '0.78rem' }}>Target: {slot.coordinatorQuota}</span>
+                                  )}
                                 </td>
-                                <td style={{ padding: '10px 12px' }}>
+                                <td style={{ padding: '12px 14px' }}>
                                   {slot.isAssigned ? (
-                                    <span style={{ fontWeight: 700, color: '#7c3aed' }}>
-                                      {slot.totalRecruitsCount}
+                                    <span style={{ fontSize: '0.8rem', color: '#334155', fontWeight: 600 }}>
+                                      {slot.totalMembersCount} / {slot.memberQuota} ({memPct}%)
                                     </span>
                                   ) : '-'}
                                 </td>
-                                <td style={{ padding: '10px 12px' }}>
-                                  {slot.isAssigned ? (
-                                    <span style={{ fontSize: '0.74rem', color: slot.recent7DaysRecruits > 0 ? '#047857' : '#64748b', fontWeight: 700 }}>
-                                      {slot.recent7DaysRecruits > 0 ? `⚡ +${slot.recent7DaysRecruits}/wk` : (slot.daysSinceLastRecruit !== null ? `🕒 ${slot.daysSinceLastRecruit}d ago` : '⚪ Idle')}
-                                    </span>
-                                  ) : '-'}
-                                </td>
-                                <td style={{ padding: '10px 12px', fontWeight: 800, color: '#047857' }}>
+                                <td style={{ padding: '12px 14px', fontWeight: 800, color: '#047857', fontSize: '0.88rem' }}>
                                   {slot.isAssigned ? `${slot.totalClusterVotes} Votes` : '0 Votes'}
                                 </td>
-                                <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                                <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                                   {slot.isAssigned ? (
                                     <button 
                                       type="button" 
                                       className="btn btn-xs btn-outline-emerald"
+                                      style={{ padding: '4px 12px', fontSize: '0.76rem', borderRadius: 6 }}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setNetworkActiveSubLeaderModal(slot);
@@ -8557,6 +8504,7 @@ export default function AdminPage() {
                                     <button 
                                       type="button" 
                                       className="btn btn-xs btn-outline-secondary"
+                                      style={{ padding: '4px 10px', fontSize: '0.76rem', borderRadius: 6 }}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
@@ -8579,147 +8527,140 @@ export default function AdminPage() {
                 return (
                   <div className="subleaders-grid">
                     {filteredSlots.map((slot) => {
-                      return (
-                        <div 
-                          key={slot.slotNumber}
-                          className={`subleader-card ${slot.isAssigned ? 'assigned' : 'unassigned'}`}
-                          onClick={() => {
-                            if (slot.isAssigned) {
-                              setNetworkActiveSubLeaderModal(slot);
-                            } else {
+                      const coordPct = Math.min(100, Math.round((slot.coordinatorsCount / slot.coordinatorQuota) * 100));
+
+                      if (!slot.isAssigned) {
+                        return (
+                          <div 
+                            key={slot.slotNumber}
+                            className="subleader-card unassigned"
+                            onClick={() => {
                               setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
                               setAppointSearch('');
-                            }
-                          }}
-                        >
-                          <div className="subleader-card-top">
-                            <div className="subleader-slot-badge">#{slot.slotNumber}</div>
-                            <div className="subleader-avatar">
-                              {slot.isAssigned ? getInitials(slot.leaderName) : '?'}
+                            }}
+                          >
+                            <div className="subleader-card-header-bar">
+                              <span className="subleader-slot-pill vacant">#{slot.slotNumber}</span>
+                              <span className="cascade-health-badge open">⚪ Open Slot</span>
                             </div>
-                            <div className="subleader-info">
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                                <div className="subleader-name">
-                                  {slot.isAssigned ? slot.leaderName : `Sub-Leader Position #${slot.slotNumber}`}
-                                </div>
-                                {slot.isAssigned && (
-                                  <span 
-                                    className={`cascade-health-badge ${slot.healthStatus}`}
-                                    title={
-                                      slot.healthStatus === 'met' ? '100% target reached! Complete roster of voters.' :
-                                      slot.healthStatus === 'on_track' ? 'Actively recruiting! Added new voters this week.' :
-                                      slot.healthStatus === 'bottleneck' ? 'Has coordinators, waiting for them to recruit members.' :
-                                      slot.healthStatus === 'dormant' ? '0 recruits so far. Needs a follow-up call.' :
-                                      'Growing cluster'
-                                    }
-                                  >
-                                    {slot.healthStatus === 'met' && '✓ Quota Reached'}
-                                    {slot.healthStatus === 'on_track' && '🟢 Active'}
-                                    {slot.healthStatus === 'bottleneck' && '🟡 Needs Members'}
-                                    {slot.healthStatus === 'dormant' && '🔴 No Recruits'}
-                                    {slot.healthStatus === 'progress' && '🔵 Growing'}
-                                  </span>
-                                )}
+
+                            <div className="subleader-vacant-center">
+                              <div className="subleader-avatar-modern vacant">
+                                <UserPlus size={20} color="#94a3b8" />
                               </div>
-                              <div className="subleader-sub">
-                                <MapPin size={11} /> Brgy. {networkBarangayFilter} · {slot.isAssigned ? (slot.leaderSector || 'Appointed') : 'Pending Appointment'}
+                              <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#334155', marginTop: 4 }}>
+                                Sub-Leader Position #{slot.slotNumber}
+                              </div>
+                              <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                                Target Quota: <strong>{slot.coordinatorQuota} Coordinators</strong>
                               </div>
                             </div>
-                          </div>
 
-                          {slot.isAssigned ? (
-                            <div className="subleader-triple-meters">
-                              {/* Tier 1: Coordinators */}
-                              <div className="micro-meter-row">
-                                <div className="micro-meter-lbl">
-                                  <span>Tier 1 · Coords</span>
-                                  <strong>
-                                    {slot.coordinatorsCount} / {slot.coordinatorQuota} 
-                                    <span style={{ color: '#059669', fontSize: '0.66rem', marginLeft: 4 }}>({slot.activeCoordinatorsCount} active)</span>
-                                  </strong>
-                                </div>
-                                <div className="micro-meter-track">
-                                  <div 
-                                    className="micro-meter-fill t1" 
-                                    style={{ width: `${Math.min(100, Math.max(3, (slot.coordinatorsCount / slot.coordinatorQuota) * 100))}%` }} 
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Tier 2: Citizen Members */}
-                              <div className="micro-meter-row">
-                                <div className="micro-meter-lbl">
-                                  <span>Tier 2 · Members</span>
-                                  <strong>{slot.totalMembersCount} / {slot.memberQuota}</strong>
-                                </div>
-                                <div className="micro-meter-track">
-                                  <div 
-                                    className="micro-meter-fill t2" 
-                                    style={{ width: `${Math.min(100, Math.max(3, (slot.totalMembersCount / slot.memberQuota) * 100))}%` }} 
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Tier 3: +1 Recruits */}
-                              <div className="micro-meter-row">
-                                <div className="micro-meter-lbl">
-                                  <span>Tier 3 · +1 Recruits</span>
-                                  <strong>{slot.totalRecruitsCount} Recruited</strong>
-                                </div>
-                                <div className="micro-meter-track">
-                                  <div 
-                                    className="micro-meter-fill t3" 
-                                    style={{ width: `${Math.min(100, Math.max(3, slot.totalMembersCount > 0 ? (slot.totalRecruitsCount / slot.totalMembersCount) * 100 : 0))}%` }} 
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div style={{
-                              background: '#f8fafc',
-                              border: '1px dashed #cbd5e1',
-                              borderRadius: 8,
-                              padding: '12px 10px',
-                              textAlign: 'center',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'center',
-                              gap: 6
-                            }}>
-                              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Position Vacant</span>
+                            <div style={{ marginTop: 'auto', paddingTop: 6 }}>
                               <button 
                                 type="button" 
-                                className="btn btn-xs btn-outline-emerald"
-                                style={{ fontSize: '0.72rem', padding: '3px 8px' }}
+                                className="subleader-vacant-btn"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
                                   setAppointSearch('');
                                 }}
                               >
-                                <Plus size={11} style={{ marginRight: 2 }} /> Appoint Sub-Leader
+                                <Plus size={14} /> Appoint Sub-Leader
                               </button>
                             </div>
-                          )}
+                          </div>
+                        );
+                      }
 
-                          <div className="subleader-card-footer">
-                            {slot.isAssigned ? (
-                              <>
-                                <span style={{ fontSize: '0.72rem', color: slot.recent7DaysRecruits > 0 ? '#047857' : '#64748b', fontWeight: 700 }}>
-                                  {slot.recent7DaysRecruits > 0 ? `⚡ +${slot.recent7DaysRecruits} this wk` : (slot.daysSinceLastRecruit !== null ? `🕒 ${slot.daysSinceLastRecruit}d ago` : '⚪ Idle')}
+                      return (
+                        <div 
+                          key={slot.slotNumber}
+                          className="subleader-card assigned"
+                          onClick={() => setNetworkActiveSubLeaderModal(slot)}
+                        >
+                          {/* Top Meta Bar */}
+                          <div className="subleader-card-header-bar">
+                            <span className="subleader-slot-pill">#{slot.slotNumber}</span>
+                            <span 
+                              className={`cascade-health-badge ${slot.healthStatus}`}
+                              title={
+                                slot.healthStatus === 'met' ? '100% quota achieved!' :
+                                slot.healthStatus === 'on_track' ? 'Recruiting new voters this week' :
+                                slot.healthStatus === 'bottleneck' ? 'Has coordinators, waiting for members' :
+                                slot.healthStatus === 'dormant' ? '0 recruits so far' :
+                                'Growing team'
+                              }
+                            >
+                              {slot.healthStatus === 'met' && '✓ Quota Met'}
+                              {slot.healthStatus === 'on_track' && '🟢 Active'}
+                              {slot.healthStatus === 'bottleneck' && '🟡 Needs Members'}
+                              {slot.healthStatus === 'dormant' && '🔴 No Recruits'}
+                              {slot.healthStatus === 'progress' && '🔵 Growing'}
+                            </span>
+                          </div>
+
+                          {/* Profile Row */}
+                          <div className="subleader-profile-row">
+                            <div className="subleader-avatar-modern">
+                              {getInitials(slot.leaderName)}
+                            </div>
+                            <div className="subleader-details-col">
+                              <div className="subleader-name-modern" title={slot.leaderName}>
+                                {slot.leaderName}
+                              </div>
+                              <div className="subleader-sub-modern">
+                                <MapPin size={11} color="#64748b" /> Brgy. {networkBarangayFilter} · {slot.leaderSector || 'Appointed'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Metrics & Quota Tracker */}
+                          <div className="subleader-metrics-container">
+                            <div className="subleader-tracker-box">
+                              <div className="subleader-tracker-header">
+                                <span className="subleader-tracker-title">Coordinators Quota</span>
+                                <span className="subleader-tracker-nums">
+                                  <strong>{slot.coordinatorsCount}</strong> / {slot.coordinatorQuota}
+                                  <small>({coordPct}%)</small>
                                 </span>
-                                <span style={{ fontWeight: 800, color: '#047857', display: 'flex', alignItems: 'center', gap: 2 }}>
-                                  {slot.totalClusterVotes} Total Votes →
+                              </div>
+                              <div className="subleader-tracker-bar">
+                                <div 
+                                  className="subleader-tracker-fill" 
+                                  style={{ width: `${Math.max(coordPct > 0 ? coordPct : 2, 2)}%` }} 
+                                />
+                              </div>
+                            </div>
+
+                            <div className="subleader-metrics-duo">
+                              <div className="subleader-metric-cell">
+                                <span className="subleader-metric-label">Citizen Members</span>
+                                <span className="subleader-metric-val">
+                                  {slot.totalMembersCount} <small style={{ fontSize: '0.72rem', color: '#64748b' }}>/ {slot.memberQuota}</small>
                                 </span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="subleader-status-chip open">⚪ Vacant</span>
-                                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                                  Target: {slot.coordinatorQuota} Coords
+                              </div>
+                              <div className="subleader-metric-cell">
+                                <span className="subleader-metric-label">Mobilized</span>
+                                <span className="subleader-metric-val emerald">
+                                  {slot.totalClusterVotes} Votes
                                 </span>
-                              </>
-                            )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Footer */}
+                          <div className="subleader-card-footer-modern">
+                            <div className={`subleader-activity-pill ${slot.recent7DaysRecruits > 0 ? 'active' : ''}`}>
+                              {slot.recent7DaysRecruits > 0 ? (
+                                <>⚡ +{slot.recent7DaysRecruits} this week</>
+                              ) : (
+                                <>● Needs follow-up</>
+                              )}
+                            </div>
+                            <span className="subleader-action-link">
+                              Inspect Team <ChevronRight size={14} />
+                            </span>
                           </div>
                         </div>
                       );
