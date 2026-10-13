@@ -36250,10 +36250,44 @@ html, body {
   border: 1px solid #e2e8f0;
 }
 
-/* Modal for Sub-Leader's Coordinators Team */
+/* Modal for Sub-Leader's Coordinators Team & Appointment */
+.coordinator-modal-card,
+.appointing-modal-card {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-radius: 16px !important;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.45) !important;
+  overflow: hidden !important;
+  border: 1px solid #e2e8f0 !important;
+  margin: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
 .coordinator-modal-card {
   max-width: 720px !important;
   width: 95% !important;
+}
+
+.appointing-modal-card {
+  max-width: 560px !important;
+  width: 95% !important;
+}
+
+.coordinator-modal-card .modal-header,
+.appointing-modal-card .modal-header {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  padding: 18px 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.coordinator-modal-card .modal-body,
+.appointing-modal-card .modal-body {
+  background: #ffffff !important;
+  padding: 20px 24px !important;
 }
 
 .coordinator-list-grid {

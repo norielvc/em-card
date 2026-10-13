@@ -809,6 +809,37 @@ export default function AdminPage() {
   const [networkBarangayFilter, setNetworkBarangayFilter] = useState('Santol');
   const [networkTabMode, setNetworkTabMode] = useState('campaign'); // 'campaign' | 'trees'
   const [networkActiveSubLeaderModal, setNetworkActiveSubLeaderModal] = useState(null);
+  const [appointedSubLeaders, setAppointedSubLeaders] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('emcard_appointed_subleaders');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to parse appointed sub-leaders', e);
+      }
+    }
+    return {};
+  });
+  const [appointingSlot, setAppointingSlot] = useState(null); // { slotNumber, barangay }
+  const [appointSearch, setAppointSearch] = useState('');
+
+  const saveAppointedSubLeader = (barangay, slotNumber, leaderName) => {
+    setAppointedSubLeaders(prev => {
+      const brgyData = { ...(prev[barangay] || {}) };
+      if (!leaderName) {
+        delete brgyData[slotNumber];
+      } else {
+        brgyData[slotNumber] = leaderName;
+      }
+      const updated = { ...prev, [barangay]: brgyData };
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('emcard_appointed_subleaders', JSON.stringify(updated));
+        } catch (e) {}
+      }
+      return updated;
+    });
+  };
 
   // Messages
   const [messages, setMessages] = useState([]);
@@ -7715,12 +7746,14 @@ export default function AdminPage() {
 
     // Sub-Leader cluster slots (18 slots for Santol)
     const subLeaderTargetCount = activeBrgyConfig.subLeaderTarget;
+    const brgyAppointedMap = (appointedSubLeaders && appointedSubLeaders[networkBarangayFilter]) || {};
     const subLeaderSlots = [];
     for (let i = 0; i < subLeaderTargetCount; i++) {
-      const existing = brgyLeaderMap[i] || null;
-      if (existing) {
-        // Direct recruits of this sub-leader are their Coordinators
-        const coordinators = getChildren(existing.name);
+      const slotNum = i + 1;
+      const appointedLeaderName = brgyAppointedMap[slotNum] || null;
+      if (appointedLeaderName) {
+        // Direct recruits of this appointed sub-leader are their Coordinators
+        const coordinators = getChildren(appointedLeaderName);
         let totalClusterVotes = coordinators.length;
         const coordsWithMembers = coordinators.map(coord => {
           const coordName = getResidentName(coord);
@@ -7744,10 +7777,9 @@ export default function AdminPage() {
         });
 
         subLeaderSlots.push({
-          slotNumber: i + 1,
+          slotNumber: slotNum,
           isAssigned: true,
-          leaderName: existing.name,
-          leaderData: existing,
+          leaderName: appointedLeaderName,
           coordinatorsCount: coordinators.length,
           coordinatorQuota: activeBrgyConfig.coordinatorQuota,
           coordinators: coordsWithMembers,
@@ -7756,10 +7788,9 @@ export default function AdminPage() {
         });
       } else {
         subLeaderSlots.push({
-          slotNumber: i + 1,
+          slotNumber: slotNum,
           isAssigned: false,
           leaderName: null,
-          leaderData: null,
           coordinatorsCount: 0,
           coordinatorQuota: activeBrgyConfig.coordinatorQuota,
           coordinators: [],
@@ -7951,7 +7982,7 @@ export default function AdminPage() {
                   <span>Each Sub-Leader is responsible for recruiting at least 20 Coordinators. Click any card to inspect their team.</span>
                 </div>
                 <span className="network-status-chip">
-                  {activeSubLeadersCount} of {activeBrgyConfig.subLeaderTarget} Active Positions Filled
+                  {activeSubLeadersCount} of {activeBrgyConfig.subLeaderTarget} Appointed Positions
                 </span>
               </div>
 
@@ -7963,7 +7994,12 @@ export default function AdminPage() {
                       key={slot.slotNumber}
                       className={`subleader-card ${slot.isAssigned ? 'assigned' : 'unassigned'}`}
                       onClick={() => {
-                        if (slot.isAssigned) setNetworkActiveSubLeaderModal(slot);
+                        if (slot.isAssigned) {
+                          setNetworkActiveSubLeaderModal(slot);
+                        } else {
+                          setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
+                          setAppointSearch('');
+                        }
                       }}
                     >
                       <div className="subleader-card-top">
@@ -7973,37 +8009,69 @@ export default function AdminPage() {
                         </div>
                         <div className="subleader-info">
                           <div className="subleader-name">
-                            {slot.isAssigned ? slot.leaderName : 'Open Sub-Leader Position'}
+                            {slot.isAssigned ? slot.leaderName : `Sub-Leader Position #${slot.slotNumber}`}
                           </div>
                           <div className="subleader-sub">
-                            <MapPin size={11} /> Brgy. {networkBarangayFilter}
+                            <MapPin size={11} /> Brgy. {networkBarangayFilter} · {slot.isAssigned ? 'Appointed' : 'Pending Appointment'}
                           </div>
                         </div>
                       </div>
 
-                      <div className="subleader-quota-wrap">
-                        <div className="subleader-quota-row">
-                          <span>Coordinators Recruited:</span>
-                          <strong>{slot.coordinatorsCount} / {slot.coordinatorQuota}</strong>
+                      {slot.isAssigned ? (
+                        <div className="subleader-quota-wrap">
+                          <div className="subleader-quota-row">
+                            <span>Coordinators Recruited:</span>
+                            <strong>{slot.coordinatorsCount} / {slot.coordinatorQuota}</strong>
+                          </div>
+                          <div className="subleader-quota-track">
+                            <div 
+                              className="subleader-quota-fill" 
+                              style={{ 
+                                width: `${Math.max(2, pct)}%`,
+                                background: slot.status === 'met' ? '#059669' : '#3b82f6'
+                              }} 
+                            />
+                          </div>
                         </div>
-                        <div className="subleader-quota-track">
-                          <div 
-                            className="subleader-quota-fill" 
-                            style={{ 
-                              width: `${Math.max(2, pct)}%`,
-                              background: slot.status === 'met' ? '#059669' : '#3b82f6'
-                            }} 
-                          />
+                      ) : (
+                        <div style={{
+                          background: '#f8fafc',
+                          border: '1px dashed #cbd5e1',
+                          borderRadius: 8,
+                          padding: '10px 12px',
+                          textAlign: 'center',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 6
+                        }}>
+                          <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Pending official appointment</span>
+                          <button 
+                            type="button" 
+                            className="btn btn-sm btn-outline-emerald"
+                            style={{ fontSize: '0.74rem', padding: '3px 10px' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
+                              setAppointSearch('');
+                            }}
+                          >
+                            <Plus size={12} style={{ marginRight: 2 }} /> Appoint Sub-Leader
+                          </button>
                         </div>
-                      </div>
+                      )}
 
                       <div className="subleader-card-footer">
                         <span className={`subleader-status-chip ${slot.status}`}>
-                          {slot.status === 'met' ? '✓ Quota Met' : slot.status === 'progress' ? `In Progress (${pct}%)` : '⚪ Open Slot'}
+                          {slot.status === 'met' ? '✓ Quota Met' : slot.status === 'progress' ? `In Progress (${pct}%)` : '⚪ Pending Appointment'}
                         </span>
-                        {slot.isAssigned && (
+                        {slot.isAssigned ? (
                           <span style={{ fontWeight: 700, color: '#047857' }}>
                             {slot.totalClusterVotes} Total Votes →
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                            Target: 20 Coordinators
                           </span>
                         )}
                       </div>
@@ -8649,7 +8717,7 @@ export default function AdminPage() {
         {/* Modal for Sub-Leader's Coordinators Team */}
         {networkActiveSubLeaderModal && (
           <div className="modal-overlay" onClick={() => setNetworkActiveSubLeaderModal(null)}>
-            <div className="modal-content coordinator-modal-card" onClick={e => e.stopPropagation()}>
+            <div className="modal-card coordinator-modal-card" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div className="subleader-slot-badge" style={{ position: 'static' }}>
@@ -8664,13 +8732,29 @@ export default function AdminPage() {
                     </p>
                   </div>
                 </div>
-                <button 
-                  type="button" 
-                  className="modal-close-btn" 
-                  onClick={() => setNetworkActiveSubLeaderModal(null)}
-                >
-                  <X size={18} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-outline-danger" 
+                    style={{ fontSize: '0.74rem', padding: '4px 10px' }}
+                    onClick={() => {
+                      if (confirm(`Remove ${networkActiveSubLeaderModal.leaderName} as Sub-Leader for Slot #${networkActiveSubLeaderModal.slotNumber}?`)) {
+                        saveAppointedSubLeader(networkBarangayFilter, networkActiveSubLeaderModal.slotNumber, null);
+                        setNetworkActiveSubLeaderModal(null);
+                      }
+                    }}
+                    title="Remove this appointed sub-leader"
+                  >
+                    Unassign
+                  </button>
+                  <button 
+                    type="button" 
+                    className="modal-close-x" 
+                    onClick={() => setNetworkActiveSubLeaderModal(null)}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
 
               <div className="modal-body" style={{ padding: '16px 20px' }}>
@@ -8761,6 +8845,132 @@ export default function AdminPage() {
                       );
                     })
                   )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Appoint Sub-Leader to Slot */}
+        {appointingSlot && (
+          <div className="modal-overlay" onClick={() => setAppointingSlot(null)}>
+            <div className="modal-card appointing-modal-card" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+                    Appoint Sub-Leader · Slot #{appointingSlot.slotNumber}
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                    Brgy. {appointingSlot.barangay} · Quota: {activeBrgyConfig.coordinatorQuota} Coordinators
+                  </p>
+                </div>
+                <button type="button" className="modal-close-x" onClick={() => setAppointingSlot(null)}>
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="modal-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ margin: 0, fontSize: '0.84rem', color: '#475569', lineHeight: 1.5 }}>
+                  Select an approved member to appoint as the official Sub-Leader for this position. Their direct recruits will automatically count toward their 20 Coordinators quota.
+                </p>
+
+                <div style={{ position: 'relative' }}>
+                  <Search size={16} style={{ position: 'absolute', left: 14, top: 13, color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    style={{ 
+                      paddingLeft: 40, 
+                      paddingRight: 14,
+                      fontSize: '0.88rem', 
+                      height: 42, 
+                      background: '#f8fafc', 
+                      border: '1px solid #cbd5e1', 
+                      borderRadius: 10,
+                      width: '100%',
+                      color: '#0f172a',
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    }}
+                    placeholder="Search by resident name or contact..."
+                    value={appointSearch}
+                    onChange={e => setAppointSearch(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+
+                <div style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
+                  {(() => {
+                    const query = appointSearch.trim().toLowerCase();
+                    const pool = approvedRegs.filter(r => {
+                      const rBrgy = (r.barangay || '').toLowerCase();
+                      const matchBrgy = rBrgy.includes(appointingSlot.barangay.toLowerCase());
+                      const name = getResidentName(r).toLowerCase();
+                      const contact = (r.contact || '').toLowerCase();
+                      if (!query) return matchBrgy;
+                      return (matchBrgy || query.length > 2) && (name.includes(query) || contact.includes(query));
+                    });
+
+                    if (pool.length === 0) {
+                      return (
+                        <div className="network-empty-state" style={{ padding: 24 }}>
+                          <Users size={28} style={{ opacity: 0.3, marginBottom: 6 }} />
+                          <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>
+                            {appointSearch ? `No registered members match "${appointSearch}".` : `No approved members found in Brgy. ${appointingSlot.barangay}.`}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return pool.slice(0, 20).map(member => {
+                      const mName = getResidentName(member);
+                      const directCount = getChildren(mName).length;
+                      return (
+                        <div 
+                          key={member.id || mName}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '12px 14px',
+                            borderRadius: 10,
+                            border: '1px solid #e2e8f0',
+                            background: '#ffffff',
+                            gap: 12,
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                            <div style={{ 
+                              width: 36, height: 36, borderRadius: '50%', background: '#eff6ff', color: '#2563eb',
+                              fontWeight: 800, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 
+                            }}>
+                              {getInitials(mName)}
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <strong style={{ fontSize: '0.88rem', color: '#0f172a', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {mName}
+                              </strong>
+                              <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block' }}>
+                                {member.barangay || '-'} {member.purok ? `· ${member.purok}` : ''} {directCount > 0 ? `· 👥 ${directCount} recruits` : ''}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-emerald"
+                            style={{ fontSize: '0.76rem', padding: '6px 16px', flexShrink: 0, fontWeight: 700 }}
+                            onClick={() => {
+                              saveAppointedSubLeader(appointingSlot.barangay, appointingSlot.slotNumber, mName);
+                              setAppointingSlot(null);
+                              setAppointSearch('');
+                            }}
+                          >
+                            Appoint
+                          </button>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
