@@ -35750,10 +35750,29 @@ html, body {
 }
 
 /* === REFERRAL NETWORK 60% CAMPAIGN & OPTION 1 QUOTA STYLES === */
-.campaign-view-container {
+.campaign-view-container,
+.campaign-analytics-container {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  padding: 0 24px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.campaign-hero-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .campaign-mode-tabs {
@@ -36676,56 +36695,80 @@ html, body {
 /* Master Table and Deepdive styles */
 .analytics-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
   margin-top: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1100px) {
+  .analytics-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .analytics-metrics-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .analytics-card {
   background: #ffffff;
   border-radius: 14px;
   border: 1px solid #e2e8f0;
-  padding: 18px 20px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .analytics-card-label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
+  white-space: normal;
+  word-break: normal;
+  line-height: 1.35;
 }
 
 .analytics-card-val {
-  font-size: 1.85rem;
+  font-size: 1.65rem;
   font-weight: 900;
   color: #0f172a;
-  line-height: 1.1;
+  line-height: 1.15;
   letter-spacing: -0.02em;
 }
 
 .analytics-card-sub {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   color: #64748b;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin-top: 2px;
+  white-space: normal;
+  line-height: 1.35;
 }
 
 .analytics-table-container {
   background: #ffffff;
   border-radius: 16px;
   border: 1px solid #e2e8f0;
-  padding: 22px;
+  padding: 20px 22px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .analytics-table-header {
@@ -36734,6 +36777,8 @@ html, body {
   align-items: center;
   flex-wrap: wrap;
   gap: 14px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .analytics-table-title {
@@ -36757,7 +36802,10 @@ html, body {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 6px 12px;
-  min-width: 240px;
+  width: 240px;
+  max-width: 100%;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .analytics-search-input {
@@ -37068,4 +37116,53 @@ html, body {
   font-size: 0.76rem;
   color: #64748b;
   line-height: 1.45;
+}
+
+@media (max-width: 768px) {
+  .campaign-view-container,
+  .campaign-analytics-container {
+    padding: 0 12px !important;
+    gap: 14px !important;
+  }
+  .campaign-hero-banner {
+    padding: 16px !important;
+  }
+  .campaign-hero-title {
+    font-size: 1.25rem !important;
+  }
+  .campaign-hero-top {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .campaign-hero-status-pill {
+    align-self: flex-start !important;
+  }
+  .campaign-progress-card {
+    padding: 14px !important;
+  }
+  .campaign-progress-curr {
+    font-size: 1.5rem !important;
+  }
+  .campaign-milestones-row {
+    font-size: 0.65rem !important;
+    flex-wrap: wrap !important;
+    gap: 4px !important;
+  }
+  .analytics-table-container {
+    padding: 14px 12px !important;
+  }
+  .analytics-search-box {
+    width: 100% !important;
+  }
+  .campaign-mode-tabs {
+    width: 100% !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+  }
+  .campaign-mode-tab {
+    white-space: nowrap !important;
+    padding: 6px 10px !important;
+    font-size: 0.75rem !important;
+  }
 }

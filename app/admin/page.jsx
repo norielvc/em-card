@@ -8207,43 +8207,52 @@ export default function AdminPage() {
             {/* Executive Municipal Milestone Banner */}
             <div className="campaign-hero-banner" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #047857 50%, #0f766e 100%)' }}>
               <div className="campaign-hero-top">
-                <div className="campaign-hero-badge" style={{ background: 'rgba(255,255,255,0.2)' }}>
-                  <Globe size={14} /> Municipality of Balagtas • Official COMELEC Voter Base
+                <div className="campaign-hero-title-area">
+                  <div className="campaign-hero-badge">
+                    <Globe size={13} /> Municipality of Balagtas • Official COMELEC Voter Base
+                  </div>
+                  <h2 className="campaign-hero-title">
+                    Balagtas Municipal Electoral Overview
+                  </h2>
+                  <p className="campaign-hero-sub">
+                    Target: Mobilize at least 60% ({municipalTarget60.toLocaleString()} voters) out of {municipalTotalVoters.toLocaleString()} registered voters across all 9 Balagtas barangays.
+                  </p>
                 </div>
                 <div className="campaign-hero-status-pill">
-                  {municipalPctProgress >= 100 ? '🎉 Municipal Victory Threshold Reached!' : `${(100 - municipalPctProgress)}% Remaining to Win`}
+                  {municipalPctProgress >= 100 ? '🎉 Municipal Goal Reached!' : `${Math.max(0, 100 - municipalPctProgress)}% Remaining to Win`}
                 </div>
               </div>
 
-              <div className="campaign-hero-main">
-                <div className="campaign-hero-target-wrap">
-                  <span className="campaign-target-label">Municipal 60% Victory Threshold</span>
-                  <div className="campaign-target-number">
-                    {municipalTarget60.toLocaleString()} <span className="campaign-target-sub">/ {municipalTotalVoters.toLocaleString()} Registered Voters</span>
+              <div className="campaign-progress-card">
+                <div className="campaign-progress-stats">
+                  <div className="campaign-progress-main-stat">
+                    <span className="campaign-progress-curr">{municipalCurrentMobilized.toLocaleString()}</span>
+                    <span className="campaign-progress-target">/ {municipalTarget60.toLocaleString()} Voters Goal (60%)</span>
+                    <span className="campaign-progress-pct-badge">{municipalPctProgress}% Achieved</span>
                   </div>
-                  <div className="campaign-target-helper">
-                    Calculated across all 9 Balagtas barangays based on official COMELEC census and validated resident lists.
+                  <div style={{ fontSize: '0.85rem', color: '#d1fae5', fontWeight: 600 }}>
+                    {municipalCurrentMobilized >= municipalTarget60
+                      ? '🎉 Municipal Victory Threshold Secured!'
+                      : `${Math.max(0, municipalTarget60 - municipalCurrentMobilized).toLocaleString()} more votes needed across Balagtas`}
                   </div>
                 </div>
 
-                <div className="campaign-hero-progress-wrap">
-                  <div className="campaign-progress-head">
-                    <span className="campaign-progress-title">Current Municipal Mobilization</span>
-                    <span className="campaign-progress-pct">{municipalPctProgress}%</span>
-                  </div>
-                  <div className="campaign-progress-track" style={{ height: 16 }}>
-                    <div 
-                      className="campaign-progress-fill" 
-                      style={{ 
-                        width: `${municipalPctProgress}%`,
-                        background: 'linear-gradient(90deg, #10b981 0%, #34d399 50%, #6ee7b7 100%)'
-                      }} 
-                    />
-                  </div>
-                  <div className="campaign-progress-foot">
-                    <span><strong>{municipalCurrentMobilized.toLocaleString()}</strong> Enrolled EM-Card Voters</span>
-                    <span><strong>{Math.max(0, municipalTarget60 - municipalCurrentMobilized).toLocaleString()}</strong> Votes Needed for Total Victory</span>
-                  </div>
+                <div className="campaign-progress-track">
+                  <div 
+                    className="campaign-progress-fill" 
+                    style={{ 
+                      width: `${Math.max(2, municipalPctProgress)}%`,
+                      background: 'linear-gradient(90deg, #10b981 0%, #34d399 50%, #6ee7b7 100%)'
+                    }} 
+                  />
+                </div>
+
+                <div className="campaign-milestones-row">
+                  <span>0% (Start)</span>
+                  <span>25% ({Math.round(municipalTarget60 * 0.416).toLocaleString()})</span>
+                  <span>50% ({Math.round(municipalTarget60 * 0.833).toLocaleString()})</span>
+                  <span style={{ color: '#fef08a', fontWeight: 800 }}>★ 60% Municipal Target ({municipalTarget60.toLocaleString()})</span>
+                  <span>75% Supermajority</span>
                 </div>
               </div>
             </div>
