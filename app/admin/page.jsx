@@ -23,9 +23,9 @@ import {
   ShoppingBag, Package, Coins, Pill, Droplets, Banknote, Target, HelpCircle, Table
 } from 'lucide-react';
 
-// 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays (Option 3: Smart Tailored Quota)
+// 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays (Option 1: 20-8-1 Campaign Blueprint)
 const BARANGAY_VOTER_DATA = {
-  'Santol': { totalVoters: 10696, target60: 6418, subLeaderTarget: 18, coordinatorQuota: 15, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
+  'Santol': { totalVoters: 10696, target60: 6418, subLeaderTarget: 18, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1, hasOfficialRecord: true },
   'Panginay': { totalVoters: 8918, target60: 5351, subLeaderTarget: 15, coordinatorQuota: 14, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
   'Borol 1st': { totalVoters: 7806, target60: 4684, subLeaderTarget: 10, coordinatorQuota: 15, memberQuota: 15, recruitQuota: 1, hasOfficialRecord: true },
   'Pulong Gubat': { totalVoters: 6335, target60: 3801, subLeaderTarget: 16, coordinatorQuota: 10, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
@@ -35,6 +35,17 @@ const BARANGAY_VOTER_DATA = {
   'Wawa': { totalVoters: 3676, target60: 2206, subLeaderTarget: 6, coordinatorQuota: 12, memberQuota: 15, recruitQuota: 1, hasOfficialRecord: false },
   'Dalig': { totalVoters: 1676, target60: 1006, subLeaderTarget: 3, coordinatorQuota: 12, memberQuota: 14, recruitQuota: 1, hasOfficialRecord: false },
 };
+
+// Target Quota Distribution across Community Sector Categories to reach 60% Victory
+const SECTOR_CATEGORY_QUOTA_DISTRIBUTION = [
+  { id: 'Youth', label: 'Youth (18–30)', pct: 15, color: '#10b981', icon: 'Sparkles', desc: 'SK & young student voters' },
+  { id: 'Senior Citizen', label: 'Senior Citizens', pct: 18, color: '#3b82f6', icon: 'HeartPulse', desc: 'OSCA & elder community leaders' },
+  { id: 'Tricycle Driver', label: 'Tricycle & TODA Drivers', pct: 12, color: '#f59e0b', icon: 'Zap', desc: 'Local TODA transport sector' },
+  { id: 'Solo Parent', label: 'Solo Parents', pct: 8, color: '#ec4899', icon: 'Users', desc: 'Solo parent association heads' },
+  { id: 'PWD', label: 'Persons with Disability', pct: 5, color: '#8b5cf6', icon: 'Shield', desc: 'PWD community members' },
+  { id: 'Farmer/Fisherfolk', label: 'Farmers & Fisherfolks', pct: 6, color: '#14b8a6', icon: 'Package', desc: 'Agricultural & river workers' },
+  { id: 'General Resident', label: 'General Household Voters', pct: 36, color: '#64748b', icon: 'ShoppingBag', desc: 'Neighborhood families & homemakers' },
+];
 
 
 // Subdivision puroks that use Lot/Block/Phase instead of House Number
@@ -833,6 +844,7 @@ export default function AdminPage() {
   const [subLeaderViewMode, setSubLeaderViewMode] = useState('grid'); // 'grid' | 'table'
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [howItWorksBrgyTab, setHowItWorksBrgyTab] = useState('Santol');
+  const [howItWorksCategoryView, setHowItWorksCategoryView] = useState('roles'); // 'roles' | 'sectors' | 'all'
 
   const exportSubLeaderTeamExcel = (slot) => {
     if (!slot || !slot.leaderName) return;
@@ -8221,50 +8233,56 @@ export default function AdminPage() {
               <div className="campaign-tier-card tier-1">
                 <div className="campaign-tier-accent" />
                 <div className="campaign-tier-top">
-                  <span className="campaign-tier-title">Tier 1 · Sub-Leaders</span>
+                  <span className="campaign-tier-title">Category 1 · Sub-Leaders</span>
                   <div className="campaign-tier-icon"><Users size={15} /></div>
                 </div>
                 <div className="campaign-tier-val">{activeSubLeadersCount} / {activeBrgyConfig.subLeaderTarget}</div>
-                <span className="campaign-tier-quota-pill">Quota: {activeBrgyConfig.coordinatorQuota} Coords each</span>
-                <p className="campaign-tier-sub">Appointed leaders across sectors</p>
+                <span className="campaign-tier-quota-pill" title="Target Quota for Sub-Leaders Category">
+                  🎯 Target Quota: {activeBrgyConfig.subLeaderTarget} Leaders ({activeBrgyConfig.coordinatorQuota} Coords each)
+                </span>
+                <p className="campaign-tier-sub">Appointed leaders across sectors & puroks</p>
               </div>
 
               {/* Tier 2: Coordinators */}
               <div className="campaign-tier-card tier-2">
                 <div className="campaign-tier-accent" />
                 <div className="campaign-tier-top">
-                  <span className="campaign-tier-title">Tier 2 · Coordinators</span>
+                  <span className="campaign-tier-title">Category 2 · Coordinators</span>
                   <div className="campaign-tier-icon"><UserCheck size={15} /></div>
                 </div>
                 <div className="campaign-tier-val">{activeCoordinatorsCount} / {targetCoordinatorsTotal}</div>
-                <span className="campaign-tier-quota-pill">Quota: {activeBrgyConfig.memberQuota} Members each</span>
-                <p className="campaign-tier-sub">Level 1 recruits across clusters</p>
+                <span className="campaign-tier-quota-pill" title="Target Quota for Coordinators Category">
+                  🎯 Target Quota: {targetCoordinatorsTotal} Coords ({activeBrgyConfig.memberQuota} Members each)
+                </span>
+                <p className="campaign-tier-sub">Recruited coordinators across precincts</p>
               </div>
 
               {/* Tier 3: Members */}
               <div className="campaign-tier-card tier-3">
                 <div className="campaign-tier-accent" />
                 <div className="campaign-tier-top">
-                  <span className="campaign-tier-title">Tier 3 · Citizen Members</span>
+                  <span className="campaign-tier-title">Category 3 · Citizen Members</span>
                   <div className="campaign-tier-icon"><Shield size={15} /></div>
                 </div>
-                <div className="campaign-tier-val">Target: {targetMembersTotal.toLocaleString()}</div>
-                <span className="campaign-tier-quota-pill">Quota: 1 Voter (+1 Recruit)</span>
-                <p className="campaign-tier-sub">Citizens enrolled with EM-Cards</p>
+                <div className="campaign-tier-val">{totalBrgyVotersEnrolled} / {targetMembersTotal.toLocaleString()}</div>
+                <span className="campaign-tier-quota-pill" title="Target Quota for Members Category">
+                  🎯 Target Quota: {targetMembersTotal.toLocaleString()} Members (+1 Recruit each)
+                </span>
+                <p className="campaign-tier-sub">Registered residents issued EM Cards</p>
               </div>
 
               {/* Tier 4: Total Expected Yield */}
               <div className="campaign-tier-card tier-4">
                 <div className="campaign-tier-accent" />
                 <div className="campaign-tier-top">
-                  <span className="campaign-tier-title">Target Network Yield</span>
+                  <span className="campaign-tier-title">Category 4 · Total Target Yield</span>
                   <div className="campaign-tier-icon"><Award size={15} /></div>
                 </div>
                 <div className="campaign-tier-val">{projectedTargetVoters.toLocaleString()} Voters</div>
-                <span className="campaign-tier-quota-pill" style={{ color: '#b45309', background: '#fef3c7' }}>
-                  {projectedYieldPct}% of Brgy. {networkBarangayFilter}
+                <span className="campaign-tier-quota-pill" style={{ color: '#b45309', background: '#fef3c7' }} title="60% Supermajority Victory Target">
+                  🎯 60% Victory Goal: {activeBrgyConfig.target60.toLocaleString()} Voters ({projectedYieldPct}%)
                 </span>
-                <p className="campaign-tier-sub">Full capacity at quota completion</p>
+                <p className="campaign-tier-sub">Full capacity at 100% quota completion</p>
               </div>
             </div>
 
@@ -10514,7 +10532,7 @@ export default function AdminPage() {
                       }}>
                         <div>
                           <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
-                            Brgy. {bKey} Electoral Equation
+                            Brgy. {bKey} Electoral Campaign Quota Model
                           </h4>
                           <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
                             Official COMELEC Registered Base: <strong>{totalVoters.toLocaleString()} Voters</strong>
@@ -10544,83 +10562,248 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      {/* 4-Tier Interactive Cascade Pipeline Cards */}
-                      <div className="how-it-works-steps-row">
-                        {/* Step 0 */}
-                        <div className="how-it-works-step-card">
-                          <span className="how-it-works-step-tag" style={{ background: '#f1f5f9', color: '#475569' }}>
-                            Tier 0 · Apex
-                          </span>
-                          <div className="how-it-works-step-num">1</div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
-                            Barangay Leader
-                          </div>
-                          <span className="how-it-works-step-formula">1 Commander</span>
-                          <p className="how-it-works-step-desc">
-                            Directs the Brgy. {bKey} war room and leads sectoral deployment.
-                          </p>
+                      {/* Category View Selector Toggle */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, margin: '4px 0' }}>
+                        <div className="how-it-works-view-toggle">
+                          <button
+                            type="button"
+                            className={`how-it-works-view-btn ${howItWorksCategoryView === 'roles' ? 'active' : ''}`}
+                            onClick={() => setHowItWorksCategoryView('roles')}
+                          >
+                            <Users size={13} /> 👥 Target Quota by Role Category (4 Tiers)
+                          </button>
+                          <button
+                            type="button"
+                            className={`how-it-works-view-btn ${howItWorksCategoryView === 'sectors' ? 'active' : ''}`}
+                            onClick={() => setHowItWorksCategoryView('sectors')}
+                          >
+                            <Target size={13} /> 🏷️ Target Quota by Community Sector
+                          </button>
+                          <button
+                            type="button"
+                            className={`how-it-works-view-btn ${howItWorksCategoryView === 'all' ? 'active' : ''}`}
+                            onClick={() => setHowItWorksCategoryView('all')}
+                          >
+                            <Table size={13} /> 📋 Combined Breakdown View
+                          </button>
                         </div>
-
-                        {/* Step 1 */}
-                        <div className="how-it-works-step-card" style={{ borderLeft: '3px solid #10b981' }}>
-                          <span className="how-it-works-step-tag" style={{ background: '#ecfdf5', color: '#047857' }}>
-                            Tier 1 · Sub-Leaders
-                          </span>
-                          <div className="how-it-works-step-num" style={{ color: '#047857' }}>{subLeaders}</div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
-                            Appointed Sub-Leaders
-                          </div>
-                          <span className="how-it-works-step-formula">Target: {subLeaders} Appointed</span>
-                          <p className="how-it-works-step-desc">
-                            Appointed across community sectors (Tricycle, Youth, Senior, Solo Parent, Puroks).
-                          </p>
-                        </div>
-
-                        {/* Step 2 */}
-                        <div className="how-it-works-step-card" style={{ borderLeft: '3px solid #3b82f6' }}>
-                          <span className="how-it-works-step-tag" style={{ background: '#eff6ff', color: '#2563eb' }}>
-                            Tier 2 · Coordinators
-                          </span>
-                          <div className="how-it-works-step-num" style={{ color: '#2563eb' }}>{totalCoords.toLocaleString()}</div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
-                            Field Coordinators
-                          </div>
-                          <span className="how-it-works-step-formula">{subLeaders} SL × {coordQuota} Coords each</span>
-                          <p className="how-it-works-step-desc">
-                            Each Sub-Leader recruits {coordQuota} Coordinators to supervise local blocks.
-                          </p>
-                        </div>
-
-                        {/* Step 3 */}
-                        <div className="how-it-works-step-card" style={{ borderLeft: '3px solid #8b5cf6' }}>
-                          <span className="how-it-works-step-tag" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
-                            Tier 3 · Citizen Members
-                          </span>
-                          <div className="how-it-works-step-num" style={{ color: '#7c3aed' }}>{totalMembers.toLocaleString()}</div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
-                            EM Card Members
-                          </div>
-                          <span className="how-it-works-step-formula">{totalCoords.toLocaleString()} Coords × {memberQuota} Members</span>
-                          <p className="how-it-works-step-desc">
-                            Each Coordinator registers {memberQuota} residents with verified EM Cards.
-                          </p>
-                        </div>
-
-                        {/* Step 4 */}
-                        <div className="how-it-works-step-card" style={{ borderLeft: '3px solid #f59e0b' }}>
-                          <span className="how-it-works-step-tag" style={{ background: '#fffbeb', color: '#d97706' }}>
-                            Tier 4 · +1 Recruits
-                          </span>
-                          <div className="how-it-works-step-num" style={{ color: '#d97706' }}>{totalRecruits.toLocaleString()}</div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
-                            +1 Household Recruits
-                          </div>
-                          <span className="how-it-works-step-formula">{totalMembers.toLocaleString()} Members × 1 Recruit</span>
-                          <p className="how-it-works-step-desc">
-                            Every EM Card Member recruits just 1 family voter, spouse, or neighbor.
-                          </p>
-                        </div>
+                        <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>
+                          Select category view to inspect specific quotas & allocations
+                        </span>
                       </div>
+
+                      {/* VIEW 1: Role Categories Quotas (5 Connected Cards) */}
+                      {(howItWorksCategoryView === 'roles' || howItWorksCategoryView === 'all') && (
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              Hierarchy Categories & Mandatory Target Quotas
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 700, background: '#ecfdf5', padding: '2px 8px', borderRadius: 999 }}>
+                              {bKey === 'Santol' ? 'Option 1 Blueprint (20 Coords × 8 Members)' : 'Tailored Multiplier Pipeline'}
+                            </span>
+                          </div>
+
+                          <div className="how-it-works-steps-row">
+                            {/* Category 0: Apex */}
+                            <div className="how-it-works-step-card" style={{ borderTop: '3px solid #64748b' }}>
+                              <span className="how-it-works-step-tag" style={{ background: '#f1f5f9', color: '#475569' }}>
+                                Tier 0 · Apex
+                              </span>
+                              <div className="how-it-works-step-num">1</div>
+                              <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
+                                Barangay Leader
+                              </div>
+                              <div className="how-it-works-step-quota-box">
+                                <span className="how-it-works-step-quota-label">🎯 Target Quota</span>
+                                <span className="how-it-works-step-quota-val" style={{ color: '#0f172a' }}>1 Apex Leader</span>
+                              </div>
+                              <p className="how-it-works-step-desc">
+                                Oversees the Brgy. {bKey} campaign war room and coordinates all 18 sub-leaders.
+                              </p>
+                            </div>
+
+                            {/* Category 1: Sub-Leaders */}
+                            <div className="how-it-works-step-card" style={{ borderTop: '3px solid #10b981' }}>
+                              <span className="how-it-works-step-tag" style={{ background: '#ecfdf5', color: '#047857' }}>
+                                Tier 1 · Sub-Leaders
+                              </span>
+                              <div className="how-it-works-step-num" style={{ color: '#047857' }}>{subLeaders}</div>
+                              <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
+                                Appointed Sub-Leaders
+                              </div>
+                              <div className="how-it-works-step-quota-box" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+                                <span className="how-it-works-step-quota-label" style={{ color: '#047857' }}>🎯 Target Quota</span>
+                                <span className="how-it-works-step-quota-val" style={{ color: '#047857' }}>
+                                  {subLeaders} Leaders ({coordQuota} Coords each)
+                                </span>
+                              </div>
+                              <p className="how-it-works-step-desc">
+                                Appointed across sectors & puroks. Each recruits at least {coordQuota} Coordinators.
+                              </p>
+                            </div>
+
+                            {/* Category 2: Coordinators */}
+                            <div className="how-it-works-step-card" style={{ borderTop: '3px solid #3b82f6' }}>
+                              <span className="how-it-works-step-tag" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                                Tier 2 · Coordinators
+                              </span>
+                              <div className="how-it-works-step-num" style={{ color: '#2563eb' }}>{totalCoords.toLocaleString()}</div>
+                              <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
+                                Field Coordinators
+                              </div>
+                              <div className="how-it-works-step-quota-box" style={{ background: '#eff6ff', borderColor: '#bfdbfe' }}>
+                                <span className="how-it-works-step-quota-label" style={{ color: '#2563eb' }}>🎯 Target Quota</span>
+                                <span className="how-it-works-step-quota-val" style={{ color: '#2563eb' }}>
+                                  {totalCoords.toLocaleString()} Coords ({memberQuota} Members each)
+                                </span>
+                              </div>
+                              <p className="how-it-works-step-desc">
+                                Recruited by Sub-Leaders. Each coordinates and registers at least {memberQuota} EM Card Members.
+                              </p>
+                            </div>
+
+                            {/* Category 3: Members */}
+                            <div className="how-it-works-step-card" style={{ borderTop: '3px solid #8b5cf6' }}>
+                              <span className="how-it-works-step-tag" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
+                                Tier 3 · EM Members
+                              </span>
+                              <div className="how-it-works-step-num" style={{ color: '#7c3aed' }}>{totalMembers.toLocaleString()}</div>
+                              <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
+                                Citizen Members
+                              </div>
+                              <div className="how-it-works-step-quota-box" style={{ background: '#f5f3ff', borderColor: '#ddd6fe' }}>
+                                <span className="how-it-works-step-quota-label" style={{ color: '#7c3aed' }}>🎯 Target Quota</span>
+                                <span className="how-it-works-step-quota-val" style={{ color: '#7c3aed' }}>
+                                  {totalMembers.toLocaleString()} Members (+1 Recruit each)
+                                </span>
+                              </div>
+                              <p className="how-it-works-step-desc">
+                                Registered residents issued EM Cards. Each commits to recruiting 1 family voter.
+                              </p>
+                            </div>
+
+                            {/* Category 4: +1 Recruits */}
+                            <div className="how-it-works-step-card" style={{ borderTop: '3px solid #f59e0b' }}>
+                              <span className="how-it-works-step-tag" style={{ background: '#fffbeb', color: '#d97706' }}>
+                                Tier 4 · Household Multiplier
+                              </span>
+                              <div className="how-it-works-step-num" style={{ color: '#d97706' }}>{totalRecruits.toLocaleString()}</div>
+                              <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
+                                +1 Family Recruits
+                              </div>
+                              <div className="how-it-works-step-quota-box" style={{ background: '#fffbeb', borderColor: '#fde68a' }}>
+                                <span className="how-it-works-step-quota-label" style={{ color: '#d97706' }}>🎯 Target Quota</span>
+                                <span className="how-it-works-step-quota-val" style={{ color: '#d97706' }}>
+                                  {totalRecruits.toLocaleString()} Voters (+1 Per Member)
+                                </span>
+                              </div>
+                              <p className="how-it-works-step-desc">
+                                Spouses, adult children, and neighbors mobilized by each registered member.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* VIEW 2: Community Sector Categories Quotas */}
+                      {(howItWorksCategoryView === 'sectors' || howItWorksCategoryView === 'all') && (() => {
+                        const brgyRegs = registrations.filter(r => (r.barangay || '').trim().toLowerCase() === bKey.toLowerCase() && r.status !== 'rejected');
+                        const totalRegs = brgyRegs.length;
+
+                        return (
+                          <div style={{ marginTop: howItWorksCategoryView === 'all' ? 14 : 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Community Sector Categories & Victory Quotas (60% Target: {target60.toLocaleString()} Voters)
+                              </span>
+                              <span style={{ fontSize: '0.72rem', color: '#475569', background: '#f1f5f9', padding: '2px 8px', borderRadius: 999 }}>
+                                Current Enrolled: {totalRegs.toLocaleString()} Voters
+                              </span>
+                            </div>
+
+                            <div className="sector-quotas-grid">
+                              {SECTOR_CATEGORY_QUOTA_DISTRIBUTION.map((sec) => {
+                                const secTarget = Math.round(target60 * (sec.pct / 100));
+                                
+                                // Count current enrolled in this sector
+                                const secEnrolled = brgyRegs.filter(r => {
+                                  if (sec.id === 'Youth') {
+                                    return (r.age && Number(r.age) <= 30) || (r.sector || '').toLowerCase().includes('youth');
+                                  }
+                                  if (sec.id === 'Senior Citizen') {
+                                    return (r.age && Number(r.age) >= 60) || (r.sector || '').toLowerCase().includes('senior') || r.is_senior;
+                                  }
+                                  if (sec.id === 'Tricycle Driver') {
+                                    return (r.occupation && r.occupation.toLowerCase().includes('tricycle')) || (r.sector || '').toLowerCase().includes('driver') || (r.sector || '').toLowerCase().includes('toda');
+                                  }
+                                  if (sec.id === 'Solo Parent') {
+                                    return r.is_solo_parent || (r.sector || '').toLowerCase().includes('solo');
+                                  }
+                                  if (sec.id === 'PWD') {
+                                    return r.is_pwd || (r.sector || '').toLowerCase().includes('pwd') || (r.sector || '').toLowerCase().includes('disabilit');
+                                  }
+                                  if (sec.id === 'Farmer/Fisherfolk') {
+                                    return (r.occupation && (r.occupation.toLowerCase().includes('farm') || r.occupation.toLowerCase().includes('fish'))) || (r.sector || '').toLowerCase().includes('farmer');
+                                  }
+                                  // General Resident: everything else
+                                  return true;
+                                }).length;
+
+                                const secProgress = Math.min(100, Math.round((secEnrolled / (secTarget || 1)) * 100));
+
+                                return (
+                                  <div key={sec.id} className="sector-quota-card">
+                                    <div className="sector-quota-header">
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div className="sector-quota-icon" style={{ background: sec.color }}>
+                                          <Target size={14} />
+                                        </div>
+                                        <div>
+                                          <div className="sector-quota-title">{sec.label}</div>
+                                          <div style={{ fontSize: '0.67rem', color: '#64748b' }}>{sec.desc}</div>
+                                        </div>
+                                      </div>
+                                      <span className="sector-quota-pct">{sec.pct}%</span>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
+                                      <div>
+                                        <span style={{ fontSize: '0.64rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Target Quota</span>
+                                        <div className="sector-quota-main-val" style={{ color: sec.color }}>
+                                          {secTarget.toLocaleString()} <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500 }}>voters</span>
+                                        </div>
+                                      </div>
+                                      <div style={{ textAlign: 'right' }}>
+                                        <span style={{ fontSize: '0.64rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Current Enrolled</span>
+                                        <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
+                                          {secEnrolled.toLocaleString()}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div style={{ marginTop: 2 }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b', marginBottom: 3 }}>
+                                        <span>Quota Progress</span>
+                                        <span style={{ fontWeight: 700, color: secProgress >= 100 ? '#047857' : '#0f172a' }}>{secProgress}%</span>
+                                      </div>
+                                      <div className="sector-quota-bar-bg">
+                                        <div 
+                                          className="sector-quota-bar-fill" 
+                                          style={{ 
+                                            width: `${Math.max(secProgress > 0 ? secProgress : 3, 3)}%`,
+                                            background: secProgress >= 100 ? '#059669' : sec.color
+                                          }} 
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Result Ribbon */}
                       <div className="how-it-works-result-ribbon">
@@ -10652,9 +10835,9 @@ export default function AdminPage() {
                           color: '#475569',
                           lineHeight: 1.5
                         }}>
-                          <strong style={{ color: '#0f172a' }}>💡 Note on Santol Quota Options:</strong><br />
-                          • <strong>Current Config (15 Coords × 12 Members)</strong>: Yields <strong>6,769 voters (63.3%)</strong> with a comfortable +351 vote cushion above the 6,418 threshold.<br />
-                          • <strong>Alternative Option 1 (20 Coords × 8 Members)</strong>: 18 Sub-Leaders × 20 Coords = 360 Coords × 8 Members = 2,880 Members + 2,880 Recruits = <strong>6,516 voters (60.9%)</strong>, precisely reaching the 60% mark with +98 safety votes.
+                          <strong style={{ color: '#0f172a' }}>🎯 Official Option 1 Formula for Brgy. Santol:</strong><br />
+                          • <strong>Target Quota Breakdown</strong>: 1 Leader + 18 Sub-Leaders (each recruits 20 Coords = 360 Coords) + 360 Coords (each recruits 8 Members = 2,880 Members) + 2,880 Members (each recruits +1 Voter = 2,880 Recruits).<br />
+                          • <strong>Total Mobilized Yield</strong>: <strong>6,516 Voters (60.9% of Santol)</strong>, ensuring the required 6,418 vote threshold is reached with a +98 vote winning cushion!
                         </div>
                       )}
                     </div>
