@@ -20,7 +20,7 @@ import {
   ArrowRight, Ban, Building, Cake, CreditCard, Database, Folder, Globe, HardDrive, Hash,
   History, Inbox, Lock, Mail, Megaphone, Monitor, Phone, Plus, Server, ShieldAlert,
   ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award, XCircle, Sparkles,
-  ShoppingBag, Package, Coins, Pill, Droplets, Banknote, Target
+  ShoppingBag, Package, Coins, Pill, Droplets, Banknote, Target, HelpCircle, Table
 } from 'lucide-react';
 
 // 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays (Option 3: Smart Tailored Quota)
@@ -831,6 +831,8 @@ export default function AdminPage() {
   const [subLeaderFilterStatus, setSubLeaderFilterStatus] = useState('all'); // 'all' | 'appointed' | 'unassigned'
   const [subLeaderSearchQuery, setSubLeaderSearchQuery] = useState('');
   const [subLeaderViewMode, setSubLeaderViewMode] = useState('grid'); // 'grid' | 'table'
+  const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
+  const [howItWorksBrgyTab, setHowItWorksBrgyTab] = useState('Santol');
 
   const exportSubLeaderTeamExcel = (slot) => {
     if (!slot || !slot.leaderName) return;
@@ -8094,6 +8096,18 @@ export default function AdminPage() {
               </button>
             </div>
 
+            <button 
+              type="button" 
+              className="campaign-how-it-works-btn" 
+              onClick={() => {
+                setHowItWorksBrgyTab(networkBarangayFilter);
+                setShowHowItWorksModal(true);
+              }}
+              title="Click to view how the 60% quota formula works and calculation details for each barangay"
+            >
+              <HelpCircle size={14} /> How It Works & Quota Guide
+            </button>
+
             {networkTabMode === 'analytics' && (
               <button 
                 type="button" 
@@ -8148,17 +8162,30 @@ export default function AdminPage() {
                   </h2>
                 </div>
 
-                <div className="campaign-brgy-select-box">
-                  <MapPin size={15} color="#a7f3d0" />
-                  <select
-                    value={networkBarangayFilter}
-                    onChange={(e) => setNetworkBarangayFilter(e.target.value)}
-                    aria-label="Select Barangay"
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="campaign-hero-calc-link"
+                    onClick={() => {
+                      setHowItWorksBrgyTab(networkBarangayFilter);
+                      setShowHowItWorksModal(true);
+                    }}
+                    title={`View detailed quota calculation for Brgy. ${networkBarangayFilter}`}
                   >
-                    {Object.keys(BARANGAY_VOTER_DATA).map(b => (
-                      <option key={b} value={b}>Brgy. {b}</option>
-                    ))}
-                  </select>
+                    <HelpCircle size={13} /> View Quota Calculation
+                  </button>
+                  <div className="campaign-brgy-select-box">
+                    <MapPin size={15} color="#a7f3d0" />
+                    <select
+                      value={networkBarangayFilter}
+                      onChange={(e) => setNetworkBarangayFilter(e.target.value)}
+                      aria-label="Select Barangay"
+                    >
+                      {Object.keys(BARANGAY_VOTER_DATA).map(b => (
+                        <option key={b} value={b}>Brgy. {b}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -10336,6 +10363,430 @@ export default function AdminPage() {
                       );
                     });
                   })()}
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* HOW IT WORKS & 60% QUOTA CALCULATIONS MODAL */}
+        {showHowItWorksModal && typeof document !== 'undefined' && createPortal(
+          <div className="modal-overlay" onClick={() => setShowHowItWorksModal(false)}>
+            <div className="modal-card how-it-works-modal-card" onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="how-it-works-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    background: '#ecfdf5',
+                    border: '1px solid #a7f3d0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#047857'
+                  }}>
+                    <HelpCircle size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                      How It Works: 60% Electoral Victory Quota System
+                    </h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                      Full mathematical breakdown, 4-tier multiplier pipeline, and quota calculations for each barangay in Balagtas.
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-outline-emerald"
+                    onClick={() => window.print()}
+                    title="Print official quota briefing sheet"
+                  >
+                    <Printer size={14} style={{ marginRight: 6 }} /> Print Guide
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn-icon" 
+                    onClick={() => setShowHowItWorksModal(false)}
+                    aria-label="Close Guide"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="how-it-works-body">
+                {/* Strategic Callout Cards */}
+                <div className="how-it-works-callouts-grid">
+                  <div className="how-it-works-callout-card primary">
+                    <div className="how-it-works-callout-title" style={{ color: '#065f46' }}>
+                      <Target size={16} color="#059669" /> Why the 60% Electoral Target?
+                    </div>
+                    <p className="how-it-works-callout-desc">
+                      In Philippine municipal elections, capturing <strong>60% of registered COMELEC voters</strong> guarantees an absolute, decisive supermajority. It protects against margin of error, rainy day turnout variations, and fractured opposition tickets.
+                    </p>
+                  </div>
+
+                  <div className="how-it-works-callout-card">
+                    <div className="how-it-works-callout-title">
+                      <Network size={16} color="#3b82f6" /> The 4-Tier Multiplier Principle
+                    </div>
+                    <p className="how-it-works-callout-desc">
+                      Directly hunting for thousands of voters overwhelms a campaign. Instead, our cascading model breaks the burden into manageable, high-commitment quotas: Sub-Leaders recruit Coordinators, Coordinators recruit Members, and each Member brings <strong>just 1 household voter (+1)</strong>.
+                    </p>
+                  </div>
+
+                  <div className="how-it-works-callout-card">
+                    <div className="how-it-works-callout-title">
+                      <ShieldCheckIcon size={16} color="#8b5cf6" /> Verified EM-Card Validation
+                    </div>
+                    <p className="how-it-works-callout-desc">
+                      Every enrolled voter is authenticated against the official Balagtas registered voter registry. QR codes eliminate duplicate accounts and track exact downline accountability from leader to household.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Barangay Tabs Navigation */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Select Barangay for Detailed Math Breakdown:
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                      Showing: <strong>Brgy. {howItWorksBrgyTab}</strong>
+                    </span>
+                  </div>
+
+                  <div className="how-it-works-tabs-bar">
+                    {Object.keys(BARANGAY_VOTER_DATA).map(b => (
+                      <button
+                        key={b}
+                        type="button"
+                        className={`how-it-works-tab-pill ${howItWorksBrgyTab === b ? 'active' : ''}`}
+                        onClick={() => setHowItWorksBrgyTab(b)}
+                      >
+                        {b === 'Santol' ? '🌿 Santol' : b}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`how-it-works-tab-pill ${howItWorksBrgyTab === 'all' ? 'active' : ''}`}
+                      onClick={() => setHowItWorksBrgyTab('all')}
+                    >
+                      📊 Compare All 9 Barangays
+                    </button>
+                  </div>
+                </div>
+
+                {/* Single Barangay Flow Breakdown */}
+                {howItWorksBrgyTab !== 'all' && (() => {
+                  const bKey = howItWorksBrgyTab;
+                  const bConfig = BARANGAY_VOTER_DATA[bKey] || BARANGAY_VOTER_DATA['Santol'];
+                  const totalVoters = bConfig.totalVoters;
+                  const target60 = bConfig.target60;
+                  const subLeaders = bConfig.subLeaderTarget;
+                  const coordQuota = bConfig.coordinatorQuota;
+                  const totalCoords = subLeaders * coordQuota;
+                  const memberQuota = bConfig.memberQuota;
+                  const totalMembers = totalCoords * memberQuota;
+                  const recruitQuota = bConfig.recruitQuota || 1;
+                  const totalRecruits = totalMembers * recruitQuota;
+                  const totalYield = 1 + subLeaders + totalCoords + totalMembers + totalRecruits;
+                  const pctYield = ((totalYield / totalVoters) * 100).toFixed(1);
+                  const surplus = totalYield - target60;
+
+                  return (
+                    <div className="how-it-works-flow-container">
+                      {/* Top Stat Bar */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        paddingBottom: 12,
+                        borderBottom: '1px solid #e2e8f0'
+                      }}>
+                        <div>
+                          <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+                            Brgy. {bKey} Electoral Equation
+                          </h4>
+                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                            Official COMELEC Registered Base: <strong>{totalVoters.toLocaleString()} Voters</strong>
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{
+                            background: '#fef3c7',
+                            color: '#92400e',
+                            padding: '4px 10px',
+                            borderRadius: 999,
+                            fontSize: '0.75rem',
+                            fontWeight: 800
+                          }}>
+                            🎯 60% Victory Goal: {target60.toLocaleString()} Voters
+                          </span>
+                          <span style={{
+                            background: '#ecfdf5',
+                            color: '#065f46',
+                            padding: '4px 10px',
+                            borderRadius: 999,
+                            fontSize: '0.75rem',
+                            fontWeight: 800
+                          }}>
+                            🏆 Projected Yield: {totalYield.toLocaleString()} Voters ({pctYield}%)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 4-Tier Interactive Cascade Pipeline Cards */}
+                      <div className="how-it-works-steps-row">
+                        {/* Step 0 */}
+                        <div className="how-it-works-step-card">
+                          <span className="how-it-works-step-tag" style={{ background: '#f1f5f9', color: '#475569' }}>
+                            Tier 0 · Apex
+                          </span>
+                          <div className="how-it-works-step-num">1</div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
+                            Barangay Leader
+                          </div>
+                          <span className="how-it-works-step-formula">1 Commander</span>
+                          <p className="how-it-works-step-desc">
+                            Directs the Brgy. {bKey} war room and leads sectoral deployment.
+                          </p>
+                        </div>
+
+                        {/* Step 1 */}
+                        <div className="how-it-works-step-card" style={{ borderLeft: '3px solid #10b981' }}>
+                          <span className="how-it-works-step-tag" style={{ background: '#ecfdf5', color: '#047857' }}>
+                            Tier 1 · Sub-Leaders
+                          </span>
+                          <div className="how-it-works-step-num" style={{ color: '#047857' }}>{subLeaders}</div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
+                            Appointed Sub-Leaders
+                          </div>
+                          <span className="how-it-works-step-formula">Target: {subLeaders} Appointed</span>
+                          <p className="how-it-works-step-desc">
+                            Appointed across community sectors (Tricycle, Youth, Senior, Solo Parent, Puroks).
+                          </p>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="how-it-works-step-card" style={{ borderLeft: '3px solid #3b82f6' }}>
+                          <span className="how-it-works-step-tag" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                            Tier 2 · Coordinators
+                          </span>
+                          <div className="how-it-works-step-num" style={{ color: '#2563eb' }}>{totalCoords.toLocaleString()}</div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
+                            Field Coordinators
+                          </div>
+                          <span className="how-it-works-step-formula">{subLeaders} SL × {coordQuota} Coords each</span>
+                          <p className="how-it-works-step-desc">
+                            Each Sub-Leader recruits {coordQuota} Coordinators to supervise local blocks.
+                          </p>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="how-it-works-step-card" style={{ borderLeft: '3px solid #8b5cf6' }}>
+                          <span className="how-it-works-step-tag" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
+                            Tier 3 · Citizen Members
+                          </span>
+                          <div className="how-it-works-step-num" style={{ color: '#7c3aed' }}>{totalMembers.toLocaleString()}</div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
+                            EM Card Members
+                          </div>
+                          <span className="how-it-works-step-formula">{totalCoords.toLocaleString()} Coords × {memberQuota} Members</span>
+                          <p className="how-it-works-step-desc">
+                            Each Coordinator registers {memberQuota} residents with verified EM Cards.
+                          </p>
+                        </div>
+
+                        {/* Step 4 */}
+                        <div className="how-it-works-step-card" style={{ borderLeft: '3px solid #f59e0b' }}>
+                          <span className="how-it-works-step-tag" style={{ background: '#fffbeb', color: '#d97706' }}>
+                            Tier 4 · +1 Recruits
+                          </span>
+                          <div className="how-it-works-step-num" style={{ color: '#d97706' }}>{totalRecruits.toLocaleString()}</div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
+                            +1 Household Recruits
+                          </div>
+                          <span className="how-it-works-step-formula">{totalMembers.toLocaleString()} Members × 1 Recruit</span>
+                          <p className="how-it-works-step-desc">
+                            Every EM Card Member recruits just 1 family voter, spouse, or neighbor.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Result Ribbon */}
+                      <div className="how-it-works-result-ribbon">
+                        <div>
+                          <div style={{ fontSize: '0.8rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Total Mobilized Network Yield Formula:
+                          </div>
+                          <div style={{ fontSize: '1.05rem', fontWeight: 800, marginTop: 2 }}>
+                            1 Leader + {subLeaders} SL + {totalCoords.toLocaleString()} Coords + {totalMembers.toLocaleString()} Members + {totalRecruits.toLocaleString()} Recruits = <span style={{ color: '#fef08a' }}>{totalYield.toLocaleString()} Voters</span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#ffffff' }}>
+                            {pctYield}% <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>of Brgy. {bKey}</span>
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: '#a7f3d0', fontWeight: 700 }}>
+                            ✓ Secures 60% with a safety buffer of +{surplus.toLocaleString()} votes!
+                          </div>
+                        </div>
+                      </div>
+
+                      {bKey === 'Santol' && (
+                        <div style={{
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: 8,
+                          padding: '12px 14px',
+                          fontSize: '0.78rem',
+                          color: '#475569',
+                          lineHeight: 1.5
+                        }}>
+                          <strong style={{ color: '#0f172a' }}>💡 Note on Santol Quota Options:</strong><br />
+                          • <strong>Current Config (15 Coords × 12 Members)</strong>: Yields <strong>6,769 voters (63.3%)</strong> with a comfortable +351 vote cushion above the 6,418 threshold.<br />
+                          • <strong>Alternative Option 1 (20 Coords × 8 Members)</strong>: 18 Sub-Leaders × 20 Coords = 360 Coords × 8 Members = 2,880 Members + 2,880 Recruits = <strong>6,516 voters (60.9%)</strong>, precisely reaching the 60% mark with +98 safety votes.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Comprehensive All 9 Barangays Comparison Table */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Table size={15} color="#047857" /> Municipal Quota Master Matrix (All 9 Barangays of Balagtas)
+                    </h4>
+                    <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                      Click any row to switch to its visual breakdown
+                    </span>
+                  </div>
+
+                  <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <table className="how-it-works-calc-table">
+                      <thead>
+                        <tr>
+                          <th>Barangay</th>
+                          <th style={{ textAlign: 'right' }}>Official Voters</th>
+                          <th style={{ textAlign: 'right' }}>60% Target</th>
+                          <th style={{ textAlign: 'center' }}>Sub-Leaders</th>
+                          <th style={{ textAlign: 'center' }}>Coords / SL (Total)</th>
+                          <th style={{ textAlign: 'center' }}>Members / Coord (Total)</th>
+                          <th style={{ textAlign: 'center' }}>+1 Recruits</th>
+                          <th style={{ textAlign: 'right' }}>Total Yield</th>
+                          <th style={{ textAlign: 'center' }}>Win %</th>
+                          <th style={{ textAlign: 'right' }}>Buffer (+)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(BARANGAY_VOTER_DATA).map(([bName, bData]) => {
+                          const totalVoters = bData.totalVoters;
+                          const target60 = bData.target60;
+                          const sl = bData.subLeaderTarget;
+                          const cq = bData.coordinatorQuota;
+                          const totalC = sl * cq;
+                          const mq = bData.memberQuota;
+                          const totalM = totalC * mq;
+                          const totalR = totalM * (bData.recruitQuota || 1);
+                          const yieldTotal = 1 + sl + totalC + totalM + totalR;
+                          const pct = ((yieldTotal / totalVoters) * 100).toFixed(1);
+                          const buffer = yieldTotal - target60;
+                          const isSelected = howItWorksBrgyTab === bName;
+
+                          return (
+                            <tr 
+                              key={bName} 
+                              style={{ 
+                                cursor: 'pointer', 
+                                background: isSelected ? '#ecfdf5' : undefined,
+                                fontWeight: isSelected ? 700 : undefined
+                              }}
+                              onClick={() => setHowItWorksBrgyTab(bName)}
+                            >
+                              <td>
+                                <strong>{bName}</strong> {bData.hasOfficialRecord ? '✓' : ''}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>{totalVoters.toLocaleString()}</td>
+                              <td style={{ textAlign: 'right', color: '#047857', fontWeight: 800 }}>{target60.toLocaleString()}</td>
+                              <td style={{ textAlign: 'center' }}>{sl}</td>
+                              <td style={{ textAlign: 'center' }}>{cq} ({totalC.toLocaleString()})</td>
+                              <td style={{ textAlign: 'center' }}>{mq} ({totalM.toLocaleString()})</td>
+                              <td style={{ textAlign: 'center' }}>{totalR.toLocaleString()}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 800, color: '#0f172a' }}>{yieldTotal.toLocaleString()}</td>
+                              <td style={{ textAlign: 'center' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  fontSize: '0.74rem',
+                                  fontWeight: 800,
+                                  background: '#ecfdf5',
+                                  color: '#065f46'
+                                }}>
+                                  {pct}%
+                                </span>
+                              </td>
+                              <td style={{ textAlign: 'right', color: buffer >= 0 ? '#059669' : '#e11d48', fontWeight: 700 }}>
+                                {buffer >= 0 ? `+${buffer.toLocaleString()}` : buffer.toLocaleString()}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        {(() => {
+                          let mTotV = 0;
+                          let mTot60 = 0;
+                          let mTotSL = 0;
+                          let mTotC = 0;
+                          let mTotM = 0;
+                          let mTotR = 0;
+                          let mTotYield = 0;
+
+                          Object.values(BARANGAY_VOTER_DATA).forEach(b => {
+                            mTotV += b.totalVoters;
+                            mTot60 += b.target60;
+                            const sl = b.subLeaderTarget;
+                            const cq = b.coordinatorQuota;
+                            const c = sl * cq;
+                            const mq = b.memberQuota;
+                            const m = c * mq;
+                            const r = m * (b.recruitQuota || 1);
+                            mTotSL += sl;
+                            mTotC += c;
+                            mTotM += m;
+                            mTotR += r;
+                            mTotYield += (1 + sl + c + m + r);
+                          });
+
+                          return (
+                            <tr>
+                              <td>MUNICIPALITY TOTAL</td>
+                              <td style={{ textAlign: 'right' }}>{mTotV.toLocaleString()}</td>
+                              <td style={{ textAlign: 'right' }}>{mTot60.toLocaleString()}</td>
+                              <td style={{ textAlign: 'center' }}>{mTotSL}</td>
+                              <td style={{ textAlign: 'center' }}>{mTotC.toLocaleString()}</td>
+                              <td style={{ textAlign: 'center' }}>{mTotM.toLocaleString()}</td>
+                              <td style={{ textAlign: 'center' }}>{mTotR.toLocaleString()}</td>
+                              <td style={{ textAlign: 'right' }}>{mTotYield.toLocaleString()}</td>
+                              <td style={{ textAlign: 'center' }}>{((mTotYield / mTotV) * 100).toFixed(1)}%</td>
+                              <td style={{ textAlign: 'right' }}>+{(mTotYield - mTot60).toLocaleString()}</td>
+                            </tr>
+                          );
+                        })()}
+                      </tfoot>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
