@@ -827,6 +827,9 @@ export default function AdminPage() {
   const [modalExpandedMembers, setModalExpandedMembers] = useState({});
   const [modalSearchFilter, setModalSearchFilter] = useState('');
   const [modalShowOpenSlots, setModalShowOpenSlots] = useState(true);
+  const [subLeaderFilterStatus, setSubLeaderFilterStatus] = useState('all'); // 'all' | 'appointed' | 'unassigned'
+  const [subLeaderSearchQuery, setSubLeaderSearchQuery] = useState('');
+  const [subLeaderViewMode, setSubLeaderViewMode] = useState('grid'); // 'grid' | 'table'
 
   const exportSubLeaderTeamExcel = (slot) => {
     if (!slot || !slot.leaderName) return;
@@ -8064,19 +8067,21 @@ export default function AdminPage() {
             <div className="campaign-hero-banner">
               <div className="campaign-hero-top">
                 <div className="campaign-hero-title-area">
-                  <div className="campaign-hero-badge">
-                    <Target size={12} /> 60% Electoral Victory Threshold
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div className="campaign-hero-badge">
+                      <Target size={12} /> 60% Electoral Victory Goal
+                    </div>
+                    <span style={{ fontSize: '0.78rem', color: '#a7f3d0', fontWeight: 600 }}>
+                      COMELEC Registered Base: {activeBrgyConfig.totalVoters.toLocaleString()} Voters
+                    </span>
                   </div>
                   <h2 className="campaign-hero-title">
-                    Brgy. {networkBarangayFilter} Campaign Command
+                    Brgy. {networkBarangayFilter} Campaign Command Center
                   </h2>
-                  <p className="campaign-hero-sub">
-                    Target: Secure at least 60% ({activeBrgyConfig.target60.toLocaleString()}) of the {activeBrgyConfig.totalVoters.toLocaleString()} registered COMELEC voters in Brgy. {networkBarangayFilter} through our 4-tier network cascade.
-                  </p>
                 </div>
 
                 <div className="campaign-brgy-select-box">
-                  <MapPin size={16} color="#a7f3d0" />
+                  <MapPin size={15} color="#a7f3d0" />
                   <select
                     value={networkBarangayFilter}
                     onChange={(e) => setNetworkBarangayFilter(e.target.value)}
@@ -8093,11 +8098,11 @@ export default function AdminPage() {
                 <div className="campaign-progress-stats">
                   <div className="campaign-progress-main-stat">
                     <span className="campaign-progress-curr">{totalBrgyVotersEnrolled.toLocaleString()}</span>
-                    <span className="campaign-progress-target">/ {activeBrgyConfig.target60.toLocaleString()} Voters Goal</span>
-                    <span className="campaign-progress-pct-badge">{brgyPctProgress}% Achieved</span>
+                    <span className="campaign-progress-target">/ {activeBrgyConfig.target60.toLocaleString()} Voters (60% Target)</span>
+                    <span className="campaign-progress-pct-badge">{brgyPctProgress}% Reached</span>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#d1fae5', fontWeight: 600 }}>
-                    {votesNeededToWin === 0 ? '🎉 60% Goal Met!' : `${votesNeededToWin.toLocaleString()} more voters needed to secure victory`}
+                  <div style={{ fontSize: '0.82rem', color: '#d1fae5', fontWeight: 600 }}>
+                    {votesNeededToWin === 0 ? '🎉 60% Victory Goal Reached!' : `${votesNeededToWin.toLocaleString()} more voters needed to secure victory`}
                   </div>
                 </div>
 
@@ -8106,10 +8111,10 @@ export default function AdminPage() {
                 </div>
 
                 <div className="campaign-milestones-row">
-                  <span>0% (Start)</span>
+                  <span>0%</span>
                   <span>25% ({Math.round(activeBrgyConfig.target60 * 0.416).toLocaleString()})</span>
                   <span>50% ({Math.round(activeBrgyConfig.target60 * 0.833).toLocaleString()})</span>
-                  <span style={{ color: '#fef08a', fontWeight: 800 }}>★ 60% Win Target ({activeBrgyConfig.target60.toLocaleString()})</span>
+                  <span style={{ color: '#fef08a', fontWeight: 800 }}>★ 60% Target ({activeBrgyConfig.target60.toLocaleString()})</span>
                   <span>75% Supermajority</span>
                 </div>
               </div>
@@ -8122,11 +8127,11 @@ export default function AdminPage() {
                 <div className="campaign-tier-accent" />
                 <div className="campaign-tier-top">
                   <span className="campaign-tier-title">Tier 1 · Sub-Leaders</span>
-                  <div className="campaign-tier-icon"><Users size={16} /></div>
+                  <div className="campaign-tier-icon"><Users size={15} /></div>
                 </div>
                 <div className="campaign-tier-val">{activeSubLeadersCount} / {activeBrgyConfig.subLeaderTarget}</div>
-                <span className="campaign-tier-quota-pill">Quota: {activeBrgyConfig.coordinatorQuota} Coordinators each</span>
-                <p className="campaign-tier-sub">Appointed sub-leaders covering sectors and puroks</p>
+                <span className="campaign-tier-quota-pill">Quota: {activeBrgyConfig.coordinatorQuota} Coords each</span>
+                <p className="campaign-tier-sub">Appointed leaders across sectors</p>
               </div>
 
               {/* Tier 2: Coordinators */}
@@ -8134,11 +8139,11 @@ export default function AdminPage() {
                 <div className="campaign-tier-accent" />
                 <div className="campaign-tier-top">
                   <span className="campaign-tier-title">Tier 2 · Coordinators</span>
-                  <div className="campaign-tier-icon"><UserCheck size={16} /></div>
+                  <div className="campaign-tier-icon"><UserCheck size={15} /></div>
                 </div>
                 <div className="campaign-tier-val">{activeCoordinatorsCount} / {targetCoordinatorsTotal}</div>
                 <span className="campaign-tier-quota-pill">Quota: {activeBrgyConfig.memberQuota} Members each</span>
-                <p className="campaign-tier-sub">Recruited by Sub-Leaders across community clusters</p>
+                <p className="campaign-tier-sub">Level 1 recruits across clusters</p>
               </div>
 
               {/* Tier 3: Members */}
@@ -8146,11 +8151,11 @@ export default function AdminPage() {
                 <div className="campaign-tier-accent" />
                 <div className="campaign-tier-top">
                   <span className="campaign-tier-title">Tier 3 · Citizen Members</span>
-                  <div className="campaign-tier-icon"><Shield size={16} /></div>
+                  <div className="campaign-tier-icon"><Shield size={15} /></div>
                 </div>
                 <div className="campaign-tier-val">Target: {targetMembersTotal.toLocaleString()}</div>
-                <span className="campaign-tier-quota-pill">Quota: 1 Voter (+1 Household)</span>
-                <p className="campaign-tier-sub">Recruited by Coordinators with EM-Cards</p>
+                <span className="campaign-tier-quota-pill">Quota: 1 Voter (+1 Recruit)</span>
+                <p className="campaign-tier-sub">Citizens enrolled with EM-Cards</p>
               </div>
 
               {/* Tier 4: Total Expected Yield */}
@@ -8158,13 +8163,13 @@ export default function AdminPage() {
                 <div className="campaign-tier-accent" />
                 <div className="campaign-tier-top">
                   <span className="campaign-tier-title">Target Network Yield</span>
-                  <div className="campaign-tier-icon"><Award size={16} /></div>
+                  <div className="campaign-tier-icon"><Award size={15} /></div>
                 </div>
                 <div className="campaign-tier-val">{projectedTargetVoters.toLocaleString()} Voters</div>
                 <span className="campaign-tier-quota-pill" style={{ color: '#b45309', background: '#fef3c7' }}>
                   {projectedYieldPct}% of Brgy. {networkBarangayFilter}
                 </span>
-                <p className="campaign-tier-sub">Full capacity when all quotas are fulfilled</p>
+                <p className="campaign-tier-sub">Full capacity at quota completion</p>
               </div>
             </div>
 
@@ -8180,119 +8185,314 @@ export default function AdminPage() {
                 </span>
               </div>
 
+              {/* High-Efficiency Filter Toolbar */}
+              <div className="subleaders-toolbar">
+                <div className="subleaders-filter-pills">
+                  <button 
+                    type="button" 
+                    className={`subleader-filter-pill ${subLeaderFilterStatus === 'all' ? 'active' : ''}`}
+                    onClick={() => setSubLeaderFilterStatus('all')}
+                  >
+                    All Positions ({subLeaderSlots.length})
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`subleader-filter-pill ${subLeaderFilterStatus === 'appointed' ? 'active' : ''}`}
+                    onClick={() => setSubLeaderFilterStatus('appointed')}
+                  >
+                    ✓ Appointed ({activeSubLeadersCount})
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`subleader-filter-pill ${subLeaderFilterStatus === 'unassigned' ? 'active' : ''}`}
+                    onClick={() => setSubLeaderFilterStatus('unassigned')}
+                  >
+                    ⚪ Open Slots ({subLeaderSlots.length - activeSubLeadersCount})
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <div className="subleaders-search-box">
+                    <Search size={13} color="#64748b" />
+                    <input 
+                      type="text" 
+                      placeholder="Search sub-leader..." 
+                      value={subLeaderSearchQuery}
+                      onChange={e => setSubLeaderSearchQuery(e.target.value)}
+                    />
+                    {subLeaderSearchQuery && (
+                      <X size={13} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => setSubLeaderSearchQuery('')} />
+                    )}
+                  </div>
+
+                  <div className="subleaders-view-toggles">
+                    <button 
+                      type="button" 
+                      className={`subleaders-view-btn ${subLeaderViewMode === 'grid' ? 'active' : ''}`}
+                      onClick={() => setSubLeaderViewMode('grid')}
+                      title="Card Grid View"
+                    >
+                      Cards
+                    </button>
+                    <button 
+                      type="button" 
+                      className={`subleaders-view-btn ${subLeaderViewMode === 'table' ? 'active' : ''}`}
+                      onClick={() => setSubLeaderViewMode('table')}
+                      title="Compact Table View"
+                    >
+                      Table
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {!activeBrgyConfig.hasOfficialRecord && (
                 <div style={{
                   background: '#f8fafc',
                   border: '1px solid #cbd5e1',
-                  borderRadius: 10,
-                  padding: '12px 16px',
-                  marginBottom: 16,
+                  borderRadius: 8,
+                  padding: '8px 12px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 12,
-                  fontSize: '0.82rem',
+                  gap: 10,
+                  fontSize: '0.78rem',
                   color: '#475569'
                 }}>
-                  <Info size={18} color="#64748b" style={{ flexShrink: 0 }} />
+                  <Info size={16} color="#64748b" style={{ flexShrink: 0 }} />
                   <span>
-                    <strong>Preliminary Quota Model:</strong> No official Sub-Leader list has been submitted yet for Brgy. {networkBarangayFilter}. Displaying recommended structure of <strong>{activeBrgyConfig.subLeaderTarget} Sub-Leaders</strong> (each mobilizing {activeBrgyConfig.coordinatorQuota} Coordinators) to secure the 60% voter victory threshold.
+                    <strong>Preliminary Quota Model:</strong> Displaying recommended structure of <strong>{activeBrgyConfig.subLeaderTarget} Sub-Leaders</strong> (each mobilizing {activeBrgyConfig.coordinatorQuota} Coordinators) to secure the 60% victory target.
                   </span>
                 </div>
               )}
 
-              <div className="subleaders-grid">
-                {subLeaderSlots.map((slot) => {
-                  const pct = Math.min(100, Math.round((slot.coordinatorsCount / slot.coordinatorQuota) * 100));
+              {/* Roster Display */}
+              {(() => {
+                const filteredSlots = subLeaderSlots.filter(slot => {
+                  if (subLeaderFilterStatus === 'appointed' && !slot.isAssigned) return false;
+                  if (subLeaderFilterStatus === 'unassigned' && slot.isAssigned) return false;
+                  if (subLeaderSearchQuery.trim()) {
+                    const q = subLeaderSearchQuery.toLowerCase().trim();
+                    if (slot.isAssigned) {
+                      return slot.leaderName.toLowerCase().includes(q);
+                    } else {
+                      return `position ${slot.slotNumber}`.includes(q) || `slot ${slot.slotNumber}`.includes(q);
+                    }
+                  }
+                  return true;
+                });
+
+                if (filteredSlots.length === 0) {
                   return (
-                    <div 
-                      key={slot.slotNumber}
-                      className={`subleader-card ${slot.isAssigned ? 'assigned' : 'unassigned'}`}
-                      onClick={() => {
-                        if (slot.isAssigned) {
-                          setNetworkActiveSubLeaderModal(slot);
-                        } else {
-                          setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
-                          setAppointSearch('');
-                        }
-                      }}
-                    >
-                      <div className="subleader-card-top">
-                        <div className="subleader-slot-badge">#{slot.slotNumber}</div>
-                        <div className="subleader-avatar">
-                          {slot.isAssigned ? getInitials(slot.leaderName) : '?'}
-                        </div>
-                        <div className="subleader-info">
-                          <div className="subleader-name">
-                            {slot.isAssigned ? slot.leaderName : `Sub-Leader Position #${slot.slotNumber}`}
-                          </div>
-                          <div className="subleader-sub">
-                            <MapPin size={11} /> Brgy. {networkBarangayFilter} · {slot.isAssigned ? 'Appointed' : 'Pending Appointment'}
-                          </div>
-                        </div>
-                      </div>
-
-                      {slot.isAssigned ? (
-                        <div className="subleader-quota-wrap">
-                          <div className="subleader-quota-row">
-                            <span>Coordinators Recruited:</span>
-                            <strong>{slot.coordinatorsCount} / {slot.coordinatorQuota}</strong>
-                          </div>
-                          <div className="subleader-quota-track">
-                            <div 
-                              className="subleader-quota-fill" 
-                              style={{ 
-                                width: `${Math.max(2, pct)}%`,
-                                background: slot.status === 'met' ? '#059669' : '#3b82f6'
-                              }} 
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{
-                          background: '#f8fafc',
-                          border: '1px dashed #cbd5e1',
-                          borderRadius: 8,
-                          padding: '10px 12px',
-                          textAlign: 'center',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 6
-                        }}>
-                          <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Pending official appointment</span>
-                          <button 
-                            type="button" 
-                            className="btn btn-sm btn-outline-emerald"
-                            style={{ fontSize: '0.74rem', padding: '3px 10px' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
-                              setAppointSearch('');
-                            }}
-                          >
-                            <Plus size={12} style={{ marginRight: 2 }} /> Appoint Sub-Leader
-                          </button>
-                        </div>
-                      )}
-
-                      <div className="subleader-card-footer">
-                        <span className={`subleader-status-chip ${slot.status}`}>
-                          {slot.status === 'met' ? '✓ Quota Met' : slot.status === 'progress' ? `In Progress (${pct}%)` : '⚪ Pending Appointment'}
-                        </span>
-                        {slot.isAssigned ? (
-                          <span style={{ fontWeight: 700, color: '#047857' }}>
-                            {slot.totalClusterVotes} Total Votes →
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                            Target: 20 Coordinators
-                          </span>
-                        )}
-                      </div>
+                    <div style={{ padding: '30px 16px', textAlign: 'center', color: '#64748b', fontSize: '0.85rem' }}>
+                      No sub-leader positions match your filter.
                     </div>
                   );
-                })}
-              </div>
+                }
+
+                if (subLeaderViewMode === 'table') {
+                  return (
+                    <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', background: '#ffffff' }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', textAlign: 'left' }}>
+                            <th style={{ padding: '10px 12px', width: 60 }}>Slot</th>
+                            <th style={{ padding: '10px 12px' }}>Sub-Leader</th>
+                            <th style={{ padding: '10px 12px' }}>Status</th>
+                            <th style={{ padding: '10px 12px', minWidth: 160 }}>Coordinators Quota</th>
+                            <th style={{ padding: '10px 12px' }}>Total Votes</th>
+                            <th style={{ padding: '10px 12px', textAlign: 'right' }}>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredSlots.map(slot => {
+                            const pct = Math.min(100, Math.round((slot.coordinatorsCount / slot.coordinatorQuota) * 100));
+                            return (
+                              <tr 
+                                key={slot.slotNumber} 
+                                style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background 0.15s' }}
+                                onClick={() => {
+                                  if (slot.isAssigned) {
+                                    setNetworkActiveSubLeaderModal(slot);
+                                  } else {
+                                    setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
+                                    setAppointSearch('');
+                                  }
+                                }}
+                              >
+                                <td style={{ padding: '10px 12px', fontWeight: 800, color: '#64748b' }}>
+                                  #{slot.slotNumber}
+                                </td>
+                                <td style={{ padding: '10px 12px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <div style={{ 
+                                      width: 28, height: 28, borderRadius: '50%', 
+                                      background: slot.isAssigned ? '#eff6ff' : '#f1f5f9', 
+                                      color: slot.isAssigned ? '#2563eb' : '#64748b', 
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                      fontWeight: 800, fontSize: '0.72rem' 
+                                    }}>
+                                      {slot.isAssigned ? getInitials(slot.leaderName) : '?'}
+                                    </div>
+                                    <div>
+                                      <strong style={{ color: '#0f172a', display: 'block' }}>
+                                        {slot.isAssigned ? slot.leaderName : `Sub-Leader Position #${slot.slotNumber}`}
+                                      </strong>
+                                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                        Brgy. {networkBarangayFilter} {slot.isAssigned ? '· Official' : '· Vacant'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '10px 12px' }}>
+                                  <span className={`subleader-status-chip ${slot.status}`}>
+                                    {slot.status === 'met' ? '✓ Quota Met' : slot.status === 'progress' ? `In Progress (${pct}%)` : '⚪ Pending'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '10px 12px' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem' }}>
+                                      <span>{slot.coordinatorsCount} / {slot.coordinatorQuota}</span>
+                                      <span style={{ fontWeight: 700 }}>{pct}%</span>
+                                    </div>
+                                    <div style={{ width: '100%', height: 5, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden' }}>
+                                      <div style={{ width: `${Math.max(2, pct)}%`, height: '100%', background: slot.status === 'met' ? '#059669' : '#3b82f6' }} />
+                                    </div>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '10px 12px', fontWeight: 700, color: '#047857' }}>
+                                  {slot.isAssigned ? `${slot.totalClusterVotes} Votes` : '0 Votes'}
+                                </td>
+                                <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                                  {slot.isAssigned ? (
+                                    <button 
+                                      type="button" 
+                                      className="btn btn-xs btn-outline-emerald"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setNetworkActiveSubLeaderModal(slot);
+                                      }}
+                                    >
+                                      Inspect Team →
+                                    </button>
+                                  ) : (
+                                    <button 
+                                      type="button" 
+                                      className="btn btn-xs btn-outline-secondary"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
+                                        setAppointSearch('');
+                                      }}
+                                    >
+                                      + Appoint
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="subleaders-grid">
+                    {filteredSlots.map((slot) => {
+                      const pct = Math.min(100, Math.round((slot.coordinatorsCount / slot.coordinatorQuota) * 100));
+                      return (
+                        <div 
+                          key={slot.slotNumber}
+                          className={`subleader-card ${slot.isAssigned ? 'assigned' : 'unassigned'}`}
+                          onClick={() => {
+                            if (slot.isAssigned) {
+                              setNetworkActiveSubLeaderModal(slot);
+                            } else {
+                              setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
+                              setAppointSearch('');
+                            }
+                          }}
+                        >
+                          <div className="subleader-card-top">
+                            <div className="subleader-slot-badge">#{slot.slotNumber}</div>
+                            <div className="subleader-avatar">
+                              {slot.isAssigned ? getInitials(slot.leaderName) : '?'}
+                            </div>
+                            <div className="subleader-info">
+                              <div className="subleader-name">
+                                {slot.isAssigned ? slot.leaderName : `Sub-Leader Position #${slot.slotNumber}`}
+                              </div>
+                              <div className="subleader-sub">
+                                <MapPin size={11} /> Brgy. {networkBarangayFilter} · {slot.isAssigned ? 'Appointed' : 'Pending Appointment'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {slot.isAssigned ? (
+                            <div className="subleader-quota-wrap">
+                              <div className="subleader-quota-row">
+                                <span>Coordinators Recruited:</span>
+                                <strong>{slot.coordinatorsCount} / {slot.coordinatorQuota}</strong>
+                              </div>
+                              <div className="subleader-quota-track">
+                                <div 
+                                  className="subleader-quota-fill" 
+                                  style={{ 
+                                    width: `${Math.max(2, pct)}%`,
+                                    background: slot.status === 'met' ? '#059669' : '#3b82f6'
+                                  }} 
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{
+                              background: '#f8fafc',
+                              border: '1px dashed #cbd5e1',
+                              borderRadius: 8,
+                              padding: '8px 10px',
+                              textAlign: 'center',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: 4
+                            }}>
+                              <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Position Open</span>
+                              <button 
+                                type="button" 
+                                className="btn btn-xs btn-outline-emerald"
+                                style={{ fontSize: '0.72rem', padding: '3px 8px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
+                                  setAppointSearch('');
+                                }}
+                              >
+                                <Plus size={11} style={{ marginRight: 2 }} /> Appoint Sub-Leader
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="subleader-card-footer">
+                            <span className={`subleader-status-chip ${slot.status}`}>
+                              {slot.status === 'met' ? '✓ Quota Met' : slot.status === 'progress' ? `In Progress (${pct}%)` : '⚪ Open Slot'}
+                            </span>
+                            {slot.isAssigned ? (
+                              <span style={{ fontWeight: 700, color: '#047857', display: 'flex', alignItems: 'center', gap: 2 }}>
+                                {slot.totalClusterVotes} Total Votes →
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                                Target: {slot.coordinatorQuota} Coordinators
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
