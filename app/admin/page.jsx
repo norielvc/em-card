@@ -23,17 +23,17 @@ import {
   ShoppingBag, Package, Coins, Pill, Droplets, Banknote, Target
 } from 'lucide-react';
 
-// 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays
+// 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays (Option 3: Smart Tailored Quota)
 const BARANGAY_VOTER_DATA = {
-  'Santol': { totalVoters: 10696, target60: 6418, subLeaderTarget: 18, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: true },
-  'Panginay': { totalVoters: 8918, target60: 5351, subLeaderTarget: 15, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: true },
-  'Borol 1st': { totalVoters: 7806, target60: 4684, subLeaderTarget: 10, coordinatorQuota: 20, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
-  'Pulong Gubat': { totalVoters: 6335, target60: 3801, subLeaderTarget: 16, coordinatorQuota: 20, memberQuota: 6, recruitQuota: 1, hasOfficialRecord: true },
-  'Borol 2nd': { totalVoters: 5355, target60: 3213, subLeaderTarget: 9, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: true },
-  'Longos': { totalVoters: 2477, target60: 1487, subLeaderTarget: 14, coordinatorQuota: 20, memberQuota: 3, recruitQuota: 1, hasOfficialRecord: true },
-  'San Juan': { totalVoters: 7319, target60: 4392, subLeaderTarget: 12, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: false },
-  'Wawa': { totalVoters: 3676, target60: 2206, subLeaderTarget: 6, coordinatorQuota: 20, memberQuota: 9, recruitQuota: 1, hasOfficialRecord: false },
-  'Dalig': { totalVoters: 1676, target60: 1006, subLeaderTarget: 3, coordinatorQuota: 20, memberQuota: 8, recruitQuota: 1, hasOfficialRecord: false },
+  'Santol': { totalVoters: 10696, target60: 6418, subLeaderTarget: 18, coordinatorQuota: 15, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
+  'Panginay': { totalVoters: 8918, target60: 5351, subLeaderTarget: 15, coordinatorQuota: 14, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
+  'Borol 1st': { totalVoters: 7806, target60: 4684, subLeaderTarget: 10, coordinatorQuota: 15, memberQuota: 15, recruitQuota: 1, hasOfficialRecord: true },
+  'Pulong Gubat': { totalVoters: 6335, target60: 3801, subLeaderTarget: 16, coordinatorQuota: 10, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
+  'Borol 2nd': { totalVoters: 5355, target60: 3213, subLeaderTarget: 9, coordinatorQuota: 12, memberQuota: 14, recruitQuota: 1, hasOfficialRecord: true },
+  'Longos': { totalVoters: 2477, target60: 1487, subLeaderTarget: 14, coordinatorQuota: 8, memberQuota: 7, recruitQuota: 1, hasOfficialRecord: true },
+  'San Juan': { totalVoters: 7319, target60: 4392, subLeaderTarget: 12, coordinatorQuota: 14, memberQuota: 13, recruitQuota: 1, hasOfficialRecord: false },
+  'Wawa': { totalVoters: 3676, target60: 2206, subLeaderTarget: 6, coordinatorQuota: 12, memberQuota: 15, recruitQuota: 1, hasOfficialRecord: false },
+  'Dalig': { totalVoters: 1676, target60: 1006, subLeaderTarget: 3, coordinatorQuota: 12, memberQuota: 14, recruitQuota: 1, hasOfficialRecord: false },
 };
 
 
@@ -7932,7 +7932,7 @@ export default function AdminPage() {
                   <div className="campaign-tier-icon"><Users size={16} /></div>
                 </div>
                 <div className="campaign-tier-val">{activeSubLeadersCount} / {activeBrgyConfig.subLeaderTarget}</div>
-                <span className="campaign-tier-quota-pill">Quota: 20 Coordinators each</span>
+                <span className="campaign-tier-quota-pill">Quota: {activeBrgyConfig.coordinatorQuota} Coordinators each</span>
                 <p className="campaign-tier-sub">Appointed sub-leaders covering sectors and puroks</p>
               </div>
 
@@ -7944,7 +7944,7 @@ export default function AdminPage() {
                   <div className="campaign-tier-icon"><UserCheck size={16} /></div>
                 </div>
                 <div className="campaign-tier-val">{activeCoordinatorsCount} / {targetCoordinatorsTotal}</div>
-                <span className="campaign-tier-quota-pill">Quota: 8 Members each</span>
+                <span className="campaign-tier-quota-pill">Quota: {activeBrgyConfig.memberQuota} Members each</span>
                 <p className="campaign-tier-sub">Recruited by Sub-Leaders across community clusters</p>
               </div>
 
@@ -8749,7 +8749,7 @@ export default function AdminPage() {
                       {networkActiveSubLeaderModal.leaderName}’s Coordinator Team
                     </h3>
                     <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
-                      Sub-Leader Roster · Brgy. {networkBarangayFilter} · Quota: {networkActiveSubLeaderModal.coordinatorQuota} Coordinators (Each targeting 8 Members)
+                      Sub-Leader Roster · Brgy. {networkBarangayFilter} · Quota: {networkActiveSubLeaderModal.coordinatorQuota} Coordinators (Each targeting {activeBrgyConfig.memberQuota} Members)
                     </p>
                   </div>
                 </div>
@@ -8893,7 +8893,7 @@ export default function AdminPage() {
 
               <div className="modal-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <p style={{ margin: 0, fontSize: '0.84rem', color: '#475569', lineHeight: 1.5 }}>
-                  Select an approved member to appoint as the official Sub-Leader for this position. Their direct recruits will automatically count toward their 20 Coordinators quota.
+                  Select an approved member to appoint as the official Sub-Leader for this position. Their direct recruits will automatically count toward their {activeBrgyConfig.coordinatorQuota} Coordinators quota.
                 </p>
 
                 <div style={{ position: 'relative' }}>
