@@ -30,7 +30,7 @@ const BARANGAY_VOTER_DATA = {
   'Borol 1st': { totalVoters: 7806, target60: 4684, subLeaderTarget: 10, coordinatorQuota: 15, memberQuota: 15, recruitQuota: 1, hasOfficialRecord: true },
   'Pulong Gubat': { totalVoters: 6335, target60: 3801, subLeaderTarget: 16, coordinatorQuota: 10, memberQuota: 12, recruitQuota: 1, hasOfficialRecord: true },
   'Borol 2nd': { totalVoters: 5355, target60: 3213, subLeaderTarget: 9, coordinatorQuota: 12, memberQuota: 14, recruitQuota: 1, hasOfficialRecord: true },
-  'Longos': { totalVoters: 2477, target60: 1487, subLeaderTarget: 14, coordinatorQuota: 8, memberQuota: 7, recruitQuota: 1, hasOfficialRecord: true },
+  'Longos': { totalVoters: 2477, target60: 1487, subLeaderTarget: 14, coordinatorQuota: 7, memberQuota: 7, recruitQuota: 1, hasOfficialRecord: true },
   'San Juan': { totalVoters: 7319, target60: 4392, subLeaderTarget: 12, coordinatorQuota: 14, memberQuota: 13, recruitQuota: 1, hasOfficialRecord: false },
   'Wawa': { totalVoters: 3676, target60: 2206, subLeaderTarget: 6, coordinatorQuota: 12, memberQuota: 15, recruitQuota: 1, hasOfficialRecord: false },
   'Dalig': { totalVoters: 1676, target60: 1006, subLeaderTarget: 3, coordinatorQuota: 12, memberQuota: 14, recruitQuota: 1, hasOfficialRecord: false },
