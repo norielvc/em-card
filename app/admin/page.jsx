@@ -20,7 +20,7 @@ import {
   ArrowRight, Ban, Building, Cake, CreditCard, Database, Folder, Globe, HardDrive, Hash,
   History, Inbox, Lock, Mail, Megaphone, Monitor, Phone, Plus, Server, ShieldAlert,
   ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award, XCircle, Sparkles,
-  ShoppingBag, Package, Coins, Pill, Droplets, Banknote, Target, HelpCircle, Table
+  ShoppingBag, Package, Coins, Pill, Droplets, Banknote, Target, HelpCircle, Table, Layers
 } from 'lucide-react';
 
 // 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays (Campaign Blueprint: 20-9-1)
@@ -10395,25 +10395,15 @@ export default function AdminPage() {
               {/* Header */}
               <div className="how-it-works-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    background: '#ecfdf5',
-                    border: '1px solid #a7f3d0',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#047857'
-                  }}>
-                    <HelpCircle size={24} />
+                  <div className="how-it-works-header-icon">
+                    <HelpCircle size={20} />
                   </div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
                       How It Works: 60% Electoral Victory Quota System
                     </h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                      Full mathematical breakdown, 4-tier multiplier pipeline, and quota calculations for each barangay in Balagtas.
+                    <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
+                      Mathematical breakdown, 4-tier multiplier pipeline, and quota calculations for each barangay in Balagtas.
                     </p>
                   </div>
                 </div>
@@ -10424,7 +10414,7 @@ export default function AdminPage() {
                     onClick={() => window.print()}
                     title="Print official quota briefing sheet"
                   >
-                    <Printer size={14} style={{ marginRight: 6 }} /> Print Guide
+                    <Printer size={13} style={{ marginRight: 6 }} /> Print Guide
                   </button>
                   <button 
                     type="button" 
@@ -10441,42 +10431,51 @@ export default function AdminPage() {
               <div className="how-it-works-body">
                 {/* Strategic Callout Cards */}
                 <div className="how-it-works-callouts-grid">
-                  <div className="how-it-works-callout-card primary">
-                    <div className="how-it-works-callout-title" style={{ color: '#065f46' }}>
-                      <Target size={16} color="#059669" /> Why the 60% Electoral Target?
+                  <div className="how-it-works-callout-card">
+                    <div className="how-it-works-callout-title">
+                      <div className="how-it-works-callout-icon">
+                        <Target size={14} color="#059669" />
+                      </div>
+                      Why the 60% Victory Target?
                     </div>
                     <p className="how-it-works-callout-desc">
-                      In Philippine municipal elections, capturing <strong>60% of registered COMELEC voters</strong> guarantees an absolute, decisive supermajority. It protects against margin of error, rainy day turnout variations, and fractured opposition tickets.
+                      In Philippine municipal elections, capturing <strong>60% of registered COMELEC voters</strong> guarantees a decisive supermajority that insulates the campaign against turnout variations and opposition ticket splits.
                     </p>
                   </div>
 
                   <div className="how-it-works-callout-card">
                     <div className="how-it-works-callout-title">
-                      <Network size={16} color="#3b82f6" /> The 4-Tier Multiplier Principle
+                      <div className="how-it-works-callout-icon">
+                        <Network size={14} color="#0f172a" />
+                      </div>
+                      The 4-Tier Multiplier Principle
                     </div>
                     <p className="how-it-works-callout-desc">
-                      Directly hunting for thousands of voters overwhelms a campaign. Instead, our cascading model breaks the burden into manageable, high-commitment quotas: Sub-Leaders recruit Coordinators, Coordinators recruit Members, and each Member brings <strong>just 1 household voter (+1)</strong>.
+                      Instead of overwhelming canvassers, the model cascades manageable quotas: Sub-Leaders recruit Coordinators, Coordinators recruit Members, and each Member mobilizes <strong>1 household voter (+1)</strong>.
                     </p>
                   </div>
 
                   <div className="how-it-works-callout-card">
                     <div className="how-it-works-callout-title">
-                      <ShieldCheckIcon size={16} color="#8b5cf6" /> Verified EM-Card Validation
+                      <div className="how-it-works-callout-icon">
+                        <ShieldCheck size={14} color="#059669" />
+                      </div>
+                      Verified Registry Authentication
                     </div>
                     <p className="how-it-works-callout-desc">
-                      Every enrolled voter is authenticated against the official Balagtas registered voter registry. QR codes eliminate duplicate accounts and track exact downline accountability from leader to household.
+                      Every enrolled resident is authenticated against official Balagtas registered voter records with QR tracking, eliminating duplicates and securing verifiable precinct-level downline turnout.
                     </p>
                   </div>
                 </div>
 
                 {/* Barangay Tabs Navigation */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Select Barangay for Detailed Math Breakdown:
+                <div className="how-it-works-nav-wrapper">
+                  <div className="how-it-works-nav-header">
+                    <span className="how-it-works-nav-label">
+                      Select Barangay for Quota Modeling:
                     </span>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      Showing: <strong>Brgy. {howItWorksBrgyTab}</strong>
+                    <span className="how-it-works-nav-active">
+                      Active Model: <strong>Brgy. {howItWorksBrgyTab}</strong>
                     </span>
                   </div>
 
@@ -10488,15 +10487,15 @@ export default function AdminPage() {
                         className={`how-it-works-tab-pill ${howItWorksBrgyTab === b ? 'active' : ''}`}
                         onClick={() => setHowItWorksBrgyTab(b)}
                       >
-                        {b === 'Santol' ? '🌿 Santol' : b}
+                        {b}
                       </button>
                     ))}
                     <button
                       type="button"
-                      className={`how-it-works-tab-pill ${howItWorksBrgyTab === 'all' ? 'active' : ''}`}
+                      className={`how-it-works-tab-pill compare ${howItWorksBrgyTab === 'all' ? 'active' : ''}`}
                       onClick={() => setHowItWorksBrgyTab('all')}
                     >
-                      📊 Compare All 9 Barangays
+                      <Table size={13} style={{ marginRight: 5 }} /> Master Matrix
                     </button>
                   </div>
                 </div>
@@ -10521,120 +10520,100 @@ export default function AdminPage() {
                   return (
                     <div className="how-it-works-flow-container">
                       {/* Top Stat Bar */}
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: 12,
-                        paddingBottom: 12,
-                        borderBottom: '1px solid #e2e8f0'
-                      }}>
+                      <div className="how-it-works-brgy-header">
                         <div>
-                          <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+                          <h4 className="how-it-works-brgy-title">
                             Brgy. {bKey} Electoral Campaign Quota Model
                           </h4>
-                          <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                          <span className="how-it-works-brgy-subtitle">
                             Official COMELEC Registered Base: <strong>{totalVoters.toLocaleString()} Voters</strong>
                           </span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{
-                            background: '#fef3c7',
-                            color: '#92400e',
-                            padding: '4px 10px',
-                            borderRadius: 999,
-                            fontSize: '0.75rem',
-                            fontWeight: 800
-                          }}>
-                            🎯 60% Victory Goal: {target60.toLocaleString()} Voters
+                        <div className="how-it-works-brgy-badges">
+                          <span className="how-it-works-chip target">
+                            <Target size={12} color="#334155" /> 60% Victory Target: {target60.toLocaleString()} Voters
                           </span>
-                          <span style={{
-                            background: '#ecfdf5',
-                            color: '#065f46',
-                            padding: '4px 10px',
-                            borderRadius: 999,
-                            fontSize: '0.75rem',
-                            fontWeight: 800
-                          }}>
-                            🏆 Projected Yield: {totalYield.toLocaleString()} Voters ({pctYield}%)
+                          <span className="how-it-works-chip yield">
+                            <TrendingUp size={12} color="#047857" /> Projected Yield: {totalYield.toLocaleString()} Voters ({pctYield}%)
                           </span>
                         </div>
                       </div>
 
                       {/* Category View Selector Toggle */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, margin: '4px 0' }}>
+                      <div className="how-it-works-view-toolbar">
                         <div className="how-it-works-view-toggle">
                           <button
                             type="button"
                             className={`how-it-works-view-btn ${howItWorksCategoryView === 'roles' ? 'active' : ''}`}
                             onClick={() => setHowItWorksCategoryView('roles')}
                           >
-                            <Users size={13} /> 👥 Target Quota by Role Category (4 Tiers)
+                            <Users size={13} /> Role Tiers (4 Levels)
                           </button>
                           <button
                             type="button"
                             className={`how-it-works-view-btn ${howItWorksCategoryView === 'sectors' ? 'active' : ''}`}
                             onClick={() => setHowItWorksCategoryView('sectors')}
                           >
-                            <Target size={13} /> 🏷️ Target Quota by Community Sector
+                            <PieChart size={13} /> Community Sectors
                           </button>
                           <button
                             type="button"
                             className={`how-it-works-view-btn ${howItWorksCategoryView === 'all' ? 'active' : ''}`}
                             onClick={() => setHowItWorksCategoryView('all')}
                           >
-                            <Table size={13} /> 📋 Combined Breakdown View
+                            <Layers size={13} /> Combined Overview
                           </button>
                         </div>
-                        <span style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>
-                          Select category view to inspect specific quotas & allocations
+                        <span className="how-it-works-view-hint">
+                          Select breakdown mode to inspect quotas & allocations
                         </span>
                       </div>
 
                       {/* VIEW 1: Role Categories Quotas (5 Connected Cards) */}
                       {(howItWorksCategoryView === 'roles' || howItWorksCategoryView === 'all') && (
                         <div>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          <div className="how-it-works-section-header">
+                            <span className="how-it-works-section-title">
                               Hierarchy Categories & Mandatory Target Quotas
                             </span>
-                            <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 700, background: '#ecfdf5', padding: '2px 8px', borderRadius: 999 }}>
+                            <span className="how-it-works-section-badge">
                               {bKey === 'Santol' ? `Campaign Blueprint (${coordQuota} Coords × ${memberQuota} Members)` : 'Tailored Multiplier Pipeline'}
                             </span>
                           </div>
 
                           <div className="how-it-works-steps-row">
                             {/* Category 0: Apex */}
-                            <div className="how-it-works-step-card" style={{ borderTop: '3px solid #64748b' }}>
-                              <span className="how-it-works-step-tag" style={{ background: '#f1f5f9', color: '#475569' }}>
-                                Tier 0 · Apex
-                              </span>
-                              <div className="how-it-works-step-num">1</div>
-                              <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
-                                Barangay Leader
+                            <div className="how-it-works-step-card">
+                              <div className="how-it-works-step-top">
+                                <span className="how-it-works-step-tag">Tier 0 · Apex</span>
+                                <div className="how-it-works-step-icon"><User size={13} /></div>
                               </div>
+                              <div className="how-it-works-step-num">1</div>
+                              <div className="how-it-works-step-role">Barangay Leader</div>
                               <div className="how-it-works-step-quota-box">
-                                <span className="how-it-works-step-quota-label">🎯 Target Quota</span>
-                                <span className="how-it-works-step-quota-val" style={{ color: '#0f172a' }}>1 Apex Leader</span>
+                                <span className="how-it-works-step-quota-label">
+                                  <Target size={10} color="#059669" /> Target Quota
+                                </span>
+                                <span className="how-it-works-step-quota-val">1 Apex Leader</span>
                               </div>
                               <p className="how-it-works-step-desc">
-                                Oversees the Brgy. {bKey} campaign war room and coordinates all 18 sub-leaders.
+                                Oversees the Brgy. {bKey} campaign war room and coordinates all {subLeaders} sub-leaders.
                               </p>
                             </div>
 
                             {/* Category 1: Sub-Leaders */}
-                            <div className="how-it-works-step-card" style={{ borderTop: '3px solid #10b981' }}>
-                              <span className="how-it-works-step-tag" style={{ background: '#ecfdf5', color: '#047857' }}>
-                                Tier 1 · Sub-Leaders
-                              </span>
-                              <div className="how-it-works-step-num" style={{ color: '#047857' }}>{subLeaders}</div>
-                              <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
-                                Appointed Sub-Leaders
+                            <div className="how-it-works-step-card highlight">
+                              <div className="how-it-works-step-top">
+                                <span className="how-it-works-step-tag highlight">Tier 1 · Sub-Leaders</span>
+                                <div className="how-it-works-step-icon highlight"><Users size={13} /></div>
                               </div>
-                              <div className="how-it-works-step-quota-box" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
-                                <span className="how-it-works-step-quota-label" style={{ color: '#047857' }}>🎯 Target Quota</span>
-                                <span className="how-it-works-step-quota-val" style={{ color: '#047857' }}>
+                              <div className="how-it-works-step-num highlight">{subLeaders}</div>
+                              <div className="how-it-works-step-role">Appointed Sub-Leaders</div>
+                              <div className="how-it-works-step-quota-box highlight">
+                                <span className="how-it-works-step-quota-label">
+                                  <Target size={10} color="#059669" /> Target Quota
+                                </span>
+                                <span className="how-it-works-step-quota-val">
                                   {subLeaders} Leaders ({coordQuota} Coords each)
                                 </span>
                               </div>
@@ -10644,17 +10623,18 @@ export default function AdminPage() {
                             </div>
 
                             {/* Category 2: Coordinators */}
-                            <div className="how-it-works-step-card" style={{ borderTop: '3px solid #3b82f6' }}>
-                              <span className="how-it-works-step-tag" style={{ background: '#eff6ff', color: '#2563eb' }}>
-                                Tier 2 · Coordinators
-                              </span>
-                              <div className="how-it-works-step-num" style={{ color: '#2563eb' }}>{totalCoords.toLocaleString()}</div>
-                              <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
-                                Field Coordinators
+                            <div className="how-it-works-step-card">
+                              <div className="how-it-works-step-top">
+                                <span className="how-it-works-step-tag">Tier 2 · Coordinators</span>
+                                <div className="how-it-works-step-icon"><UserCheck size={13} /></div>
                               </div>
-                              <div className="how-it-works-step-quota-box" style={{ background: '#eff6ff', borderColor: '#bfdbfe' }}>
-                                <span className="how-it-works-step-quota-label" style={{ color: '#2563eb' }}>🎯 Target Quota</span>
-                                <span className="how-it-works-step-quota-val" style={{ color: '#2563eb' }}>
+                              <div className="how-it-works-step-num">{totalCoords.toLocaleString()}</div>
+                              <div className="how-it-works-step-role">Field Coordinators</div>
+                              <div className="how-it-works-step-quota-box">
+                                <span className="how-it-works-step-quota-label">
+                                  <Target size={10} color="#059669" /> Target Quota
+                                </span>
+                                <span className="how-it-works-step-quota-val">
                                   {totalCoords.toLocaleString()} Coords ({memberQuota} Members each)
                                 </span>
                               </div>
@@ -10664,17 +10644,18 @@ export default function AdminPage() {
                             </div>
 
                             {/* Category 3: Members */}
-                            <div className="how-it-works-step-card" style={{ borderTop: '3px solid #8b5cf6' }}>
-                              <span className="how-it-works-step-tag" style={{ background: '#f5f3ff', color: '#7c3aed' }}>
-                                Tier 3 · EM Members
-                              </span>
-                              <div className="how-it-works-step-num" style={{ color: '#7c3aed' }}>{totalMembers.toLocaleString()}</div>
-                              <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
-                                Citizen Members
+                            <div className="how-it-works-step-card">
+                              <div className="how-it-works-step-top">
+                                <span className="how-it-works-step-tag">Tier 3 · Citizen Members</span>
+                                <div className="how-it-works-step-icon"><CreditCard size={13} /></div>
                               </div>
-                              <div className="how-it-works-step-quota-box" style={{ background: '#f5f3ff', borderColor: '#ddd6fe' }}>
-                                <span className="how-it-works-step-quota-label" style={{ color: '#7c3aed' }}>🎯 Target Quota</span>
-                                <span className="how-it-works-step-quota-val" style={{ color: '#7c3aed' }}>
+                              <div className="how-it-works-step-num">{totalMembers.toLocaleString()}</div>
+                              <div className="how-it-works-step-role">Citizen Members</div>
+                              <div className="how-it-works-step-quota-box">
+                                <span className="how-it-works-step-quota-label">
+                                  <Target size={10} color="#059669" /> Target Quota
+                                </span>
+                                <span className="how-it-works-step-quota-val">
                                   {totalMembers.toLocaleString()} Members (+1 Recruit each)
                                 </span>
                               </div>
@@ -10684,22 +10665,23 @@ export default function AdminPage() {
                             </div>
 
                             {/* Category 4: +1 Recruits */}
-                            <div className="how-it-works-step-card" style={{ borderTop: '3px solid #f59e0b' }}>
-                              <span className="how-it-works-step-tag" style={{ background: '#fffbeb', color: '#d97706' }}>
-                                Tier 4 · Household Multiplier
-                              </span>
-                              <div className="how-it-works-step-num" style={{ color: '#d97706' }}>{totalRecruits.toLocaleString()}</div>
-                              <div style={{ fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
-                                +1 Family Recruits
+                            <div className="how-it-works-step-card">
+                              <div className="how-it-works-step-top">
+                                <span className="how-it-works-step-tag">Tier 4 · Household Multiplier</span>
+                                <div className="how-it-works-step-icon"><HeartHandshake size={13} /></div>
                               </div>
-                              <div className="how-it-works-step-quota-box" style={{ background: '#fffbeb', borderColor: '#fde68a' }}>
-                                <span className="how-it-works-step-quota-label" style={{ color: '#d97706' }}>🎯 Target Quota</span>
-                                <span className="how-it-works-step-quota-val" style={{ color: '#d97706' }}>
+                              <div className="how-it-works-step-num">{totalRecruits.toLocaleString()}</div>
+                              <div className="how-it-works-step-role">+1 Family Recruits</div>
+                              <div className="how-it-works-step-quota-box">
+                                <span className="how-it-works-step-quota-label">
+                                  <Target size={10} color="#059669" /> Target Quota
+                                </span>
+                                <span className="how-it-works-step-quota-val">
                                   {totalRecruits.toLocaleString()} Voters (+1 Per Member)
                                 </span>
                               </div>
                               <p className="how-it-works-step-desc">
-                                Spouses, adult children, and neighbors mobilized by each registered member.
+                                Spouses, adult children, and neighbors mobilized by registered members.
                               </p>
                             </div>
                           </div>
@@ -10713,12 +10695,12 @@ export default function AdminPage() {
 
                         return (
                           <div style={{ marginTop: howItWorksCategoryView === 'all' ? 14 : 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-                              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                Community Sector Categories & Victory Quotas (60% Target: {target60.toLocaleString()} Voters)
+                            <div className="how-it-works-section-header">
+                              <span className="how-it-works-section-title">
+                                Community Sector Allocations & Victory Targets (60% Target: {target60.toLocaleString()} Voters)
                               </span>
-                              <span style={{ fontSize: '0.72rem', color: '#475569', background: '#f1f5f9', padding: '2px 8px', borderRadius: 999 }}>
-                                Current Enrolled: {totalRegs.toLocaleString()} Voters
+                              <span style={{ fontSize: '0.72rem', color: '#475569', background: '#f1f5f9', padding: '2px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontWeight: 700 }}>
+                                Enrolled: {totalRegs.toLocaleString()} Voters
                               </span>
                             </div>
 
@@ -10756,8 +10738,14 @@ export default function AdminPage() {
                                   <div key={sec.id} className="sector-quota-card">
                                     <div className="sector-quota-header">
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <div className="sector-quota-icon" style={{ background: sec.color }}>
-                                          <Target size={14} />
+                                        <div className="sector-quota-icon">
+                                          {sec.id === 'Youth' && <GraduationCap size={14} />}
+                                          {sec.id === 'Senior Citizen' && <HeartPulse size={14} />}
+                                          {sec.id === 'Tricycle Driver' && <MapPin size={14} />}
+                                          {sec.id === 'Solo Parent' && <Users size={14} />}
+                                          {sec.id === 'PWD' && <ShieldCheck size={14} />}
+                                          {sec.id === 'Farmer/Fisherfolk' && <Sprout size={14} />}
+                                          {sec.id === 'General Resident' && <Home size={14} />}
                                         </div>
                                         <div>
                                           <div className="sector-quota-title">{sec.label}</div>
@@ -10770,7 +10758,7 @@ export default function AdminPage() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
                                       <div>
                                         <span style={{ fontSize: '0.64rem', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Target Quota</span>
-                                        <div className="sector-quota-main-val" style={{ color: sec.color }}>
+                                        <div className="sector-quota-main-val">
                                           {secTarget.toLocaleString()} <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500 }}>voters</span>
                                         </div>
                                       </div>
@@ -10791,8 +10779,7 @@ export default function AdminPage() {
                                         <div 
                                           className="sector-quota-bar-fill" 
                                           style={{ 
-                                            width: `${Math.max(secProgress > 0 ? secProgress : 3, 3)}%`,
-                                            background: secProgress >= 100 ? '#059669' : sec.color
+                                            width: `${Math.max(secProgress > 0 ? secProgress : 3, 3)}%`
                                           }} 
                                         />
                                       </div>
@@ -10808,36 +10795,33 @@ export default function AdminPage() {
                       {/* Result Ribbon */}
                       <div className="how-it-works-result-ribbon">
                         <div>
-                          <div style={{ fontSize: '0.8rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Total Mobilized Network Yield Formula:
+                          <div className="how-it-works-ribbon-tag">
+                            <Award size={13} color="#10b981" /> Cascading Victory Yield Formula
                           </div>
-                          <div style={{ fontSize: '1.05rem', fontWeight: 800, marginTop: 2 }}>
-                            1 Leader + {subLeaders} SL + {totalCoords.toLocaleString()} Coords + {totalMembers.toLocaleString()} Members + {totalRecruits.toLocaleString()} Recruits = <span style={{ color: '#fef08a' }}>{totalYield.toLocaleString()} Voters</span>
+                          <div className="how-it-works-ribbon-formula">
+                            1 Leader + {subLeaders} SL + {totalCoords.toLocaleString()} Coords + {totalMembers.toLocaleString()} Members + {totalRecruits.toLocaleString()} Recruits = <span className="how-it-works-ribbon-total">{totalYield.toLocaleString()} Voters</span>
                           </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#ffffff' }}>
-                            {pctYield}% <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>of Brgy. {bKey}</span>
+                        <div className="how-it-works-ribbon-right">
+                          <div className="how-it-works-ribbon-pct">
+                            {pctYield}% <span className="how-it-works-ribbon-brgy">of Brgy. {bKey}</span>
                           </div>
-                          <div style={{ fontSize: '0.8rem', color: '#a7f3d0', fontWeight: 700 }}>
-                            ✓ Secures 60% with a safety buffer of +{surplus.toLocaleString()} votes!
+                          <div className="how-it-works-ribbon-buffer">
+                            <CheckCircle size={13} /> {surplus >= 0 ? `Secures 60% with a safety buffer of +${surplus.toLocaleString()} votes!` : `${Math.abs(surplus).toLocaleString()} votes below 60% threshold`}
                           </div>
                         </div>
                       </div>
 
                       {bKey === 'Santol' && (
-                        <div style={{
-                          background: '#ffffff',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: 8,
-                          padding: '12px 14px',
-                          fontSize: '0.78rem',
-                          color: '#475569',
-                          lineHeight: 1.5
-                        }}>
-                          <strong style={{ color: '#0f172a' }}>🎯 Official 60% Victory Model for Brgy. Santol:</strong><br />
-                          • <strong>Target Quota Breakdown</strong>: 1 Leader + 18 Sub-Leaders (each recruits 20 Coords = 360 Coords) + 360 Coords (each recruits 9 Members = 3,240 Members) + 3,240 Members (each recruits +1 Voter = 3,240 Recruits).<br />
-                          • <strong>Total Mobilized Yield</strong>: <strong>6,859 Voters (64.1% of Santol)</strong>, securing the 6,418 vote threshold with a strong <strong>+{surplus.toLocaleString()} vote winning safety buffer</strong>!
+                        <div className="how-it-works-santol-note">
+                          <div className="how-it-works-santol-note-header">
+                            <ShieldCheck size={14} color="#059669" />
+                            <strong style={{ color: '#0f172a' }}>Official 60% Victory Model for Brgy. Santol</strong>
+                          </div>
+                          <div className="how-it-works-santol-note-body">
+                            • <strong>Target Quota Breakdown:</strong> 1 Leader + 18 Sub-Leaders (each recruits 20 Coords = 360 Coords) + 360 Coords (each recruits 9 Members = 3,240 Members) + 3,240 Members (each recruits +1 Voter = 3,240 Recruits).<br />
+                            • <strong>Total Mobilized Yield:</strong> <strong>6,859 Voters (64.1% of Santol)</strong>, securing the 6,418 vote threshold with a strong <strong>+{surplus.toLocaleString()} vote winning safety buffer</strong>!
+                          </div>
                         </div>
                       )}
                     </div>
@@ -10848,7 +10832,7 @@ export default function AdminPage() {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
                     <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Table size={15} color="#047857" /> Municipal Quota Master Matrix (All 9 Barangays of Balagtas)
+                      <Table size={15} color="#0f172a" /> Municipal Quota Master Matrix (All 9 Barangays of Balagtas)
                     </h4>
                     <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
                       Click any row to switch to its visual breakdown
@@ -10889,9 +10873,9 @@ export default function AdminPage() {
                           return (
                             <tr 
                               key={bName} 
+                              className={isSelected ? 'selected' : ''}
                               style={{ 
                                 cursor: 'pointer', 
-                                background: isSelected ? '#ecfdf5' : undefined,
                                 fontWeight: isSelected ? 700 : undefined
                               }}
                               onClick={() => setHowItWorksBrgyTab(bName)}
@@ -10919,8 +10903,19 @@ export default function AdminPage() {
                                   {pct}%
                                 </span>
                               </td>
-                              <td style={{ textAlign: 'right', color: buffer >= 0 ? '#059669' : '#e11d48', fontWeight: 700 }}>
-                                {buffer >= 0 ? `+${buffer.toLocaleString()}` : buffer.toLocaleString()}
+                              <td style={{ textAlign: 'right' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '2px 8px',
+                                  borderRadius: 4,
+                                  fontSize: '0.74rem',
+                                  fontWeight: 800,
+                                  background: buffer >= 0 ? '#ecfdf5' : '#fef2f2',
+                                  color: buffer >= 0 ? '#047857' : '#991b1b',
+                                  border: `1px solid ${buffer >= 0 ? '#a7f3d0' : '#fecaca'}`
+                                }}>
+                                  {buffer >= 0 ? `+${buffer.toLocaleString()}` : buffer.toLocaleString()}
+                                </span>
                               </td>
                             </tr>
                           );
