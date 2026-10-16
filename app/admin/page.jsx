@@ -15371,216 +15371,174 @@ export default function AdminPage() {
     };
 
     return (
-      <div className="admin-panel accounts-page-container">
-        {/* Header */}
-        <div className="panel-header accounts-top-header">
-          <div className="accounts-header-left">
-            <div className="accounts-title-row">
-              <h3 className="accounts-page-title">Accounts & Access Control</h3>
-              <span className="accounts-status-chip">
-                <ShieldCheck size={13} /> {accounts.length} Total Users · {adminCount} Admins · {financeCount} Finance
-              </span>
+      <div className="admin-panel accounts-page-container accounts-saas">
+        <div className="accounts-shell">
+          {/* Page header */}
+          <div className="accounts-top-header">
+            <div className="accounts-header-left">
+              <h3 className="accounts-page-title">Accounts</h3>
+              <p className="accounts-page-subtitle">
+                Manage team access, roles, and login activity.
+              </p>
             </div>
-            <p className="accounts-page-subtitle">
-              Manage system access, assign administrative, finance, or staff privileges, and audit user logins.
-            </p>
-          </div>
-          <div className="accounts-header-actions">
-            <button 
-              type="button" 
-              className="btn btn-sm btn-outline-emerald"
-              onClick={fetchAccounts}
-              disabled={accountsLoading}
-              title="Refresh Accounts List"
-            >
-              <RotateCw size={13} className={accountsLoading ? 'spin' : ''} /> Refresh
-            </button>
-            <button 
-              type="button" 
-              className="btn btn-sm btn-primary btn-create-acc"
-              onClick={() => setShowCreateAccount(true)}
-            >
-              <UserPlus size={15} /> Create Account
-            </button>
-          </div>
-        </div>
-
-        {/* Top Metric KPI Cards */}
-        <div className="accounts-metrics-grid">
-          {/* Total Accounts */}
-          <div 
-            className={`accounts-metric-card ${accountRoleFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setAccountRoleFilter('all')}
-          >
-            <div className="accounts-metric-accent total" />
-            <div className="accounts-metric-card-top">
-              <span className="accounts-metric-label">Total Accounts</span>
-              <div className="accounts-metric-icon total"><Users size={16} /></div>
-            </div>
-            <div className="accounts-metric-val">{accounts.length}</div>
-            <div className="accounts-metric-sub">
-              <strong>{accounts.length}</strong> registered system users
+            <div className="accounts-header-actions">
+              <button
+                type="button"
+                className="accounts-btn-ghost"
+                onClick={fetchAccounts}
+                disabled={accountsLoading}
+                title="Refresh"
+              >
+                <RotateCw size={14} className={accountsLoading ? 'spin' : ''} />
+                Refresh
+              </button>
+              <button
+                type="button"
+                className="accounts-btn-primary"
+                onClick={() => setShowCreateAccount(true)}
+              >
+                <UserPlus size={15} />
+                Create account
+              </button>
             </div>
           </div>
 
-          {/* Administrators */}
-          <div 
-            className={`accounts-metric-card admin-card ${accountRoleFilter === 'admin' ? 'active' : ''}`}
-            onClick={() => setAccountRoleFilter(accountRoleFilter === 'admin' ? 'all' : 'admin')}
-          >
-            <div className="accounts-metric-accent admin" />
-            <div className="accounts-metric-card-top">
-              <span className="accounts-metric-label">Administrators</span>
-              <div className="accounts-metric-icon admin"><ShieldCheck size={16} /></div>
-            </div>
-            <div className="accounts-metric-val admin-text">{adminCount}</div>
-            <div className="accounts-metric-sub">
-              Full administrative & security access
-            </div>
-          </div>
-
-          {/* Finance Officers */}
-          <div 
-            className={`accounts-metric-card finance-card ${accountRoleFilter === 'finance' ? 'active' : ''}`}
-            onClick={() => setAccountRoleFilter(accountRoleFilter === 'finance' ? 'all' : 'finance')}
-          >
-            <div className="accounts-metric-accent finance" />
-            <div className="accounts-metric-card-top">
-              <span className="accounts-metric-label">Finance Officers</span>
-              <div className="accounts-metric-icon finance"><Banknote size={16} /></div>
-            </div>
-            <div className="accounts-metric-val finance-text">{financeCount}</div>
-            <div className="accounts-metric-sub">
-              Biometrics, DTR, Timesheets & Payroll
-            </div>
-          </div>
-
-          {/* Staff Operators */}
-          <div 
-            className={`accounts-metric-card staff-card ${accountRoleFilter === 'staff' ? 'active' : ''}`}
-            onClick={() => setAccountRoleFilter(accountRoleFilter === 'staff' ? 'all' : 'staff')}
-          >
-            <div className="accounts-metric-accent staff" />
-            <div className="accounts-metric-card-top">
-              <span className="accounts-metric-label">Staff Operators</span>
-              <div className="accounts-metric-icon staff"><UserCheck size={16} /></div>
-            </div>
-            <div className="accounts-metric-val staff-text">{staffCount}</div>
-            <div className="accounts-metric-sub">
-              Registration, event scanning & inquiries
-            </div>
-          </div>
-
-          {/* Active Sessions */}
-          <div className="accounts-metric-card active-session-card">
-            <div className="accounts-metric-accent active-session" />
-            <div className="accounts-metric-card-top">
-              <span className="accounts-metric-label">Active This Week</span>
-              <div className="accounts-metric-icon active-session"><Activity size={16} /></div>
-            </div>
-            <div className="accounts-metric-val active-text">{activeRecentCount}</div>
-            <div className="accounts-metric-sub">
-              <strong>{activeRecentCount}</strong> signed in within 7 days
-            </div>
-          </div>
-        </div>
-
-        {/* Toolbar & Filters */}
-        <div className="accounts-controls-bar">
-          <div className="accounts-role-pills">
-            <button 
-              type="button" 
-              className={`accounts-pill ${accountRoleFilter === 'all' ? 'active' : ''}`}
+          {/* Compact stats strip */}
+          <div className="accounts-stats-strip" role="group" aria-label="Account summary">
+            <button
+              type="button"
+              className={`accounts-stat ${accountRoleFilter === 'all' ? 'active' : ''}`}
               onClick={() => setAccountRoleFilter('all')}
             >
-              <span>All Accounts</span>
-              <span className="count-tag">{accounts.length}</span>
+              <span className="accounts-stat-label">Total</span>
+              <span className="accounts-stat-value">{accounts.length}</span>
             </button>
-            <button 
-              type="button" 
-              className={`accounts-pill admin ${accountRoleFilter === 'admin' ? 'active' : ''}`}
-              onClick={() => setAccountRoleFilter('admin')}
+            <button
+              type="button"
+              className={`accounts-stat admin ${accountRoleFilter === 'admin' ? 'active' : ''}`}
+              onClick={() => setAccountRoleFilter(accountRoleFilter === 'admin' ? 'all' : 'admin')}
             >
-              <span className="dot admin" />
-              <span>Administrators</span>
-              <span className="count-tag">{adminCount}</span>
+              <span className="accounts-stat-label">Admins</span>
+              <span className="accounts-stat-value">{adminCount}</span>
             </button>
-            <button 
-              type="button" 
-              className={`accounts-pill finance ${accountRoleFilter === 'finance' ? 'active' : ''}`}
-              onClick={() => setAccountRoleFilter('finance')}
+            <button
+              type="button"
+              className={`accounts-stat finance ${accountRoleFilter === 'finance' ? 'active' : ''}`}
+              onClick={() => setAccountRoleFilter(accountRoleFilter === 'finance' ? 'all' : 'finance')}
             >
-              <span className="dot finance" />
-              <span>Finance</span>
-              <span className="count-tag">{financeCount}</span>
+              <span className="accounts-stat-label">Finance</span>
+              <span className="accounts-stat-value">{financeCount}</span>
             </button>
-            <button 
-              type="button" 
-              className={`accounts-pill staff ${accountRoleFilter === 'staff' ? 'active' : ''}`}
-              onClick={() => setAccountRoleFilter('staff')}
+            <button
+              type="button"
+              className={`accounts-stat staff ${accountRoleFilter === 'staff' ? 'active' : ''}`}
+              onClick={() => setAccountRoleFilter(accountRoleFilter === 'staff' ? 'all' : 'staff')}
             >
-              <span className="dot staff" />
-              <span>Staff</span>
-              <span className="count-tag">{staffCount}</span>
+              <span className="accounts-stat-label">Staff</span>
+              <span className="accounts-stat-value">{staffCount}</span>
             </button>
+            <div className="accounts-stat static">
+              <span className="accounts-stat-label">Active · 7d</span>
+              <span className="accounts-stat-value">{activeRecentCount}</span>
+            </div>
           </div>
 
-          <div className="accounts-search-wrap">
-            <Search size={15} className="acc-search-icon" />
-            <input 
-              type="text" 
-              placeholder="Search by email address or role..." 
-              value={accountSearch}
-              onChange={e => setAccountSearch(e.target.value)}
-              className="accounts-search-input"
-            />
-            {accountSearch && (
-              <button 
-                type="button" 
-                className="acc-clear-btn" 
-                onClick={() => setAccountSearch('')}
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
-        </div>
+          {/* Table surface with integrated toolbar */}
+          <div className="accounts-table-card">
+            <div className="accounts-controls-bar">
+              <div className="accounts-role-tabs" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={accountRoleFilter === 'all'}
+                  className={`accounts-tab ${accountRoleFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setAccountRoleFilter('all')}
+                >
+                  All <span>{accounts.length}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={accountRoleFilter === 'admin'}
+                  className={`accounts-tab ${accountRoleFilter === 'admin' ? 'active' : ''}`}
+                  onClick={() => setAccountRoleFilter('admin')}
+                >
+                  Admins <span>{adminCount}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={accountRoleFilter === 'finance'}
+                  className={`accounts-tab ${accountRoleFilter === 'finance' ? 'active' : ''}`}
+                  onClick={() => setAccountRoleFilter('finance')}
+                >
+                  Finance <span>{financeCount}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={accountRoleFilter === 'staff'}
+                  className={`accounts-tab ${accountRoleFilter === 'staff' ? 'active' : ''}`}
+                  onClick={() => setAccountRoleFilter('staff')}
+                >
+                  Staff <span>{staffCount}</span>
+                </button>
+              </div>
 
-        {/* Accounts Table Container */}
-        <div className="accounts-table-card">
+              <div className="accounts-search-wrap">
+                <Search size={14} className="acc-search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search by email…"
+                  value={accountSearch}
+                  onChange={e => setAccountSearch(e.target.value)}
+                  className="accounts-search-input"
+                />
+                {accountSearch && (
+                  <button
+                    type="button"
+                    className="acc-clear-btn"
+                    onClick={() => setAccountSearch('')}
+                    aria-label="Clear search"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+
           {accountsLoading ? (
-            <div className="table-loading" style={{ padding: 40, textAlign: 'center' }}>
-              <RotateCw size={24} className="spin" style={{ marginBottom: 8, color: '#047857' }} />
-              <div>Loading accounts and permission records...</div>
+            <div className="accounts-empty-state">
+              <RotateCw size={22} className="spin" style={{ color: '#059669' }} />
+              <p>Loading accounts…</p>
             </div>
           ) : filteredAccounts.length === 0 ? (
             <div className="accounts-empty-state">
-              <Shield size={36} style={{ opacity: 0.4, marginBottom: 8 }} />
-              <h5>No matching accounts found</h5>
-              <p>Try clearing your search query or switching role filters.</p>
-              {accountSearch && (
-                <button 
-                  type="button" 
-                  className="btn btn-sm btn-outline-emerald"
+              <Shield size={28} strokeWidth={1.5} style={{ opacity: 0.35 }} />
+              <h5>No accounts found</h5>
+              <p>Try a different search or role filter.</p>
+              {(accountSearch || accountRoleFilter !== 'all') && (
+                <button
+                  type="button"
+                  className="accounts-btn-ghost"
                   onClick={() => { setAccountSearch(''); setAccountRoleFilter('all'); }}
                 >
-                  Clear Filters
+                  Clear filters
                 </button>
               )}
             </div>
           ) : (
             <>
-              {/* ─── 1. DESKTOP TABLE VIEW (Screen > 768px) ─── */}
               <div className="accounts-desktop-view">
                 <div className="table-wrap accounts-table-wrap">
                   <table className="admin-table accounts-table">
                     <thead>
                       <tr>
-                        <th>Account User</th>
-                        <th>Role & Permission</th>
-                        <th>Created On</th>
-                        <th>Last Sign In</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Created</th>
+                        <th>Last active</th>
+                        <th style={{ textAlign: 'right' }}></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -15612,9 +15570,7 @@ export default function AdminPage() {
                                   <div className="acc-email-row">
                                     <span className="acc-user-email">{acc.email}</span>
                                     {isCurrent && (
-                                      <span className="current-user-tag">
-                                        <Check size={11} /> You (Active Session)
-                                      </span>
+                                      <span className="current-user-tag">You</span>
                                     )}
                                   </div>
                                   <span className="acc-user-id">ID: {acc.id.slice(0, 8)}...{acc.id.slice(-4)}</span>
@@ -15625,8 +15581,7 @@ export default function AdminPage() {
                             {/* Role */}
                             <td>
                               <span className={`acc-role-pill ${isAdmin ? 'admin' : acc.role === 'finance' ? 'finance' : 'staff'}`}>
-                                {isAdmin ? <ShieldCheck size={13} /> : acc.role === 'finance' ? <Banknote size={13} /> : <User size={13} />}
-                                <span>{isAdmin ? 'Administrator' : acc.role === 'finance' ? 'Finance Officer' : 'Staff Operator'}</span>
+                                {isAdmin ? 'Admin' : acc.role === 'finance' ? 'Finance' : 'Staff'}
                               </span>
                             </td>
 
@@ -15656,9 +15611,9 @@ export default function AdminPage() {
                             {/* Actions */}
                             <td style={{ textAlign: 'right' }}>
                               <div className="acc-actions-wrap" onClick={e => e.stopPropagation()}>
-                                <button 
-                                  type="button" 
-                                  className="btn btn-acc-edit"
+                                <button
+                                  type="button"
+                                  className="btn-acc-edit"
                                   onClick={() => {
                                     setEditAccount(acc);
                                     setEditAccountForm({ role: acc.role || 'staff', password: '', confirmPassword: '' });
@@ -15667,16 +15622,16 @@ export default function AdminPage() {
                                   }}
                                   title="Edit permissions or reset password"
                                 >
-                                  <Edit3 size={13} /> Edit
+                                  Edit
                                 </button>
                                 {!isCurrent && (
-                                  <button 
-                                    type="button" 
-                                    className="btn btn-acc-delete"
+                                  <button
+                                    type="button"
+                                    className="btn-acc-delete"
                                     onClick={() => setShowDeleteAccountModal(acc)}
                                     title="Delete user account"
                                   >
-                                    <Trash2 size={15} strokeWidth={2.2} />
+                                    <Trash2 size={14} strokeWidth={2} />
                                   </button>
                                 )}
                               </div>
@@ -15772,6 +15727,7 @@ export default function AdminPage() {
               </div>
             </>
           )}
+          </div>
         </div>
 
         {/* Edit Account Modal (Portalled directly to document.body) */}
@@ -15793,13 +15749,13 @@ export default function AdminPage() {
 
               {/* User Overview Box */}
               <div className="acc-user-overview-box">
-                <div className={`acc-overview-avatar ${editAccount.role === 'admin' ? 'admin' : 'staff'}`}>
+                <div className="acc-overview-avatar">
                   {getInitials(editAccount.email.split('@')[0])}
                 </div>
                 <div className="acc-overview-info">
                   <div className="acc-overview-email">{editAccount.email}</div>
                   <div className="acc-overview-meta">
-                    <span>UUID: {editAccount.id}</span>
+                    <span>{editAccount.id.slice(0, 8)}…{editAccount.id.slice(-4)}</span>
                     {editAccount.created_at && (
                       <span>· Created {new Date(editAccount.created_at).toLocaleDateString()}</span>
                     )}
@@ -15808,66 +15764,62 @@ export default function AdminPage() {
               </div>
 
               <form onSubmit={handleUpdateAccount} className="modal-form acc-modal-body">
-                {/* Visual Role Selector */}
                 <div className="form-group">
                   <div className="acc-field-label-row">
-                    <label className="acc-field-label" style={{ marginBottom: 0 }}>Access Role</label>
-                    <span className="acc-field-hint">Select privilege tier</span>
+                    <label className="acc-field-label" style={{ marginBottom: 0 }}>Access role</label>
+                    <span className="acc-field-hint">Choose privilege level</span>
                   </div>
                   <div className="acc-role-cards-grid">
-                    <div 
-                      className={`acc-role-card role-staff ${editAccountForm.role === 'staff' ? 'selected' : ''}`}
+                    <div
+                      className={`acc-role-card ${editAccountForm.role === 'staff' ? 'selected' : ''}`}
                       onClick={() => setEditAccountForm(f => ({ ...f, role: 'staff' }))}
                     >
                       <div className="acc-role-card-top">
-                        <div className="acc-role-icon-badge staff">
+                        <div className="acc-role-icon-badge">
                           <User size={15} />
                         </div>
                         <div className="acc-role-radio" />
                       </div>
                       <div className="acc-role-info">
-                        <span className="acc-role-name">Staff Operator</span>
-                        <span className="acc-role-badge staff">Operations</span>
+                        <span className="acc-role-name">Staff</span>
                         <p className="acc-role-desc">
-                          Registration, scanning, inquiries & operations.
+                          Registration, scanning, and field operations.
                         </p>
                       </div>
                     </div>
 
-                    <div 
-                      className={`acc-role-card role-finance ${editAccountForm.role === 'finance' ? 'selected' : ''}`}
+                    <div
+                      className={`acc-role-card ${editAccountForm.role === 'finance' ? 'selected' : ''}`}
                       onClick={() => setEditAccountForm(f => ({ ...f, role: 'finance' }))}
                     >
                       <div className="acc-role-card-top">
-                        <div className="acc-role-icon-badge finance">
+                        <div className="acc-role-icon-badge">
                           <Banknote size={15} />
                         </div>
                         <div className="acc-role-radio" />
                       </div>
                       <div className="acc-role-info">
-                        <span className="acc-role-name">Finance Officer</span>
-                        <span className="acc-role-badge finance">Finance & DTR</span>
+                        <span className="acc-role-name">Finance</span>
                         <p className="acc-role-desc">
-                          Biometrics, timesheets & payroll management.
+                          Biometrics, timesheets, and payroll.
                         </p>
                       </div>
                     </div>
 
-                    <div 
-                      className={`acc-role-card role-admin ${editAccountForm.role === 'admin' ? 'selected' : ''}`}
+                    <div
+                      className={`acc-role-card ${editAccountForm.role === 'admin' ? 'selected' : ''}`}
                       onClick={() => setEditAccountForm(f => ({ ...f, role: 'admin' }))}
                     >
                       <div className="acc-role-card-top">
-                        <div className="acc-role-icon-badge admin">
+                        <div className="acc-role-icon-badge">
                           <ShieldCheck size={15} />
                         </div>
                         <div className="acc-role-radio" />
                       </div>
                       <div className="acc-role-info">
-                        <span className="acc-role-name">Administrator</span>
-                        <span className="acc-role-badge admin">Full Control</span>
+                        <span className="acc-role-name">Admin</span>
                         <p className="acc-role-desc">
-                          Full access: users, analytics & settings.
+                          Full access to users, analytics, and settings.
                         </p>
                       </div>
                     </div>
@@ -16818,78 +16770,60 @@ export default function AdminPage() {
     const totalAllOrgAid = allOrgAidRecords.filter(a => a.registration_id && allOrgMemberIds.has(String(a.registration_id).toLowerCase())).length;
 
     return (
-      <div className="admin-panel org-panel">
-        <div className="panel-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-              <Building size={22} style={{ color: '#059669' }} /> Community Organizations
-            </h3>
-            <p style={{ margin: '4px 0 0', fontSize: '0.80rem', color: '#64748b' }}>
-              Accredited civic, sectoral, and community partner organizations
-            </p>
+      <div className="admin-panel org-panel org-saas">
+        <div className="org-shell">
+          <div className="org-top-header">
+            <div className="org-header-left">
+              <h3 className="org-page-title">Organizations</h3>
+              <p className="org-page-subtitle">
+                Accredited civic and community partner organizations.
+              </p>
+            </div>
+            <div className="org-header-actions">
+              <button type="button" className="org-btn-primary" onClick={() => setShowCreateOrgModal(true)}>
+                <Plus size={15} /> Create organization
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="panel-badge">{organizations.length} TOTAL</span>
-            <button className="btn btn-sm btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => setShowCreateOrgModal(true)}>
-              <Plus size={15} /> Create Organization
-            </button>
-          </div>
-        </div>
 
-        {/* ─── Top KPI Metric Cards for Organizations ─── */}
-        <div className="kpi-grid" style={{ marginTop: 16 }}>
-          <div className="kpi-card">
-            <div className="kpi-icon" style={{ background: '#ecfdf5', color: '#059669' }}><Building size={20} strokeWidth={1.8} /></div>
-            <div className="kpi-body">
-              <span className="kpi-label">Organizations</span>
-              <span className="kpi-value">{organizations.length}</span>
-              <span className="kpi-change up">Accredited partners</span>
+          <div className="org-stats-strip" role="group" aria-label="Organization summary">
+            <div className="org-stat">
+              <span className="org-stat-label">Organizations</span>
+              <span className="org-stat-value">{organizations.length}</span>
+            </div>
+            <div className="org-stat">
+              <span className="org-stat-label">Members</span>
+              <span className="org-stat-value">{totalAllOrgMembers.toLocaleString()}</span>
+            </div>
+            <div className="org-stat">
+              <span className="org-stat-label">Aid claims</span>
+              <span className="org-stat-value">{totalAllOrgAid.toLocaleString()}</span>
             </div>
           </div>
-          <div className="kpi-card">
-            <div className="kpi-icon" style={{ background: '#eff6ff', color: '#2563eb' }}><Users size={20} strokeWidth={1.8} /></div>
-            <div className="kpi-body">
-              <span className="kpi-label">Enrolled Members</span>
-              <span className="kpi-value">{totalAllOrgMembers.toLocaleString()}</span>
-              <span className="kpi-change up">Across all organizations</span>
-            </div>
-          </div>
-          <div className="kpi-card">
-            <div className="kpi-icon" style={{ background: '#fef3c7', color: '#d97706' }}><Gift size={20} strokeWidth={1.8} /></div>
-            <div className="kpi-body">
-              <span className="kpi-label">Total Aid Received</span>
-              <span className="kpi-value">{totalAllOrgAid.toLocaleString()}</span>
-              <span className="kpi-change up">Claims received by members</span>
-            </div>
-          </div>
-        </div>
 
-        <div className="members-table-wrap" style={{ marginTop: 18 }}>
+          <div className="org-table-card">
           {organizationsLoading ? (
-            <div className="table-loading">Loading organizations...</div>
+            <div className="org-empty-state"><p>Loading organizations…</p></div>
           ) : organizations.length === 0 ? (
-            <div className="table-empty" style={{ padding: '36px 16px', textAlign: 'center' }}>
-              <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                <Building size={24} />
-              </div>
-              <strong style={{ color: '#0f172a', fontSize: '0.96rem', display: 'block' }}>No organizations registered yet</strong>
-              <p style={{ margin: '4px 0 14px', color: '#64748b', fontSize: '0.82rem' }}>Create an organization to group accredited members and track community aid distribution.</p>
-              <button className="btn btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: '0 auto' }} onClick={() => setShowCreateOrgModal(true)}>
-                <Plus size={15} /> Create First Organization
+            <div className="org-empty-state">
+              <Building size={28} strokeWidth={1.5} style={{ opacity: 0.35 }} />
+              <h4>No organizations yet</h4>
+              <p>Create an organization to group members and track aid.</p>
+              <button type="button" className="org-btn-primary" onClick={() => setShowCreateOrgModal(true)}>
+                <Plus size={15} /> Create organization
               </button>
             </div>
           ) : (
             <>
-              {/* ─── 1. DESKTOP TABLE VIEW (Screen > 768px) ─── */}
               <div className="org-desktop-view">
                 <div className="table-wrap">
-                  <table className="admin-table">
+                  <table className="admin-table org-table">
                     <thead>
                       <tr>
-                        <th style={{ width: '32%' }}>Organization Name</th>
-                        <th style={{ width: '18%', textAlign: 'center' }}>Members</th>
-                        <th style={{ width: '25%', textAlign: 'center' }}>Aid Received</th>
-                        <th style={{ width: '25%', textAlign: 'right' }}>Actions</th>
+                        <th>Organization</th>
+                        <th>Members</th>
+                        <th>Aid received</th>
+                        <th style={{ textAlign: 'right' }}></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -16902,49 +16836,63 @@ export default function AdminPage() {
                         const uniqueBeneficiaries = new Set(orgAidRecords.map(a => String(a.registration_id).toLowerCase())).size;
 
                         return (
-                          <tr 
+                          <tr
                             key={org.id}
-                            style={{ cursor: 'pointer' }}
-                            onClick={() => {
-                              setShowOrgDetailsModal(org.name);
-                            }}
+                            className="org-row"
+                            onClick={() => setShowOrgDetailsModal(org.name)}
                           >
                             <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                  <Building size={18} />
-                                </div>
-                                <div>
-                                  <strong style={{ color: '#0f172a', fontSize: '0.92rem', display: 'block' }}>{org.name}</strong>
-                                  <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Accredited Partner</span>
+                              <div className="org-name-cell">
+                                <div className="org-avatar"><Building size={15} /></div>
+                                <div className="org-name-info">
+                                  <span className="org-name">{org.name}</span>
+                                  <span className="org-name-sub">Accredited partner</span>
                                 </div>
                               </div>
                             </td>
-                            <td style={{ textAlign: 'center' }}>
+                            <td>
                               <span className="org-member-badge">
-                                <Users size={12} /> {memberCount} member{memberCount !== 1 ? 's' : ''}
+                                {memberCount} member{memberCount !== 1 ? 's' : ''}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'center' }}>
+                            <td>
                               <span className={`org-aid-pill ${totalAidClaims === 0 ? 'zero' : ''}`}>
-                                <Gift size={13} /> {totalAidClaims} Claim{totalAidClaims !== 1 ? 's' : ''} {uniqueBeneficiaries > 0 ? `(${uniqueBeneficiaries} pax)` : ''}
+                                {totalAidClaims} claim{totalAidClaims !== 1 ? 's' : ''}
+                                {uniqueBeneficiaries > 0 ? ` · ${uniqueBeneficiaries} pax` : ''}
                               </span>
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              <button className="btn btn-sm btn-primary" style={{ marginRight: 8, padding: '6px 12px', fontSize: '0.78rem' }} onClick={(e) => {
-                                e.stopPropagation();
-                                setShowAddOrgMemberModal(org.name);
-                                setOrgMemberSearch('');
-                              }}><UserPlus size={13} /> Add Member</button>
-                              <button className="btn btn-sm btn-secondary" style={{ marginRight: 8, padding: '6px 8px' }} onClick={(e) => {
-                                e.stopPropagation();
-                                setShowEditOrgModal(org);
-                                setEditOrgName(org.name);
-                              }} title="Edit Organization Name"><Pencil size={13} /></button>
-                              <button className="btn btn-sm btn-danger" style={{ padding: '6px 8px' }} onClick={(e) => {
-                                e.stopPropagation();
-                                setShowDeleteOrgModal(org);
-                              }} title="Delete Organization"><Trash2 size={13} /></button>
+                              <div className="org-row-actions" onClick={e => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  className="org-btn-add"
+                                  onClick={() => {
+                                    setShowAddOrgMemberModal(org.name);
+                                    setOrgMemberSearch('');
+                                  }}
+                                >
+                                  Add member
+                                </button>
+                                <button
+                                  type="button"
+                                  className="org-btn-icon"
+                                  onClick={() => {
+                                    setShowEditOrgModal(org);
+                                    setEditOrgName(org.name);
+                                  }}
+                                  title="Edit"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="org-btn-icon danger"
+                                  onClick={() => setShowDeleteOrgModal(org)}
+                                  title="Delete"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -16971,50 +16919,39 @@ export default function AdminPage() {
                     >
                       <div className="org-card-header">
                         <div className="org-card-icon-wrap">
-                          <Building size={20} />
+                          <Building size={18} />
                         </div>
                         <div className="org-card-title-info">
                           <strong className="org-card-name">{org.name}</strong>
-                          <span className="org-card-meta-sub">Accredited Partner Organization</span>
+                          <span className="org-card-meta-sub">Accredited partner</span>
                         </div>
                       </div>
 
                       <div className="org-card-stats-grid">
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Members</span>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Users size={13} style={{ color: '#059669' }} /> {memberCount} member{memberCount !== 1 ? 's' : ''}
-                          </span>
+                        <div className="org-card-stat">
+                          <span className="org-card-stat-label">Members</span>
+                          <span className="org-card-stat-value">{memberCount}</span>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          <span style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Aid Received</span>
-                          <span style={{ fontSize: '0.88rem', fontWeight: 800, color: totalAidClaims > 0 ? '#059669' : '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Gift size={13} style={{ color: totalAidClaims > 0 ? '#059669' : '#94a3b8' }} /> {totalAidClaims} Claim{totalAidClaims !== 1 ? 's' : ''}
-                          </span>
+                        <div className="org-card-stat">
+                          <span className="org-card-stat-label">Aid claims</span>
+                          <span className="org-card-stat-value">{totalAidClaims}</span>
                         </div>
                       </div>
 
                       <div className="org-card-actions" onClick={e => e.stopPropagation()}>
                         <button
                           type="button"
-                          className="btn btn-sm btn-outline-primary org-btn-view"
-                          onClick={() => setShowOrgDetailsModal(org.name)}
-                        >
-                          <Users size={13} /> View Members & Aid
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary org-btn-add"
+                          className="org-btn-add"
                           onClick={() => {
                             setShowAddOrgMemberModal(org.name);
                             setOrgMemberSearch('');
                           }}
                         >
-                          <UserPlus size={13} /> Add
+                          Add member
                         </button>
                         <button
                           type="button"
-                          className="btn btn-sm btn-secondary org-btn-icon"
+                          className="org-btn-icon"
                           onClick={() => {
                             setShowEditOrgModal(org);
                             setEditOrgName(org.name);
@@ -17025,7 +16962,7 @@ export default function AdminPage() {
                         </button>
                         <button
                           type="button"
-                          className="btn btn-sm btn-danger org-btn-icon"
+                          className="org-btn-icon danger"
                           onClick={() => setShowDeleteOrgModal(org)}
                           title="Delete"
                         >
@@ -17038,6 +16975,7 @@ export default function AdminPage() {
               </div>
             </>
           )}
+          </div>
         </div>
       </div>
     );
@@ -17565,59 +17503,55 @@ export default function AdminPage() {
     // ─── Select Event Screen ───
     if (scannerMode === 'select' || !selectedEvent) {
       return (
-        <div className="admin-panel event-select-panel">
-          <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <h3 style={{ margin: 0 }}><ScanLine size={22} /> Event Scanner</h3>
-                <span className="panel-badge">Distribution Verification</span>
+        <div className="admin-panel event-select-panel event-scanner-saas">
+          <div className="es-shell">
+            <div className="es-top-header">
+              <div className="es-header-left">
+                <h3 className="es-page-title">Event Scanner</h3>
+                <p className="es-page-subtitle">
+                  Select an event to scan QR codes and verify eligibility.
+                </p>
               </div>
-              <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: 'var(--muted, #64748b)' }}>
-                Select an active event to scan QR codes and verify resident eligibility.
-              </p>
+              <div className="es-header-actions">
+                <button
+                  type="button"
+                  className="es-btn-primary"
+                  onClick={() => { setShowCreateEvent(true); fetchBarangays(); }}
+                >
+                  <Plus size={15} /> Create event
+                </button>
+              </div>
             </div>
-            <button
-              className="btn btn-primary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, padding: '9px 16px', borderRadius: 10 }}
-              onClick={() => { setShowCreateEvent(true); fetchBarangays(); }}
-            >
-              <Plus size={18} /> Create New Event
-            </button>
-          </div>
 
-          <div className="event-scanner-hero">
-            <div className="esh-left">
-              <div className="esh-icon">
-                <ShieldCheck size={24} />
+            <div className="es-stats-strip" role="group" aria-label="Event summary">
+              <div className="es-stat">
+                <span className="es-stat-label">Active events</span>
+                <span className="es-stat-value">{events.length}</span>
               </div>
-              <div className="esh-text">
-                <h4>Select an Active Event to Begin Scanning</h4>
-                <p>Verify resident EM Card QR codes, enforce barangay restrictions, and prevent duplicate distribution in real-time.</p>
-              </div>
-            </div>
-            <div className="esh-stats">
-              <div className="esh-stat-chip">
-                <span className="esh-stat-val">{events.length}</span>
-                <span className="esh-stat-lbl">Active Event{events.length === 1 ? '' : 's'}</span>
+              <div className="es-stat">
+                <span className="es-stat-label">Status</span>
+                <span className="es-stat-value es-stat-value-sm">
+                  {eventsLoading ? 'Loading' : events.length > 0 ? 'Ready to scan' : 'No events'}
+                </span>
               </div>
             </div>
-          </div>
 
+            <div className="es-body">
           {eventsLoading ? (
-            <div className="table-loading">Loading events...</div>
+            <div className="es-empty-state">
+              <p>Loading events…</p>
+            </div>
           ) : events.length === 0 ? (
-            <div className="table-empty" style={{ padding: '48px 24px', textAlign: 'center' }}>
-              <div style={{ width: 56, height: 56, borderRadius: 14, background: '#f0fdf4', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <Calendar size={28} />
-              </div>
-              <h4 style={{ margin: '0 0 8px', color: '#1e293b', fontWeight: 700 }}>No active events found</h4>
-              <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '0.88rem' }}>Create your first distribution event to start scanning EM Cards.</p>
+            <div className="es-empty-state">
+              <Calendar size={28} strokeWidth={1.5} style={{ opacity: 0.35 }} />
+              <h4>No active events</h4>
+              <p>Create a distribution event to start scanning EM Cards.</p>
               <button
-                className="btn btn-primary"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                type="button"
+                className="es-btn-primary"
                 onClick={() => { setShowCreateEvent(true); fetchBarangays(); }}
               >
-                <Plus size={16} /> Create First Event
+                <Plus size={15} /> Create event
               </button>
             </div>
           ) : (
@@ -17626,58 +17560,45 @@ export default function AdminPage() {
                 <div key={evt.id} className="event-card">
                   <div>
                     <div className="event-card-header">
-                      <div className="event-card-icon"><Calendar size={20} /></div>
+                      <div className="event-card-icon"><Calendar size={18} /></div>
                       <div className="event-card-badges">
                         {evt.household_mode && (
                           <span className="event-badge-hh" title="One aid per household">
-                            <Home size={11} /> HH Mode
+                            HH mode
                           </span>
                         )}
                         {evt.aid_category && (() => {
                           const catMeta = DISTRIBUTION_CATEGORIES.find(c => c.id === evt.aid_category);
                           if (!catMeta) return null;
                           return (
-                            <span 
-                              className="event-badge-aid" 
-                              style={{ 
-                                background: `${catMeta.color}15`, 
-                                color: catMeta.color, 
-                                borderColor: `${catMeta.color}40`,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                padding: '2px 8px',
-                                borderRadius: 999,
-                                fontSize: '0.70rem',
-                                fontWeight: 700,
-                                border: '1px solid',
-                              }}
+                            <span
+                              className="event-badge-aid"
                               title={`Linked to Aid Distribution: ${catMeta.name}`}
                             >
-                              <Gift size={11} /> {catMeta.name}
+                              {catMeta.name}
                             </span>
                           );
                         })()}
                         {evt.selected_barangays && evt.selected_barangays.length > 0 ? (
                           <span className="event-badge-restricted" title={`${evt.selected_barangays.length} barangays allowed`}>
-                            <MapPin size={11} /> {evt.selected_barangays.length} Brgy
+                            {evt.selected_barangays.length} brgy
                           </span>
                         ) : (
                           <span className="event-badge-all" title="Available to all barangays">
-                            <CheckCircle size={11} /> All Barangays
+                            All barangays
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <div className="event-card-body" style={{ marginTop: 12 }}>
+                    <div className="event-card-body">
                       <h5>{evt.event_name}</h5>
                       <div className="event-card-details">
                         <span className="event-detail">
-                          <MapPin size={14} /> <span>{evt.location || 'No location set'}</span>
+                          <MapPin size={13} /> <span>{evt.location || 'No location set'}</span>
                         </span>
                         <span className="event-detail">
-                          <Clock size={14} /> <span>{evt.event_date ? new Date(evt.event_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'No date set'}</span>
+                          <Clock size={13} /> <span>{evt.event_date ? new Date(evt.event_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'No date set'}</span>
                         </span>
                       </div>
                     </div>
@@ -17685,6 +17606,7 @@ export default function AdminPage() {
 
                   <div className="event-card-actions">
                     <button
+                      type="button"
                       className="btn-event-launch"
                       onClick={() => {
                         setSelectedEvent(evt);
@@ -17694,29 +17616,32 @@ export default function AdminPage() {
                         fetchEventScans(evt.id);
                       }}
                     >
-                      <Zap size={16} /> Start Scanning
+                      Start scanning
                     </button>
                     <div className="event-card-sub-actions">
                       <button
+                        type="button"
                         className="btn-event-sub btn-event-records"
                         onClick={() => openEventRecords(evt)}
                         title="View event scan logs & stats"
                       >
-                        <FileText size={13} /> Records
+                        Records
                       </button>
                       <button
+                        type="button"
                         className="btn-event-sub btn-event-edit"
                         onClick={() => openEditScanEvent(evt)}
                         title="Edit event details"
                       >
-                        <Pencil size={13} /> Edit
+                        Edit
                       </button>
                       <button
+                        type="button"
                         className="btn-event-sub btn-event-delete"
                         onClick={() => openDeleteScanEventModal(evt)}
                         title="Delete this event"
                       >
-                        <Trash2 size={13} /> Delete
+                        Delete
                       </button>
                     </div>
                   </div>
@@ -17724,6 +17649,8 @@ export default function AdminPage() {
               ))}
             </div>
           )}
+            </div>
+          </div>
 
           {/* CREATE/EDIT EVENT MODAL */}
           {showCreateEvent && typeof document !== 'undefined' && createPortal(
