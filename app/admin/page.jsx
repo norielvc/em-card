@@ -20,7 +20,7 @@ import {
   ArrowRight, Ban, Building, Cake, CreditCard, Database, Folder, Globe, HardDrive, Hash,
   History, Inbox, Lock, Mail, Megaphone, Monitor, Phone, Plus, Server, ShieldAlert,
   ShieldCheck as ShieldCheckIcon, Tag, Zap, Edit, Trash, Award, XCircle, Sparkles,
-  ShoppingBag, Package, Coins, Pill, Droplets, Banknote, Target, HelpCircle, Table, Layers
+  ShoppingBag, Package, Coins, Pill, Droplets, Banknote, Target, HelpCircle, Table, Layers, ExternalLink
 } from 'lucide-react';
 
 // 60% Electoral Target & Quota Parameters across Balagtas Municipal Barangays (Campaign Blueprint: 20-9-1)
@@ -116,6 +116,38 @@ export default function AdminPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('emcard_sidebar_collapsed') === 'true';
+    }
+    return false;
+  });
+
+  const toggleSidebar = useCallback(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 1024) {
+      setSidebarOpen(prev => !prev);
+    } else {
+      setSidebarCollapsed(prev => {
+        const next = !prev;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('emcard_sidebar_collapsed', String(next));
+        }
+        return next;
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleSidebar]);
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [notifOpen, setNotifOpen] = useState(false);
   const [lastNotifSeen, setLastNotifSeen] = useState(() => {
@@ -244,6 +276,26 @@ export default function AdminPage() {
   const [regSearch, setRegSearch] = useState('');
   const [regFilterBarangay, setRegFilterBarangay] = useState('');
   const [regFilterSector, setRegFilterSector] = useState('');
+  const [regPage, setRegPage] = useState(1);
+  const [regPerPage, setRegPerPage] = useState(25);
+  const [regFilterVoter, setRegFilterVoter] = useState('');
+  const [regFilterDuplicate, setRegFilterDuplicate] = useState(false);
+  const [selectedRegIds, setSelectedRegIds] = useState([]);
+  const [showBulkReferralModal, setShowBulkReferralModal] = useState(false);
+  const [bulkReferral, setBulkReferral] = useState('');
+  const [bulkReferralQuery, setBulkReferralQuery] = useState('');
+  const [bulkReferralValid, setBulkReferralValid] = useState(false);
+  const [bulkReferralResults, setBulkReferralResults] = useState([]);
+  const [bulkReferralSearching, setBulkReferralSearching] = useState(false);
+  const [bulkAssignLoading, setBulkAssignLoading] = useState(false);
+  const [bulkAssignProgress, setBulkAssignProgress] = useState({ current: 0, total: 0 });
+  const bulkReferralDebounceRef = useRef(null);
+
+  // Direct Leader SMS Modal State
+  const [showLeaderSmsModal, setShowLeaderSmsModal] = useState(false);
+  const [leaderSmsTarget, setLeaderSmsTarget] = useState(null);
+  const [leaderSmsMessage, setLeaderSmsMessage] = useState('');
+  const [leaderSmsSending, setLeaderSmsSending] = useState(false);
   const [residentSearch, setResidentSearch] = useState('');
   const [residentsPage, setResidentsPage] = useState(1);
   const [residentsCount, setResidentsCount] = useState(0);
@@ -262,6 +314,7 @@ export default function AdminPage() {
   const [filterOrganization, setFilterOrganization] = useState('');
   const [filterPrinted, setFilterPrinted] = useState('');
   const [filterVoterSource, setFilterVoterSource] = useState(''); // 'voter' | 'non-voter'
+  const [filterLeaderCategory, setFilterLeaderCategory] = useState(''); // '' | 'hierarchy' | 'subleader' | 'coordinator' | 'member' | 'recruit' | 'direct'
 
   // Modals & Forms
   const [showAddModal, setShowAddModal] = useState(false);
@@ -274,6 +327,7 @@ export default function AdminPage() {
   const [adminReferralQuery, setAdminReferralQuery] = useState('');
   const [adminReferralResults, setAdminReferralResults] = useState([]);
   const [adminReferralValid, setAdminReferralValid] = useState(false);
+  const [copiedRef, setCopiedRef] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberEditMode, setMemberEditMode] = useState(false);
   const [editReferralQuery, setEditReferralQuery] = useState('');
@@ -808,7 +862,6 @@ export default function AdminPage() {
   const [networkSearchResults, setNetworkSearchResults] = useState([]);
   const [selectedNetworkMember, setSelectedNetworkMember] = useState(null);
   const [expandedNodes, setExpandedNodes] = useState(new Set());
-  const [networkViewMode, setNetworkViewMode] = useState(null); // 'all' | 'month' | 'week' | null
   const [networkLevelFilter, setNetworkLevelFilter] = useState('all'); // 'all' | 'l1' | 'l2' | 'l3' | 'l4'
   const [networkSortBy, setNetworkSortBy] = useState('total'); // 'total' | 'l1' | 'l2' | 'l3' | 'name'
   const [networkMonthFilter, setNetworkMonthFilter] = useState(() => {
@@ -818,7 +871,12 @@ export default function AdminPage() {
 
   // 60% Electoral Campaign Quota Tracker States (Option 1)
   const [networkBarangayFilter, setNetworkBarangayFilter] = useState('Santol');
-  const [networkTabMode, setNetworkTabMode] = useState('campaign'); // 'campaign' | 'trees'
+  const [networkTabMode, setNetworkTabMode] = useState('campaign'); // 'campaign' | 'analytics' | 'trees'
+  const [treesPurpose, setTreesPurpose] = useState('global'); // 'global' | 'hierarchy'
+  const [referralBoard, setReferralBoard] = useState('all'); // 'all' | 'month' | 'week'
+  const [referralShowAll, setReferralShowAll] = useState(false);
+  const [hierarchyBrgy, setHierarchyBrgy] = useState('all');
+  const [hierarchyExpanded, setHierarchyExpanded] = useState(() => new Set());
   const [networkActiveSubLeaderModal, setNetworkActiveSubLeaderModal] = useState(null);
   const [appointedSubLeaders, setAppointedSubLeaders] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -831,9 +889,271 @@ export default function AdminPage() {
     }
     return {};
   });
+  const [appointedBarangayLeaders, setAppointedBarangayLeaders] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('emcard_appointed_brgy_leaders');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Failed to parse appointed barangay leaders', e);
+      }
+    }
+    return {};
+  });
+  const [appointingLeaderBarangay, setAppointingLeaderBarangay] = useState(null);
   const [appointingSlot, setAppointingSlot] = useState(null); // { slotNumber, barangay }
   const [appointSearch, setAppointSearch] = useState('');
   const [analyticsSearchQuery, setAnalyticsSearchQuery] = useState('');
+  const [analyticsStatusFilter, setAnalyticsStatusFilter] = useState('all'); // 'all' | 'critical' | 'leadership_gap' | 'met'
+  const [analyticsSortColumn, setAnalyticsSortColumn] = useState('totalVoters'); // 'name' | 'totalVoters' | 'target60' | 'currentCount' | 'pct' | 'deficit' | 'appointedSLCount' | 'totalActiveCoords'
+  const [analyticsSortDirection, setAnalyticsSortDirection] = useState('desc'); // 'asc' | 'desc'
+  const [showCapacitySimulator, setShowCapacitySimulator] = useState(true);
+  const [simulationPct, setSimulationPct] = useState(100);
+  const [analyticsChartMode, setAnalyticsChartMode] = useState('mobilization'); // 'mobilization' | 'pipeline' | 'sectors' | 'battleground' | 'quotas'
+  const [quotaChartViewMode, setQuotaChartViewMode] = useState('grid'); // 'grid' | 'comparative'
+  const [quotaChartBrgyFilter, setQuotaChartBrgyFilter] = useState('all');
+  const [leaderHierarchyScope, setLeaderHierarchyScope] = useState('hierarchy'); // 'hierarchy' | 'non_hierarchy'
+  const [leaderTierFilter, setLeaderTierFilter] = useState('all'); // 'all' | 'apex' | 'subleader' | 'coordinator'
+  const [leaderStatusFilter, setLeaderStatusFilter] = useState('all'); // 'all' | 'star' | 'on_track' | 'developing' | 'dormant'
+  const [leaderBrgyFilter, setLeaderBrgyFilter] = useState('all');
+  const [leaderSearchQuery, setLeaderSearchQuery] = useState('');
+  const [leaderSortBy, setLeaderSortBy] = useState('total'); // 'total' | 'direct' | 'pct' | 'velocity' | 'inactive' | 'name'
+  const [showHierarchyTreeModal, setShowHierarchyTreeModal] = useState(false);
+  const [hierarchyTreeLeader, setHierarchyTreeLeader] = useState(null);
+
+  const openHierarchyTreeModal = (leader) => {
+    setHierarchyTreeLeader(leader);
+    setShowHierarchyTreeModal(true);
+  };
+
+  // Handle ESC key to dismiss Slide-Over Tree Drawer
+  useEffect(() => {
+    if (!showHierarchyTreeModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowHierarchyTreeModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showHierarchyTreeModal]);
+
+  const getResidentName = (reg) => {
+    if (reg?.first_name || reg?.last_name) {
+      return `${reg.first_name || ''} ${reg.middle_name ? reg.middle_name + ' ' : ''}${reg.last_name || ''}${reg.suffix ? ' ' + reg.suffix : ''}`.trim();
+    }
+    const r = reg?.ValidResidents;
+    if (!r) return reg?.resident_id?.slice(0, 8) || '-';
+    return `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}${r.suffix ? ' ' + r.suffix : ''}`.trim();
+  };
+
+  // Classification of all members into Referral Network Hierarchy (60% Target) vs Direct / Non-Hierarchy
+  const memberHierarchyMap = useMemo(() => {
+    const map = new Map();
+    const approved = (allRegs || []).filter(r => r.status === 'Approved');
+
+    // 1. Build parent -> children map
+    const childrenMap = new Map();
+    approved.forEach(reg => {
+      const parent = (reg.referral_name || '').trim();
+      if (!parent || parent === 'No Referral') return;
+      if (!childrenMap.has(parent)) childrenMap.set(parent, []);
+      childrenMap.get(parent).push(reg);
+    });
+
+    // 2. Identify all appointed Barangay Leaders across all barangays
+    const appointedBrgyLeaderNames = new Set(
+      Object.values(appointedBarangayLeaders || {})
+        .filter(name => name && typeof name === 'string' && name.trim())
+        .map(name => name.trim())
+    );
+
+    // 3. Identify all appointed Sub-Leaders across all barangays
+    const appointedSlNames = new Set();
+    Object.values(appointedSubLeaders || {}).forEach(brgyMap => {
+      if (brgyMap && typeof brgyMap === 'object') {
+        Object.values(brgyMap).forEach(name => {
+          if (name && typeof name === 'string' && name.trim()) {
+            appointedSlNames.add(name.trim());
+          }
+        });
+      }
+    });
+
+    // 4. Mark appointed Barangay Leaders (Apex Level 1)
+    approved.forEach(reg => {
+      const name = getResidentName(reg);
+      if (appointedBrgyLeaderNames.has(name)) {
+        map.set(reg.id, {
+          role: 'leader',
+          tier: 1,
+          categoryLabel: 'Barangay Leader',
+          rootLeader: name,
+          parentLeader: null,
+          inHierarchy: true
+        });
+      }
+    });
+
+    // 5. Mark appointed Sub-Leaders (Level 2)
+    approved.forEach(reg => {
+      const name = getResidentName(reg);
+      if (appointedSlNames.has(name) && !map.has(reg.id)) {
+        const brgyLeader = reg.barangay ? appointedBarangayLeaders[reg.barangay] : null;
+        map.set(reg.id, {
+          role: 'subleader',
+          tier: 2,
+          categoryLabel: 'Sub-Leader',
+          rootLeader: brgyLeader || name,
+          parentLeader: brgyLeader || null,
+          inHierarchy: true
+        });
+      }
+    });
+
+    // 6. Cascade BFS downlines for each appointed Sub-Leader
+    appointedSlNames.forEach(slName => {
+      // Level 3: Coordinators (direct recruits of Sub-Leader)
+      const coords = childrenMap.get(slName) || [];
+      coords.forEach(coord => {
+        const coordName = getResidentName(coord);
+        if (!map.has(coord.id) || map.get(coord.id).role !== 'subleader') {
+          map.set(coord.id, {
+            role: 'coordinator',
+            tier: 3,
+            categoryLabel: 'Coordinator',
+            rootLeader: slName,
+            parentLeader: slName,
+            inHierarchy: true
+          });
+        }
+
+        // Level 4: Members (direct recruits of Coordinator)
+        const members = childrenMap.get(coordName) || [];
+        members.forEach(mem => {
+          const memName = getResidentName(mem);
+          if (!map.has(mem.id)) {
+            map.set(mem.id, {
+              role: 'member',
+              tier: 4,
+              categoryLabel: 'Network Member',
+              rootLeader: slName,
+              parentLeader: coordName,
+              inHierarchy: true
+            });
+          }
+
+          // Level 5+: Recruits (direct recruits of Member)
+          const queue = (childrenMap.get(memName) || []).map(r => ({ reg: r, parent: memName, depth: 5 }));
+          const visited = new Set();
+          while (queue.length > 0) {
+            const item = queue.shift();
+            if (!item || visited.has(item.reg.id)) continue;
+            visited.add(item.reg.id);
+            if (!map.has(item.reg.id)) {
+              map.set(item.reg.id, {
+                role: 'recruit',
+                tier: item.depth,
+                categoryLabel: 'Downline Recruit',
+                rootLeader: slName,
+                parentLeader: item.parent,
+                inHierarchy: true
+              });
+            }
+            const recName = getResidentName(item.reg);
+            const deepChildren = childrenMap.get(recName) || [];
+            deepChildren.forEach(child => {
+              queue.push({ reg: child, parent: recName, depth: item.depth + 1 });
+            });
+          }
+        });
+      });
+    });
+
+    // 7. Cascade direct recruits of Barangay Leaders that are not already mapped
+    appointedBrgyLeaderNames.forEach(blName => {
+      const directRecruits = childrenMap.get(blName) || [];
+      directRecruits.forEach(rec => {
+        if (!map.has(rec.id)) {
+          map.set(rec.id, {
+            role: 'subleader',
+            tier: 2,
+            categoryLabel: 'Sub-Leader',
+            rootLeader: blName,
+            parentLeader: blName,
+            inHierarchy: true
+          });
+        }
+      });
+    });
+
+    // 8. Any remaining approved member is Direct / Non-Hierarchy
+    approved.forEach(reg => {
+      if (!map.has(reg.id)) {
+        map.set(reg.id, {
+          role: 'direct',
+          tier: 0,
+          categoryLabel: 'Direct (Non-Hierarchy)',
+          rootLeader: null,
+          parentLeader: (reg.referral_name && reg.referral_name !== 'No Referral') ? reg.referral_name : null,
+          inHierarchy: false
+        });
+      }
+    });
+
+    return map;
+  }, [allRegs, appointedSubLeaders, appointedBarangayLeaders]);
+
+  const exportMasterAnalyticsExcel = (stats, totals) => {
+    if (!stats || stats.length === 0) {
+      showToast('No barangay data available to export', 'error');
+      return;
+    }
+    try {
+      const rows = stats.map(b => ({
+        'Barangay': b.name,
+        'COMELEC Registered Voters': b.totalVoters,
+        '60% Victory Target': b.target60,
+        'Hierarchy-Mobilized (In 60% Quota)': b.hierarchyCount,
+        'Direct / Non-Hierarchy Pool': b.directCount,
+        'Total Enrolled Residents': b.totalEnrolled,
+        'Hierarchy Progress %': `${b.pct}%`,
+        'Hierarchy Deficit to 60%': b.deficit,
+        'Sub-Leaders Appointed': `${b.appointedSLCount} / ${b.subLeaderTarget}`,
+        'Active Coordinators': `${b.totalActiveCoords} / ${b.targetCoords}`,
+        '7-Day Recent Recruits': b.recent7DaysRecruits || 0,
+        'Quota Architecture': `${b.subLeaderTarget}SL × ${b.coordinatorQuota}C × ${b.memberQuota}M (+1)`,
+        'Status': b.deficit === 0 ? 'Goal Met' : b.pct < 10 ? 'Critical Deficit' : 'In Progress'
+      }));
+
+      if (totals) {
+        rows.push({
+          'Barangay': 'MUNICIPAL TOTAL',
+          'COMELEC Registered Voters': totals.totalVoters,
+          '60% Victory Target': totals.target60,
+          'Hierarchy-Mobilized (In 60% Quota)': totals.hierarchyMobilized,
+          'Direct / Non-Hierarchy Pool': totals.directPool,
+          'Total Enrolled Residents': totals.totalEnrolled,
+          'Hierarchy Progress %': `${totals.pctProgress}%`,
+          'Hierarchy Deficit to 60%': Math.max(0, totals.target60 - totals.hierarchyMobilized),
+          'Sub-Leaders Appointed': `${totals.totalAppointedSL} / ${totals.targetSL}`,
+          'Active Coordinators': `${totals.totalActiveCoords} / ${totals.targetCoords}`,
+          '7-Day Recent Recruits': totals.recent7DaysTotal || 0,
+          'Quota Architecture': '60% Target All 9 Barangays',
+          'Status': totals.pctProgress >= 60 ? 'Goal Met' : 'In Progress'
+        });
+      }
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Balagtas_Mobilization_Master');
+      XLSX.writeFile(wb, `Balagtas_Barangay_Mobilization_Master_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      showToast('Exported Barangay Master Table to Excel!', 'success');
+    } catch (e) {
+      console.error('Failed to export master table', e);
+      showToast('Failed to export table', 'error');
+    }
+  };
   const [modalExpandedCoords, setModalExpandedCoords] = useState({});
   const [modalExpandedMembers, setModalExpandedMembers] = useState({});
   const [modalSearchFilter, setModalSearchFilter] = useState('');
@@ -938,6 +1258,28 @@ export default function AdminPage() {
       }
       return updated;
     });
+  };
+
+  const saveAppointedBarangayLeader = (barangay, leaderName) => {
+    setAppointedBarangayLeaders(prev => {
+      const updated = { ...prev };
+      if (!leaderName) {
+        delete updated[barangay];
+      } else {
+        updated[barangay] = leaderName;
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('emcard_appointed_brgy_leaders', JSON.stringify(updated));
+        } catch (e) {}
+      }
+      return updated;
+    });
+    if (leaderName) {
+      showToast(`Appointed ${leaderName} as Barangay Leader for Brgy. ${barangay}`, 'success');
+    } else {
+      showToast(`Removed Barangay Leader for Brgy. ${barangay}`, 'info');
+    }
   };
 
   // Messages
@@ -2914,22 +3256,24 @@ export default function AdminPage() {
     if (!selectedRegDetail) return;
     setRegEditLoading(true);
     try {
+      const upperForm = {
+        house_no: regEditForm.house_no ? regEditForm.house_no.trim().toUpperCase() : null,
+        purok: regEditForm.purok ? regEditForm.purok.trim().toUpperCase() : null,
+        barangay: regEditForm.barangay ? regEditForm.barangay.trim().toUpperCase() : null,
+        contact: regEditForm.contact ? regEditForm.contact.trim() : null,
+        sector_category: regEditForm.sector_category ? regEditForm.sector_category.trim().toUpperCase() : null,
+        gender: regEditForm.gender ? regEditForm.gender.trim().toUpperCase() : null,
+        civil_status: regEditForm.civil_status ? regEditForm.civil_status.trim().toUpperCase() : null,
+        religion: regEditForm.religion ? regEditForm.religion.trim().toUpperCase() : null,
+        birthday: regEditForm.birthday,
+        lot: regEditForm.lot ? regEditForm.lot.trim().toUpperCase() : null,
+        block: regEditForm.block ? regEditForm.block.trim().toUpperCase() : null,
+        phase: regEditForm.phase ? regEditForm.phase.trim().toUpperCase() : null,
+      };
+
       const { error } = await supabase
         .from('registrations')
-        .update({
-          house_no: regEditForm.house_no,
-          purok: regEditForm.purok,
-          barangay: regEditForm.barangay,
-          contact: regEditForm.contact,
-          sector_category: regEditForm.sector_category,
-          gender: regEditForm.gender,
-          civil_status: regEditForm.civil_status,
-          religion: regEditForm.religion || null,
-          birthday: regEditForm.birthday,
-          lot: regEditForm.lot,
-          block: regEditForm.block,
-          phase: regEditForm.phase,
-        })
+        .update(upperForm)
         .eq('id', selectedRegDetail.id);
 
       if (error) throw error;
@@ -2938,7 +3282,7 @@ export default function AdminPage() {
       logAdminAction('edit_resident', 'registrations', selectedRegDetail.id, getResidentName(selectedRegDetail), {});
       setRegEditMode(false);
       // Refresh local state
-      const updated = { ...selectedRegDetail, ...regEditForm };
+      const updated = { ...selectedRegDetail, ...upperForm };
       setSelectedRegDetail(updated);
       await fetchAllRegistrations();
     } catch (err) {
@@ -2948,7 +3292,7 @@ export default function AdminPage() {
     }
   };
 
-  const approveRegistration = async (id, assignedReferral) => {
+  const approveRegistration = async (id, assignedReferral, isBatch = false) => {
     let finalReferral = assignedReferral;
 
     // Fetch the registration details if not passed to verify referral_name exists
@@ -2964,10 +3308,12 @@ export default function AdminPage() {
     }
 
     if (!finalReferral || !finalReferral.trim()) {
-      showToast('Referral Node is required. Please review registration details to assign a referral.', 'error');
-      const targetReg = allRegs.find(r => r.id === id);
-      if (targetReg) {
-        setSelectedRegDetail(targetReg);
+      if (!isBatch) {
+        showToast('Referral Node is required. Please review registration details to assign a referral.', 'error');
+        const targetReg = allRegs.find(r => r.id === id);
+        if (targetReg) {
+          setSelectedRegDetail(targetReg);
+        }
       }
       return false;
     }
@@ -2981,27 +3327,218 @@ export default function AdminPage() {
           status: 'Approved', 
           qr_token: qrToken, 
           em_card_no: emCardNo,
-          referral_name: finalReferral.trim()
+          referral_name: finalReferral.trim().toUpperCase()
         })
         .eq('id', id);
       if (error) {
-        showToast(error.message, 'error');
+        if (!isBatch) showToast(error.message, 'error');
         return false;
       } else {
-        showToast(`Approved. EM Card: ${emCardNo}`, 'success');
+        if (!isBatch) showToast(`Approved. EM Card: ${emCardNo}`, 'success');
         const { data: reg } = await supabase
           .from('registrations')
           .select('first_name, last_name')
           .eq('id', id)
           .single();
         const targetName = reg ? `${reg.last_name || ''}, ${reg.first_name || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || null : null;
-        logAdminAction('approve_member', 'registrations', id, targetName, { em_card_no: emCardNo, referral_name: finalReferral.trim() });
-        fetchAllRegistrations();
+        logAdminAction('approve_member', 'registrations', id, targetName, { em_card_no: emCardNo, referral_name: finalReferral.trim().toUpperCase() });
+        if (!isBatch) fetchAllRegistrations();
         return true;
       }
     } catch (err) {
-      showToast('Failed to approve registration.', 'error');
+      if (!isBatch) showToast('Failed to approve registration.', 'error');
       return false;
+    }
+  };
+
+  // Search strictly among Approved Members only
+  const searchApprovedMembers = async (query, excludeId = null) => {
+    const q = (query || '').trim().toLowerCase();
+    if (!q || q.length < 2) return [];
+    const tokens = q.split(/\s+/).filter(Boolean);
+
+    // 1. Search locally in-memory from approved registrations
+    const localApproved = (allRegs || []).filter(r => r.status === 'Approved');
+    const matches = [];
+    const seenNames = new Set();
+
+    for (const reg of localApproved) {
+      if (excludeId && (reg.id === excludeId || reg.resident_id === excludeId)) continue;
+      const fullName = getResidentName(reg);
+      if (!fullName || fullName === '-' || seenNames.has(fullName.toUpperCase())) continue;
+
+      const lowerName = fullName.toLowerCase();
+      const brgy = (reg.barangay || reg.ValidResidents?.barangay || '').toLowerCase();
+      const cardNo = (reg.em_card_no || '').toLowerCase();
+
+      const matchesQuery = lowerName.includes(q) || tokens.every(t => lowerName.includes(t) || brgy.includes(t) || cardNo.includes(t));
+
+      if (matchesQuery) {
+        seenNames.add(fullName.toUpperCase());
+        matches.push({
+          id: reg.id,
+          name: fullName.toUpperCase(),
+          barangay: (reg.barangay || reg.ValidResidents?.barangay || 'BALAGTAS').toUpperCase(),
+          precinct: reg.ValidResidents?.precinct || null,
+          em_card_no: reg.em_card_no || null,
+          status: 'Approved'
+        });
+      }
+      if (matches.length >= 25) break;
+    }
+
+    // 2. If local matches are few, also query Supabase registrations table strictly where status = 'Approved'
+    if (matches.length < 10) {
+      try {
+        const { data: dbMembers } = await supabase
+          .from('registrations')
+          .select('id, resident_id, first_name, middle_name, last_name, suffix, barangay, em_card_no, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+          .eq('status', 'Approved')
+          .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,em_card_no.ilike.%${q}%`)
+          .limit(20);
+
+        (dbMembers || []).forEach(reg => {
+          if (excludeId && (reg.id === excludeId || reg.resident_id === excludeId)) return;
+          const fullName = getResidentName(reg);
+          if (fullName && fullName !== '-' && !seenNames.has(fullName.toUpperCase())) {
+            seenNames.add(fullName.toUpperCase());
+            matches.push({
+              id: reg.id,
+              name: fullName.toUpperCase(),
+              barangay: (reg.barangay || reg.ValidResidents?.barangay || 'BALAGTAS').toUpperCase(),
+              precinct: reg.ValidResidents?.precinct || null,
+              em_card_no: reg.em_card_no || null,
+              status: 'Approved'
+            });
+          }
+        });
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    return matches;
+  };
+
+  const handleSearchBulkReferral = (val) => {
+    const upperVal = val.toUpperCase();
+    setBulkReferralQuery(upperVal);
+    setBulkReferralValid(false);
+    setBulkReferral('');
+    clearTimeout(bulkReferralDebounceRef.current);
+    const trimmedVal = upperVal.trim();
+    if (trimmedVal.length >= 2) {
+      setBulkReferralSearching(true);
+      bulkReferralDebounceRef.current = setTimeout(async () => {
+        try {
+          const results = await searchApprovedMembers(trimmedVal);
+          setBulkReferralResults(results);
+        } catch (err) {
+          setBulkReferralResults([]);
+        } finally {
+          setBulkReferralSearching(false);
+        }
+      }, 200);
+    } else {
+      setBulkReferralResults([]);
+      setBulkReferralSearching(false);
+    }
+  };
+
+  const handleExecuteBulkReferral = async () => {
+    if (!bulkReferralValid || !bulkReferral.trim() || !selectedRegIds.length) {
+      showToast('Please search and verify an authorized referral leader first.', 'error');
+      return;
+    }
+    const targetLeader = bulkReferral.trim().toUpperCase();
+    setBulkAssignLoading(true);
+    setBulkAssignProgress({ current: 0, total: selectedRegIds.length });
+
+    let count = 0;
+    try {
+      for (let i = 0; i < selectedRegIds.length; i++) {
+        const regId = selectedRegIds[i];
+        setBulkAssignProgress({ current: i + 1, total: selectedRegIds.length });
+        const ok = await approveRegistration(regId, targetLeader, true);
+        if (ok) count++;
+      }
+      showToast(`Successfully assigned "${targetLeader}" and approved ${count} citizen application${count === 1 ? '' : 's'}!`, 'success');
+      setShowBulkReferralModal(false);
+      setSelectedRegIds([]);
+      setBulkReferral('');
+      setBulkReferralQuery('');
+      setBulkReferralValid(false);
+      setBulkReferralResults([]);
+      await fetchAllRegistrations();
+    } catch (err) {
+      showToast(err.message || 'Error occurred during bulk referral assignment', 'error');
+    } finally {
+      setBulkAssignLoading(false);
+    }
+  };
+
+  const openLeaderSmsModal = (leader) => {
+    if (!leader.contact) {
+      showToast(`No mobile phone number recorded for Leader ${leader.name}.`, 'error');
+      return;
+    }
+    const displayName = (leader.name || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+    const roleLabel = leader.roleLabel || (leader.tierLevel === 1 
+      ? 'Barangay Head' 
+      : leader.tierLevel === 2 
+        ? `Sub-Leader #${leader.slotNumber || ''}` 
+        : leader.tierLevel === 3 
+          ? 'Coordinator' 
+          : 'Direct Mobilizer');
+
+    setLeaderSmsTarget({
+      ...leader,
+      displayName,
+      roleLabel,
+    });
+    setLeaderSmsMessage('');
+    setShowLeaderSmsModal(true);
+  };
+
+  const handleSendLeaderSms = async () => {
+    if (!leaderSmsTarget || !leaderSmsTarget.contact) {
+      showToast('Recipient phone number is missing.', 'error');
+      return;
+    }
+    if (!leaderSmsMessage.trim()) {
+      showToast('SMS message body cannot be empty.', 'error');
+      return;
+    }
+
+    setLeaderSmsSending(true);
+    try {
+      const res = await authFetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `Direct to Leader: ${leaderSmsTarget.displayName}`,
+          messageBody: leaderSmsMessage.trim(),
+          type: 'direct',
+          targetType: 'direct',
+          targetValue: {
+            phone: leaderSmsTarget.contact,
+            name: leaderSmsTarget.displayName,
+            registrationId: leaderSmsTarget.id || leaderSmsTarget.rawReg?.id || null,
+          },
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showToast(`SMS sent to Leader ${leaderSmsTarget.displayName} (${leaderSmsTarget.contact}) via Semaphore!`, 'success');
+        setShowLeaderSmsModal(false);
+      } else {
+        showToast(data.error || 'Failed to send SMS.', 'error');
+      }
+    } catch (err) {
+      showToast(err.message || 'Network error while sending SMS.', 'error');
+    } finally {
+      setLeaderSmsSending(false);
     }
   };
 
@@ -3785,15 +4322,6 @@ export default function AdminPage() {
       </div>
     );
   }
-
-  const getResidentName = (reg) => {
-    if (reg?.first_name || reg?.last_name) {
-      return `${reg.first_name || ''} ${reg.middle_name ? reg.middle_name + ' ' : ''}${reg.last_name || ''}${reg.suffix ? ' ' + reg.suffix : ''}`.trim();
-    }
-    const r = reg?.ValidResidents;
-    if (!r) return reg?.resident_id?.slice(0, 8) || '-';
-    return `${r.first_name || ''} ${r.middle_name ? r.middle_name + ' ' : ''}${r.last_name || ''}${r.suffix ? ' ' + r.suffix : ''}`.trim();
-  };
 
   // MESSAGE HANDLERS (top-level, no hooks inside renderMessages)
   const fetchMessages = async () => {
@@ -6278,6 +6806,14 @@ export default function AdminPage() {
     const pendingCount = allRegs.filter(r => r.status === 'Pending').length;
     const rejectedCount = allRegs.filter(r => r.status === 'Rejected').length;
 
+    const getInitials = (name) => {
+      if (!name) return '—';
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return '—';
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    };
+
     // Duplicate detection: key = name + barangay + contact
     const dupMap = new Map();
     allRegs.forEach(reg => {
@@ -6286,6 +6822,8 @@ export default function AdminPage() {
     });
     const dupKeys = new Set([...dupMap.entries()].filter(([, count]) => count > 1).map(([k]) => k));
     const dupCount = allRegs.filter(reg => dupKeys.has(`${getResidentName(reg)}|${reg.barangay || ''}|${reg.contact || ''}`)).length;
+
+    const pendingVotersCount = allRegs.filter(r => r.status === 'Pending' && r.is_valid_resident !== false).length;
 
     let filteredRegs = allRegs.filter(r => r.status === regStatusFilter);
 
@@ -6299,6 +6837,18 @@ export default function AdminPage() {
       filteredRegs = filteredRegs.filter(r => (r.sector_category || '').toLowerCase() === regFilterSector.toLowerCase());
     }
 
+    // Filter by Voter Status
+    if (regFilterVoter === 'voter') {
+      filteredRegs = filteredRegs.filter(r => r.is_valid_resident !== false);
+    } else if (regFilterVoter === 'nonvoter') {
+      filteredRegs = filteredRegs.filter(r => r.is_valid_resident === false);
+    }
+
+    // Filter by Duplicate Flag
+    if (regFilterDuplicate) {
+      filteredRegs = filteredRegs.filter(reg => dupKeys.has(`${getResidentName(reg)}|${reg.barangay || ''}|${reg.contact || ''}`));
+    }
+
     // Registration search
     const regQuery = regSearch.trim().toLowerCase();
     if (regQuery) {
@@ -6308,7 +6858,8 @@ export default function AdminPage() {
         const contact = (reg.contact || '').toLowerCase();
         const refNo = (reg.reference_no || '').toLowerCase();
         const refNode = (reg.referral_name || '').toLowerCase();
-        return name.includes(regQuery) || barangay.includes(regQuery) || contact.includes(regQuery) || refNo.includes(regQuery) || refNode.includes(regQuery);
+        const purok = (reg.purok || '').toLowerCase();
+        return name.includes(regQuery) || barangay.includes(regQuery) || contact.includes(regQuery) || refNo.includes(regQuery) || refNode.includes(regQuery) || purok.includes(regQuery);
       });
     }
 
@@ -6316,373 +6867,576 @@ export default function AdminPage() {
     const regBarangays = Array.from(new Set(allRegs.map(r => r.barangay).filter(Boolean))).sort();
     const regSectors = Array.from(new Set(allRegs.map(r => r.sector_category).filter(Boolean))).sort();
 
+    // Pagination calculations
+    const totalFiltered = filteredRegs.length;
+    const effectivePerPage = regPerPage === 'all' ? (totalFiltered || 1) : Number(regPerPage);
+    const totalPages = Math.ceil(totalFiltered / effectivePerPage) || 1;
+    const safePage = Math.min(regPage, totalPages);
+    const startIndex = (safePage - 1) * effectivePerPage;
+    const pageRegs = regPerPage === 'all' ? filteredRegs : filteredRegs.slice(startIndex, startIndex + effectivePerPage);
+
+    const getRegPaginationItems = () => {
+      if (totalPages <= 7) {
+        return Array.from({ length: totalPages }, (_, i) => i + 1);
+      }
+      if (safePage <= 4) {
+        return [1, 2, 3, 4, 5, '...', totalPages];
+      }
+      if (safePage >= totalPages - 3) {
+        return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+      }
+      return [1, '...', safePage - 1, safePage, safePage + 1, '...', totalPages];
+    };
+    const isAllPageSelected = pageRegs.length > 0 && pageRegs.every(r => selectedRegIds.includes(r.id));
+    const handleToggleSelectAll = () => {
+      if (isAllPageSelected) {
+        const pageIds = new Set(pageRegs.map(r => r.id));
+        setSelectedRegIds(prev => prev.filter(id => !pageIds.has(id)));
+      } else {
+        const pageIds = pageRegs.map(r => r.id);
+        setSelectedRegIds(prev => Array.from(new Set([...prev, ...pageIds])));
+      }
+    };
+
+    const handleToggleRow = (id, e) => {
+      e.stopPropagation();
+      setSelectedRegIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    };
+
+    const handleBatchApprove = async () => {
+      if (!selectedRegIds.length) return;
+      const selectedList = allRegs.filter(r => selectedRegIds.includes(r.id));
+      const missingReferral = selectedList.find(r => !r.referral_name || !r.referral_name.trim() || r.referral_name.trim().toLowerCase() === 'direct filing');
+      if (missingReferral) {
+        showToast(`"${getResidentName(missingReferral)}" requires an authorized referral node. Opening bulk assignment...`, 'info');
+        setBulkReferral('');
+        setBulkReferralQuery('');
+        setBulkReferralValid(false);
+        setBulkReferralResults([]);
+        setShowBulkReferralModal(true);
+        return;
+      }
+      if (!confirm(`Are you sure you want to approve ${selectedRegIds.length} selected applications?`)) return;
+      let count = 0;
+      for (const reg of selectedList) {
+        const ok = await approveRegistration(reg.id, reg.referral_name, true);
+        if (ok) count++;
+      }
+      setSelectedRegIds([]);
+      showToast(`Batch approved ${count} applications.`, 'success');
+      fetchAllRegistrations();
+    };
+
+    const handleBatchReject = async () => {
+      if (!selectedRegIds.length) return;
+      if (!confirm(`Are you sure you want to reject ${selectedRegIds.length} selected applications?`)) return;
+      for (const id of selectedRegIds) {
+        await rejectRegistration(id);
+      }
+      setSelectedRegIds([]);
+      showToast(`Batch rejected ${selectedRegIds.length} applications.`, 'success');
+      fetchAllRegistrations();
+    };
+
     return (
-      <div className="reg-page-container">
-        {/* Header & Subtabs */}
-        <div className="reg-page-header-row">
-          <div>
-            <div className="reg-title-cluster">
-              <h2>Registration Requests</h2>
-              <span className="reg-count-badge">
-                {allRegs.length} Total Applications
-              </span>
+      <div className="clean-reg-container">
+        {/* ─── 1. Ultra-Clean SaaS Header & Controls ─── */}
+        <div className="clean-reg-header">
+          <div className="clean-reg-title-row">
+            <div className="clean-reg-title-group">
+              <h2 className="clean-reg-title">Registrations</h2>
+              <div className="clean-tabs-pill">
+                <button
+                  type="button"
+                  className={`clean-tab-pill-btn ${regStatusFilter === 'Pending' ? 'active' : ''}`}
+                  onClick={() => { setRegStatusFilter('Pending'); setRegPage(1); setSelectedRegIds([]); }}
+                >
+                  <span>Pending</span>
+                  <span className="clean-tab-badge">{pendingCount}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`clean-tab-pill-btn ${regStatusFilter === 'Rejected' ? 'active' : ''}`}
+                  onClick={() => { setRegStatusFilter('Rejected'); setRegPage(1); setSelectedRegIds([]); }}
+                >
+                  <span>Rejected</span>
+                  <span className="clean-tab-badge">{rejectedCount}</span>
+                </button>
+              </div>
+
               {dupCount > 0 && (
-                <span className="reg-dup-badge">
-                  {dupCount} Duplicate Flagged
-                </span>
+                <button
+                  type="button"
+                  className={`clean-pill-alert ${regFilterDuplicate ? 'active' : ''}`}
+                  onClick={() => { setRegFilterDuplicate(!regFilterDuplicate); setRegPage(1); }}
+                  title="Filter duplicate records"
+                >
+                  <AlertTriangle size={12} strokeWidth={2.4} />
+                  <span>{dupCount} duplicates</span>
+                </button>
               )}
             </div>
-            <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: '#64748b' }}>
-              Review, verify referral nodes, and approve incoming citizen applications.
-            </p>
+
+            <div className="clean-reg-actions-group">
+              <button
+                type="button"
+                onClick={() => downloadRegistrationsCSV(filteredRegs)}
+                className="clean-btn-outline"
+                title="Export CSV"
+              >
+                <Download size={13} strokeWidth={2.2} />
+                <span>Export CSV</span>
+              </button>
+            </div>
           </div>
 
-          {/* Sub-tabs */}
-          <div className="reg-subtabs-row dashboard-tabs" style={{ margin: 0 }}>
-            <button
-              className={`dashboard-tab-btn ${regStatusFilter === 'Pending' ? 'active' : ''}`}
-              onClick={() => setRegStatusFilter('Pending')}
-            >
-              <UserCheck size={14} strokeWidth={1.8} />
-              <span>Pending</span>
-              <span style={{ marginLeft: 4, padding: '1px 6px', borderRadius: 999, fontSize: '0.72rem', background: regStatusFilter === 'Pending' ? '#ecfdf5' : '#f1f5f9', color: regStatusFilter === 'Pending' ? '#065f46' : '#64748b', fontWeight: 700 }}>
-                {pendingCount}
-              </span>
-            </button>
-            <button
-              className={`dashboard-tab-btn ${regStatusFilter === 'Rejected' ? 'active' : ''}`}
-              onClick={() => setRegStatusFilter('Rejected')}
-            >
-              <XCircle size={14} strokeWidth={1.8} />
-              <span>Rejected</span>
-              <span style={{ marginLeft: 4, padding: '1px 6px', borderRadius: 999, fontSize: '0.72rem', background: regStatusFilter === 'Rejected' ? '#fee2e2' : '#f1f5f9', color: regStatusFilter === 'Rejected' ? '#991b1b' : '#64748b', fontWeight: 700 }}>
-                {rejectedCount}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Action Bar / Filters */}
-        <div className="reg-filter-bar">
-          <div className="reg-filter-inputs">
-            <div className="reg-search-wrap">
-              <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none', zIndex: 2 }} />
+          <div className="clean-filters-bar">
+            <div className="clean-search-box">
+              <Search size={13} strokeWidth={2.2} className="clean-search-icon" />
               <input
                 type="text"
-                placeholder="Search by name, barangay, referral, or contact..."
+                className="clean-search-input"
+                placeholder="Search citizen name, barangay, referral..."
                 value={regSearch}
-                onChange={(e) => setRegSearch(e.target.value)}
-                style={{ width: '100%', height: 38, padding: '0 12px 0 36px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.84rem', outline: 'none', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                onChange={e => { setRegSearch(e.target.value); setRegPage(1); }}
               />
+              {regSearch && (
+                <button
+                  type="button"
+                  className="clean-search-clear"
+                  onClick={() => { setRegSearch(''); setRegPage(1); }}
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
-            <div className="reg-dropdowns-row">
-              <select
-                value={regFilterBarangay}
-                onChange={(e) => setRegFilterBarangay(e.target.value)}
-                className="reg-select-field"
-              >
-                <option value="">All Barangays</option>
-                {regBarangays.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-              <select
-                value={regFilterSector}
-                onChange={(e) => setRegFilterSector(e.target.value)}
-                className="reg-select-field"
-              >
-                <option value="">All Sectors</option>
-                {regSectors.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            {(regSearch || regFilterBarangay || regFilterSector) && (
+
+            <select
+              value={regFilterBarangay}
+              onChange={e => { setRegFilterBarangay(e.target.value); setRegPage(1); }}
+              className="clean-select"
+            >
+              <option value="">All Barangays ({regBarangays.length})</option>
+              {regBarangays.map(b => <option key={b} value={b}>Brgy. {b}</option>)}
+            </select>
+
+            <select
+              value={regFilterSector}
+              onChange={e => { setRegFilterSector(e.target.value); setRegPage(1); }}
+              className="clean-select"
+            >
+              <option value="">All Sectors ({regSectors.length})</option>
+              {regSectors.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+
+            <select
+              value={regFilterVoter}
+              onChange={e => { setRegFilterVoter(e.target.value); setRegPage(1); }}
+              className="clean-select"
+            >
+              <option value="">All Voter Status</option>
+              <option value="voter">COMELEC Verified Voters</option>
+              <option value="nonvoter">Unverified Residents</option>
+            </select>
+
+            <select
+              value={regPerPage}
+              onChange={e => { setRegPerPage(e.target.value); setRegPage(1); }}
+              className="clean-select"
+            >
+              <option value={25}>25 / page</option>
+              <option value={50}>50 / page</option>
+              <option value={100}>100 / page</option>
+              <option value="all">All ({totalFiltered})</option>
+            </select>
+
+            {(regSearch || regFilterBarangay || regFilterSector || regFilterVoter || regFilterDuplicate) && (
               <button
-                onClick={() => { setRegSearch(''); setRegFilterBarangay(''); setRegFilterSector(''); }}
-                style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.78rem', cursor: 'pointer', textDecoration: 'underline', padding: '4px 6px' }}
+                type="button"
+                onClick={() => {
+                  setRegSearch('');
+                  setRegFilterBarangay('');
+                  setRegFilterSector('');
+                  setRegFilterVoter('');
+                  setRegFilterDuplicate(false);
+                  setRegPage(1);
+                }}
+                className="clean-reset-link"
               >
-                Clear Filters
+                Clear filters
               </button>
             )}
           </div>
-
-          <button
-            onClick={() => downloadRegistrationsCSV(filteredRegs)}
-            className="reg-export-btn"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#ffffff', fontSize: '0.82rem', fontWeight: 600, color: '#334155', cursor: 'pointer', transition: 'all 0.15s ease' }}
-          >
-            <Download size={14} />
-            <span>Export CSV</span>
-          </button>
         </div>
 
-        {/* ─── 1. DESKTOP TABLE VIEW (Screen > 768px) ─── */}
+        {/* ─── 2. Batch Actions Bar (when items selected) ─── */}
+        {selectedRegIds.length > 0 && (
+          <div className="clean-batch-bar">
+            <span><strong>{selectedRegIds.length}</strong> citizen{selectedRegIds.length === 1 ? '' : 's'} selected</span>
+            <div className="clean-batch-buttons">
+              {regStatusFilter === 'Pending' && (
+                <button 
+                  type="button" 
+                  className="clean-batch-btn bulk-referral" 
+                  onClick={() => {
+                    setBulkReferral('');
+                    setBulkReferralQuery('');
+                    setBulkReferralValid(false);
+                    setBulkReferralResults([]);
+                    setShowBulkReferralModal(true);
+                  }}
+                  title="Assign an authorized referral leader to selected applicants and automatically approve them"
+                >
+                  <UserCheck size={12} strokeWidth={2.6} /> Assign Referral &amp; Approve ({selectedRegIds.length})
+                </button>
+              )}
+              <button type="button" className="clean-batch-btn reject" onClick={handleBatchReject}>
+                <X size={12} strokeWidth={2.5} /> Reject Selected ({selectedRegIds.length})
+              </button>
+              <button type="button" className="clean-batch-btn clear" onClick={() => setSelectedRegIds([])}>
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── 3. Clean 1-Liner Table View (Desktop) ─── */}
         <div className="reg-desktop-view">
-          <div className="dash-panel-v2" style={{ padding: 0, overflow: 'hidden' }}>
-            <div className="table-wrap" style={{ margin: 0 }}>
-              <table className="admin-table">
-                <thead>
+          <div className="clean-table-container">
+            <table className="clean-reg-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 34, textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={isAllPageSelected}
+                      onChange={handleToggleSelectAll}
+                      title="Select all"
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
+                  <th>Applicant</th>
+                  <th style={{ width: 110 }}>Voter</th>
+                  <th style={{ width: 160 }}>Barangay</th>
+                  <th style={{ width: 180 }}>Referral</th>
+                  <th style={{ width: 120 }}>Date</th>
+                  <th style={{ textAlign: 'right', width: 170 }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regsLoading ? (
+                  <tr><td colSpan={7} style={{ padding: '36px 0', textAlign: 'center', color: '#64748b' }}>Loading records...</td></tr>
+                ) : pageRegs.length === 0 ? (
                   <tr>
-                    <th style={{ width: 44, textAlign: 'center' }}>Photo</th>
-                    <th>Applicant Name</th>
-                    <th>Residency</th>
-                    <th>Barangay & Purok</th>
-                    <th>Sector</th>
-                    <th>Referral Node</th>
-                    <th>Contact</th>
-                    <th>Submitted</th>
-                    <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
+                    <td colSpan={7} style={{ padding: '40px 0', textAlign: 'center', color: '#64748b' }}>
+                      <p style={{ margin: 0, fontWeight: 700, color: '#0b192c', fontSize: '0.88rem' }}>
+                        No registrations found.
+                      </p>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.74rem' }}>
+                        Try adjusting search terms or filters.
+                      </p>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {regsLoading ? (
-                    <tr><td colSpan={10} className="table-loading" style={{ padding: '40px 0', textAlign: 'center' }}>Loading registrations...</td></tr>
-                  ) : filteredRegs.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="table-empty" style={{ padding: '48px 0', textAlign: 'center' }}>
-                        <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', color: '#64748b' }}>
-                          <UserCheck size={18} />
-                        </div>
-                        <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: '0.88rem' }}>
-                          {regSearch || regFilterBarangay || regFilterSector ? 'No registrations match the selected filters.' : `No ${regStatusFilter.toLowerCase()} applications found.`}
-                        </p>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredRegs.map(reg => {
-                      const isDup = dupKeys.has(`${getResidentName(reg)}|${reg.barangay || ''}|${reg.contact || ''}`);
-                      return (
-                        <tr
-                          key={reg.id}
-                          className="reg-row-clickable"
-                          onClick={() => setSelectedRegDetail(reg)}
-                          style={{ cursor: 'pointer', background: isDup ? '#fffbeb' : undefined }}
-                        >
-                          <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '10px 8px' }}>
+                ) : (
+                  pageRegs.map(reg => {
+                    const mName = getResidentName(reg);
+                    const isDup = dupKeys.has(`${mName}|${reg.barangay || ''}|${reg.contact || ''}`);
+                    const isVoter = reg.is_valid_resident !== false;
+                    const isSelected = selectedRegIds.includes(reg.id);
+
+                    return (
+                      <tr
+                        key={reg.id}
+                        className={`${isSelected ? 'selected' : ''} ${isDup ? 'duplicate-row' : ''}`}
+                        onClick={() => setSelectedRegDetail(reg)}
+                        title="Click to view citizen dossier"
+                      >
+                        {/* Checkbox */}
+                        <td style={{ textAlign: 'center', width: 34 }} onClick={e => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            checked={isSelected}
+                            onChange={e => handleToggleRow(reg.id, e)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
+
+                        {/* Applicant (Avatar + Full Legal Name on 1 line) */}
+                        <td>
+                          <div className="cell-citizen">
                             {(reg.photo_url || reg.photo_base64) ? (
                               <img
                                 src={reg.photo_url || reg.photo_base64}
                                 alt=""
-                                style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #e2e8f0', display: 'inline-block', verticalAlign: 'middle' }}
+                                className="cell-avatar"
                               />
                             ) : (
-                              <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#f1f5f9', color: '#64748b', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', border: '1.5px solid #e2e8f0' }}>
-                                👤
+                              <div className="cell-initials">
+                                {getInitials(mName)}
                               </div>
                             )}
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                              <strong style={{ color: '#0f172a', fontSize: '0.86rem' }}>{getResidentName(reg)}</strong>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                {reg.reference_no && <span style={{ fontSize: '0.72rem', color: '#64748b', fontFamily: 'monospace' }}>Ref: {reg.reference_no}</span>}
-                                {isDup && (
-                                  <span style={{ fontSize: '0.66rem', fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }}>
-                                    DUPLICATE
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            {reg.is_valid_resident !== false ? (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, fontSize: '0.74rem', fontWeight: 700, background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0' }}>
-                                ✓ Registered Voter
-                              </span>
-                            ) : (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, fontSize: '0.74rem', fontWeight: 700, background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
-                                Non-Valid Resident
+                            <span className="cell-name" title={mName}>
+                              {mName}
+                            </span>
+                            {isDup && (
+                              <span className="cell-tag-dup" title="Duplicate demographic collision">
+                                <AlertTriangle size={11} strokeWidth={2.4} />
                               </span>
                             )}
-                          </td>
-                          <td>
-                            <div style={{ fontSize: '0.84rem', color: '#0f172a', fontWeight: 600 }}>{reg.barangay || '-'}</div>
-                            <div style={{ fontSize: '0.74rem', color: '#64748b' }}>{reg.purok ? `Purok ${reg.purok}` : (reg.house_no || '-')}</div>
-                          </td>
-                          <td>
-                            <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 6, fontSize: '0.74rem', fontWeight: 600, background: '#f8fafc', color: '#334155', border: '1px solid #e2e8f0' }}>
-                              {reg.sector_category || '-'}
+                          </div>
+                        </td>
+
+                        {/* Voter */}
+                        <td>
+                          {isVoter ? (
+                            <span className="cell-tag-voter">
+                              <Check size={9} strokeWidth={2.6} /> Voter
                             </span>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: '0.82rem', color: reg.referral_name ? '#0f172a' : '#94a3b8', fontWeight: reg.referral_name ? 600 : 400 }}>
-                              {reg.referral_name || 'No referral node'}
+                          ) : (
+                            <span className="cell-tag-nonvoter">
+                              Unverified
                             </span>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: '0.82rem', color: '#0f172a', fontFamily: 'monospace' }}>
-                              {reg.contact || '-'}
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: '0.76rem', color: '#64748b' }}>
-                              {new Date(reg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`status-badge status-${(reg.status || 'pending').toLowerCase()}`}>
-                              {reg.status || 'Pending'}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={e => e.stopPropagation()}>
-                              {reg.status === 'Pending' && (
-                                <>
-                                  <button
-                                    className="action-btn"
-                                    onClick={() => approveRegistration(reg.id)}
-                                    title="Approve registration"
-                                    style={{ color: '#059669', background: '#ecfdf5', borderColor: '#a7f3d0' }}
-                                  >
-                                    ✓
-                                  </button>
-                                  <button
-                                    className="action-btn action-delete"
-                                    onClick={() => rejectRegistration(reg.id)}
-                                    title="Reject registration"
-                                    style={{ color: '#e11d48', background: '#fff1f2', borderColor: '#fecdd3' }}
-                                  >
-                                    ✕
-                                  </button>
-                                </>
-                              )}
-                              {reg.status === 'Rejected' && (
+                          )}
+                        </td>
+
+                        {/* Barangay */}
+                        <td>
+                          <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                            {reg.barangay ? `Brgy. ${reg.barangay}` : '—'}
+                          </span>
+                        </td>
+
+                        {/* Referral */}
+                        <td title={reg.referral_name || 'Direct Citizen Filing'}>
+                          <span style={{ color: reg.referral_name ? '#047857' : '#64748b', fontWeight: reg.referral_name ? 700 : 500, fontSize: '0.76rem' }}>
+                            {reg.referral_name || 'Direct Filing'}
+                          </span>
+                        </td>
+
+                        {/* Date */}
+                        <td>
+                          <span style={{ color: '#64748b', fontSize: '0.74rem' }}>
+                            {new Date(reg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </td>
+
+                        {/* Actions (Strictly 1-liner buttons) */}
+                        <td style={{ textAlign: 'right' }} onClick={e => e.stopPropagation()}>
+                          <div className="cell-actions">
+                            {reg.status === 'Pending' && (
+                              <>
                                 <button
-                                  className="action-btn"
-                                  onClick={() => approveRegistration(reg.id)}
-                                  title="Re-approve registration"
-                                  style={{ color: '#059669', background: '#ecfdf5', borderColor: '#a7f3d0' }}
+                                  type="button"
+                                  className="cell-btn-approve"
+                                  onClick={() => approveRegistration(reg.id, reg.referral_name)}
+                                  title="Approve & Issue EM-ID"
                                 >
-                                  ↻
+                                  <Check size={11} strokeWidth={2.4} /> Approve
                                 </button>
-                              )}
+                                <button
+                                  type="button"
+                                  className="cell-btn-reject"
+                                  onClick={() => rejectRegistration(reg.id)}
+                                  title="Reject application"
+                                >
+                                  <X size={11} strokeWidth={2.4} /> Reject
+                                </button>
+                              </>
+                            )}
+                            {reg.status === 'Rejected' && (
                               <button
-                                className="action-btn action-delete"
-                                onClick={() => { setDeleteRegId(reg.id); setDeleteRegName(getResidentName(reg)); setShowDeleteRegModal(true); }}
-                                title="Delete application"
+                                type="button"
+                                className="cell-btn-approve"
+                                onClick={() => approveRegistration(reg.id, reg.referral_name)}
+                                title="Re-approve application"
                               >
-                                <Trash2 size={13} />
+                                <RotateCw size={10} strokeWidth={2.2} /> Re-Approve
                               </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                            )}
+                            <button
+                              type="button"
+                              className="cell-btn-icon"
+                              onClick={() => setSelectedRegDetail(reg)}
+                              title="Inspect dossier"
+                            >
+                              <Eye size={12} strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              className="cell-btn-icon danger"
+                              onClick={() => { setDeleteRegId(reg.id); setDeleteRegName(mName); setShowDeleteRegModal(true); }}
+                              title="Delete record"
+                            >
+                              <Trash2 size={12} strokeWidth={2} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+
+            {/* Ultra-Clean Modern SaaS Pagination Bar */}
+            {totalFiltered > 0 && (
+              <div className="clean-pagination-bar">
+                <div className="clean-pagination-left">
+                  <span className="clean-pagination-summary">
+                    Showing <strong>{startIndex + 1}</strong>–<strong>{Math.min(startIndex + effectivePerPage, totalFiltered)}</strong> of <strong>{totalFiltered}</strong> records
+                  </span>
+                  <div className="clean-pagination-perpage">
+                    <span>Rows:</span>
+                    <select
+                      value={regPerPage}
+                      onChange={e => { setRegPerPage(e.target.value); setRegPage(1); }}
+                      className="clean-pagination-select"
+                      title="Records per page"
+                    >
+                      <option value={25}>25 / page</option>
+                      <option value={50}>50 / page</option>
+                      <option value={100}>100 / page</option>
+                      <option value="all">All ({totalFiltered})</option>
+                    </select>
+                  </div>
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="clean-pagination-nav">
+                    <button
+                      type="button"
+                      className="clean-page-nav-btn"
+                      disabled={safePage <= 1}
+                      onClick={() => setRegPage(1)}
+                      title="First page"
+                    >
+                      <ChevronsLeft size={13} />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="clean-page-nav-btn with-text"
+                      disabled={safePage <= 1}
+                      onClick={() => setRegPage(p => Math.max(1, p - 1))}
+                      title="Previous page"
+                    >
+                      <ChevronLeft size={13} />
+                      <span>Prev</span>
+                    </button>
+
+                    <div className="clean-page-numbers">
+                      {getRegPaginationItems().map((item, idx) => {
+                        if (item === '...') {
+                          return (
+                            <span key={`ellipsis-${idx}`} className="clean-page-ellipsis">
+                              …
+                            </span>
+                          );
+                        }
+                        return (
+                          <button
+                            key={item}
+                            type="button"
+                            className={`clean-page-num-btn ${safePage === item ? 'active' : ''}`}
+                            onClick={() => setRegPage(item)}
+                            title={`Page ${item}`}
+                          >
+                            {item}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="clean-page-nav-btn with-text"
+                      disabled={safePage >= totalPages}
+                      onClick={() => setRegPage(p => Math.min(totalPages, p + 1))}
+                      title="Next page"
+                    >
+                      <span>Next</span>
+                      <ChevronRight size={13} />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="clean-page-nav-btn"
+                      disabled={safePage >= totalPages}
+                      onClick={() => setRegPage(totalPages)}
+                      title="Last page"
+                    >
+                      <ChevronsRight size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* ─── 2. MOBILE CARD LIST VIEW (Screen <= 768px) ─── */}
+        {/* ─── 4. Mobile Card View ─── */}
         <div className="reg-mobile-view">
           {regsLoading ? (
-            <div className="table-loading" style={{ padding: '30px 0', textAlign: 'center' }}>Loading registrations...</div>
-          ) : filteredRegs.length === 0 ? (
-            <div className="table-empty" style={{ padding: '36px 16px', textAlign: 'center', background: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px', color: '#64748b' }}>
-                <UserCheck size={20} />
-              </div>
-              <p style={{ margin: 0, fontWeight: 600, color: '#0f172a', fontSize: '0.88rem' }}>
-                {regSearch || regFilterBarangay || regFilterSector ? 'No registrations match the selected filters.' : `No ${regStatusFilter.toLowerCase()} applications found.`}
-              </p>
+            <div style={{ padding: '24px 0', textAlign: 'center', color: '#64748b' }}>Loading records...</div>
+          ) : pageRegs.length === 0 ? (
+            <div style={{ padding: '24px 16px', textAlign: 'center', background: '#ffffff', borderRadius: 8, border: '1px solid #e2e8f0', color: '#64748b' }}>
+              No registrations found.
             </div>
           ) : (
-            filteredRegs.map(reg => {
-              const isDup = dupKeys.has(`${getResidentName(reg)}|${reg.barangay || ''}|${reg.contact || ''}`);
+            pageRegs.map(reg => {
+              const mName = getResidentName(reg);
+              const isDup = dupKeys.has(`${mName}|${reg.barangay || ''}|${reg.contact || ''}`);
+              const isVoter = reg.is_valid_resident !== false;
+
               return (
                 <div
                   key={reg.id}
                   className="reg-mobile-card"
                   onClick={() => setSelectedRegDetail(reg)}
-                  style={{ background: isDup ? '#fffbeb' : '#ffffff', borderLeft: isDup ? '4px solid #ef4444' : '1px solid #e2e8f0' }}
+                  style={{ background: isDup ? '#fffdf5' : '#ffffff', borderLeft: isDup ? '3px solid #ef4444' : '1px solid #e2e8f0', padding: 10, borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 6 }}
                 >
-                  <div className="reg-card-top">
-                    <div className="reg-card-avatar-wrap">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {(reg.photo_url || reg.photo_base64) ? (
-                        <img
-                          src={reg.photo_url || reg.photo_base64}
-                          alt=""
-                          className="reg-card-avatar"
-                        />
+                        <img src={reg.photo_url || reg.photo_base64} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
                       ) : (
-                        <div className="reg-card-avatar-placeholder">👤</div>
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 800 }}>
+                          {getInitials(mName)}
+                        </div>
                       )}
-                    </div>
-                    <div className="reg-card-header-info">
-                      <div className="reg-card-name-row">
-                        <strong className="reg-card-name">{getResidentName(reg)}</strong>
-                        <span className={`status-badge status-${(reg.status || 'pending').toLowerCase()}`}>
-                          {reg.status || 'Pending'}
-                        </span>
-                      </div>
-                      <div className="reg-card-badges-wrap">
-                        {reg.reference_no && <span className="reg-pill-ref">Ref: {reg.reference_no}</span>}
-                        {isDup && <span className="reg-pill-dup">DUPLICATE</span>}
-                        {reg.is_valid_resident !== false ? (
-                          <span className="reg-pill-voter">✓ Registered Voter</span>
-                        ) : (
-                          <span className="reg-pill-nonvoter">Non-Valid Resident</span>
-                        )}
+                      <div>
+                        <strong style={{ fontSize: '0.82rem', color: '#0b192c', display: 'block' }}>{mName}</strong>
+                        <span style={{ fontSize: '0.68rem', color: '#64748b' }}>{reg.reference_no || 'No ID'} · Brgy. {reg.barangay || '—'}</span>
                       </div>
                     </div>
+                    {isVoter ? (
+                      <span className="cell-tag-voter">Voter</span>
+                    ) : (
+                      <span className="cell-tag-nonvoter">Unverified</span>
+                    )}
                   </div>
 
-                  <div className="reg-card-details-grid">
-                    <div className="reg-chip-row">
-                      <MapPin size={13} className="reg-chip-icon" />
-                      <span>{reg.barangay || '-'}{reg.purok ? ` · P-${reg.purok}` : ''}</span>
-                    </div>
-                    <div className="reg-chip-row">
-                      <Tag size={13} className="reg-chip-icon" />
-                      <span>{reg.sector_category || 'General'}</span>
-                    </div>
-                    <div className="reg-chip-row">
-                      <Phone size={13} className="reg-chip-icon" />
-                      {reg.contact ? (
-                        <a href={`tel:${reg.contact}`} onClick={e => e.stopPropagation()} style={{ color: '#0284c7', textDecoration: 'none', fontWeight: 600 }}>
-                          {reg.contact}
-                        </a>
-                      ) : (
-                        <span>-</span>
-                      )}
-                    </div>
-                    <div className="reg-chip-row">
-                      <HeartHandshake size={13} className="reg-chip-icon" />
-                      <span>{reg.referral_name || 'No referral'}</span>
-                    </div>
-                  </div>
-
-                  <div className="reg-card-bottom-actions" onClick={e => e.stopPropagation()}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, paddingTop: 4, borderTop: '1px solid #f1f5f9' }} onClick={e => e.stopPropagation()}>
                     {reg.status === 'Pending' && (
                       <>
-                        <button
-                          className="reg-card-approve-btn"
-                          onClick={() => approveRegistration(reg.id)}
-                        >
-                          ✓ Approve
+                        <button type="button" className="cell-btn-approve" onClick={() => approveRegistration(reg.id, reg.referral_name)}>
+                          <Check size={11} /> Approve
                         </button>
-                        <button
-                          className="reg-card-reject-btn"
-                          onClick={() => rejectRegistration(reg.id)}
-                        >
-                          ✕ Reject
+                        <button type="button" className="cell-btn-reject" onClick={() => rejectRegistration(reg.id)}>
+                          <X size={11} /> Reject
                         </button>
                       </>
                     )}
                     {reg.status === 'Rejected' && (
-                      <button
-                        className="reg-card-approve-btn"
-                        onClick={() => approveRegistration(reg.id)}
-                      >
-                        ↻ Re-approve
+                      <button type="button" className="cell-btn-approve" onClick={() => approveRegistration(reg.id, reg.referral_name)}>
+                        <RotateCw size={10} /> Re-Approve
                       </button>
                     )}
-                    <button
-                      className="reg-card-del-btn"
-                      onClick={() => { setDeleteRegId(reg.id); setDeleteRegName(getResidentName(reg)); setShowDeleteRegModal(true); }}
-                      title="Delete application"
-                    >
-                      <Trash2 size={15} />
+                    <button type="button" className="cell-btn-icon" onClick={() => setSelectedRegDetail(reg)}>
+                      <Eye size={12} />
+                    </button>
+                    <button type="button" className="cell-btn-icon danger" onClick={() => { setDeleteRegId(reg.id); setDeleteRegName(mName); setShowDeleteRegModal(true); }}>
+                      <Trash2 size={12} />
                     </button>
                   </div>
                 </div>
@@ -6752,6 +7506,19 @@ export default function AdminPage() {
         return filterVoterSource === 'voter' ? isVoter : !isVoter;
       });
     }
+    if (filterLeaderCategory) {
+      members = members.filter(reg => {
+        const cat = memberHierarchyMap.get(reg.id);
+        if (!cat) return filterLeaderCategory === 'direct';
+        if (filterLeaderCategory === 'hierarchy') return cat.inHierarchy === true;
+        if (filterLeaderCategory === 'direct') return cat.inHierarchy === false;
+        return cat.role === filterLeaderCategory;
+      });
+    }
+
+    const totalApprovedAll = allRegs.filter(r => r.status === 'Approved').length;
+    const totalHierarchyMembers = allRegs.filter(r => r.status === 'Approved' && memberHierarchyMap.get(r.id)?.inHierarchy).length;
+    const totalDirectMembers = totalApprovedAll - totalHierarchyMembers;
 
     const totalFiltered = members.length;
     const totalPages = Math.ceil(totalFiltered / membersPerPage) || 1;
@@ -6934,7 +7701,21 @@ export default function AdminPage() {
               <option value="voter">Registered Voter</option>
               <option value="non-voter">Non-registered Voter</option>
             </select>
-            {(memberSearch || filterBarangay || filterPurok || filterSector || filterPrinted || filterVoterSource) && (
+            <select
+              className="members-filter-select"
+              value={filterLeaderCategory}
+              onChange={(e) => { setFilterLeaderCategory(e.target.value); setMembersPage(1); }}
+            >
+              <option value="">All Leader Categories</option>
+              <option value="hierarchy">In Leader Hierarchy (60% Target)</option>
+              <option value="leader">Barangay Leaders Only (Level 1)</option>
+              <option value="subleader">Sub-Leaders Only (Level 2)</option>
+              <option value="coordinator">Coordinators Only (Level 3)</option>
+              <option value="member">Core Members Only (Level 4)</option>
+              <option value="recruit">Downline Recruits Only (Level 5+)</option>
+              <option value="direct">Direct / Non-Hierarchy (Not in 60% Target)</option>
+            </select>
+            {(memberSearch || filterBarangay || filterPurok || filterSector || filterOrganization || filterPrinted || filterVoterSource || filterLeaderCategory) && (
               <button 
                 className="members-filter-reset" 
                 onClick={() => {
@@ -6945,6 +7726,7 @@ export default function AdminPage() {
                   setFilterOrganization('');
                   setFilterPrinted('');
                   setFilterVoterSource('');
+                  setFilterLeaderCategory('');
                   setMembersPage(1);
                 }} 
                 title="Reset all filters"
@@ -6953,6 +7735,34 @@ export default function AdminPage() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* Dual Tracking / Category Quick Filter Pills */}
+        <div className="members-category-pill-row">
+          <span className="members-category-pill-label">Category Filter:</span>
+          <button
+            type="button"
+            className={`members-cat-pill ${filterLeaderCategory === '' ? 'active' : ''}`}
+            onClick={() => { setFilterLeaderCategory(''); setMembersPage(1); }}
+          >
+            All Members ({totalApprovedAll})
+          </button>
+          <button
+            type="button"
+            className={`members-cat-pill hierarchy ${filterLeaderCategory === 'hierarchy' ? 'active' : ''}`}
+            onClick={() => { setFilterLeaderCategory('hierarchy'); setMembersPage(1); }}
+            title="Mobilized through Referral Network Hierarchy (In 60% Target)"
+          >
+            <ShieldCheck size={11} strokeWidth={2} /> In Leader Hierarchy ({totalHierarchyMembers})
+          </button>
+          <button
+            type="button"
+            className={`members-cat-pill direct ${filterLeaderCategory === 'direct' ? 'active' : ''}`}
+            onClick={() => { setFilterLeaderCategory('direct'); setMembersPage(1); }}
+            title="Direct enrollments not referred through leader hierarchy"
+          >
+            <User size={11} strokeWidth={2} /> Direct / Non-Hierarchy ({totalDirectMembers})
+          </button>
         </div>
 
         {regsLoading ? (
@@ -6986,6 +7796,7 @@ export default function AdminPage() {
                         <th className="col-barangay">Barangay</th>
                         <th className="col-voter">Voter Status</th>
                         <th className="col-precinct">Precinct</th>
+                        <th className="col-leader-cat">Leader Category</th>
                         <th className="col-org">Organization</th>
                         <th className="col-emcard">EM Card No</th>
                         <th className="col-print">Print</th>
@@ -7039,6 +7850,60 @@ export default function AdminPage() {
                               ) : (
                                 <span style={{ color: '#94a3b8', fontSize: 11 }}>-</span>
                               )}
+                            </td>
+                            <td className="col-leader-cat member-cell-cat" onClick={() => setSelectedMember(reg)}>
+                              {(() => {
+                                const cat = memberHierarchyMap.get(reg.id);
+                                if (!cat || !cat.inHierarchy) {
+                                  return (
+                                    <span className="leader-cat-badge cat-direct" title={reg.referral_name && reg.referral_name !== 'No Referral' ? `Referral: ${reg.referral_name} (Outside Leader Hierarchy)` : 'Direct walk-in registration'}>
+                                      <User size={10} strokeWidth={2} /> Direct (Non-Hierarchy)
+                                    </span>
+                                  );
+                                }
+                                if (cat.role === 'leader') {
+                                  return (
+                                    <span className="leader-cat-badge cat-leader" title="Appointed Barangay Leader (Level 1 Apex)">
+                                      <Award size={10} strokeWidth={2} /> Barangay Leader
+                                    </span>
+                                  );
+                                }
+                                if (cat.role === 'subleader') {
+                                  return (
+                                    <span className="leader-cat-badge cat-subleader" title="Appointed Sub-Leader Head">
+                                      <ShieldCheck size={10} strokeWidth={2} /> Sub-Leader
+                                    </span>
+                                  );
+                                }
+                                if (cat.role === 'coordinator') {
+                                  return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                      <span className="leader-cat-badge cat-coord" title={`Coordinator under Sub-Leader ${cat.rootLeader}`}>
+                                        <UserCheck size={10} strokeWidth={2} /> Coordinator
+                                      </span>
+                                      <span style={{ fontSize: '0.66rem', color: '#64748b' }}>via {cat.parentLeader}</span>
+                                    </div>
+                                  );
+                                }
+                                if (cat.role === 'member') {
+                                  return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                      <span className="leader-cat-badge cat-member" title={`Member under Coordinator ${cat.parentLeader}`}>
+                                        <Users size={10} strokeWidth={2} /> Member
+                                      </span>
+                                      <span style={{ fontSize: '0.66rem', color: '#64748b' }}>via {cat.parentLeader}</span>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <span className="leader-cat-badge cat-recruit" title={`Downline recruit via ${cat.parentLeader}`}>
+                                      <UserPlus size={10} strokeWidth={2} /> Recruit
+                                    </span>
+                                    <span style={{ fontSize: '0.66rem', color: '#64748b' }}>via {cat.parentLeader}</span>
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="col-org member-cell-org" onClick={() => setSelectedMember(reg)}>
                               {reg.organization ? <span className="member-org-tag" style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4, border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#475569' }}>{reg.organization}</span> : <span style={{ color: '#94a3b8', fontSize: 11 }}>-</span>}
@@ -7152,6 +8017,17 @@ export default function AdminPage() {
                               Precinct {precinct}
                             </span>
                           )}
+                          {(() => {
+                            const cat = memberHierarchyMap.get(reg.id);
+                            if (!cat || !cat.inHierarchy) {
+                              return <span className="leader-cat-badge cat-direct" style={{ fontSize: '0.62rem', padding: '1px 5px' }}>Direct</span>;
+                            }
+                            return (
+                              <span className={`leader-cat-badge cat-${cat.role}`} style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
+                                {cat.categoryLabel}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -7540,9 +8416,21 @@ export default function AdminPage() {
         return { l1, l2, l3, l4plus, total: l1 + l2 + l3 + l4plus };
       };
 
-      return [...map.keys()]
+      // Include all registered recruiters plus all appointed Network Hierarchy leaders
+      const allLeaderNames = new Set(map.keys());
+      Object.values(appointedBarangayLeaders || {}).forEach(n => {
+        if (n && typeof n === 'string' && n.trim()) allLeaderNames.add(n.trim());
+      });
+      Object.values(appointedSubLeaders || {}).forEach(bm => {
+        if (bm && typeof bm === 'object') {
+          Object.values(bm).forEach(n => {
+            if (n && typeof n === 'string' && n.trim()) allLeaderNames.add(n.trim());
+          });
+        }
+      });
+
+      return [...allLeaderNames]
         .map(name => ({ name, ...getCounts(name) }))
-        .filter(l => l.total > 0)
         .sort((a, b) => b.total - a.total);
     };
 
@@ -7677,6 +8565,284 @@ export default function AdminPage() {
       setExpandedNodes(new Set());
     };
 
+    const toggleHierarchyNode = (key) => {
+      setHierarchyExpanded(prev => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+    };
+
+    const childrenByLower = new Map();
+    approvedRegs.forEach(reg => {
+      const parent = (reg.referral_name || '').trim().toLowerCase();
+      if (!parent || parent === 'no referral') return;
+      if (!childrenByLower.has(parent)) childrenByLower.set(parent, []);
+      childrenByLower.get(parent).push(reg);
+    });
+    const childrenOf = (name) => childrenByLower.get(String(name || '').trim().toLowerCase()) || [];
+    const regByLowerName = new Map();
+    approvedRegs.forEach(reg => {
+      const key = getResidentName(reg).trim().toLowerCase();
+      if (key && !regByLowerName.has(key)) regByLowerName.set(key, reg);
+    });
+
+    const collectDownline = (parentName, trail, depth) => {
+      if (depth > 6) return [];
+      const nextTrail = new Set(trail);
+      nextTrail.add(String(parentName || '').trim().toLowerCase());
+      return childrenOf(parentName)
+        .filter(reg => !nextTrail.has(getResidentName(reg).trim().toLowerCase()))
+        .map(reg => {
+          const name = getResidentName(reg);
+          return { reg, name, downline: collectDownline(name, nextTrail, depth + 1) };
+        });
+    };
+
+    const hierarchyModel = (networkTabMode === 'trees' && treesPurpose === 'hierarchy')
+      ? Object.entries(BARANGAY_VOTER_DATA).map(([bName, cfg]) => {
+          const leaderName = (appointedBarangayLeaders && appointedBarangayLeaders[bName]) || '';
+          const slotMap = (appointedSubLeaders && appointedSubLeaders[bName]) || {};
+          const reserved = new Set();
+          if (leaderName.trim()) reserved.add(leaderName.trim().toLowerCase());
+          Object.values(slotMap).forEach(n => {
+            if (n && String(n).trim()) reserved.add(String(n).trim().toLowerCase());
+          });
+          const slots = [];
+          for (let i = 1; i <= cfg.subLeaderTarget; i++) {
+            const slName = slotMap[i] || slotMap[String(i)] || '';
+            if (!slName) {
+              slots.push({ slot: i, open: true });
+              continue;
+            }
+            const coords = childrenOf(slName).filter(reg => !reserved.has(getResidentName(reg).trim().toLowerCase()));
+            slots.push({
+              slot: i,
+              open: false,
+              name: slName,
+              reg: regByLowerName.get(slName.trim().toLowerCase()) || null,
+              coordinators: coords.map(coord => {
+                const cName = getResidentName(coord);
+                const memberTrail = new Set(reserved);
+                memberTrail.add(cName.trim().toLowerCase());
+                const members = childrenOf(cName).filter(reg => !memberTrail.has(getResidentName(reg).trim().toLowerCase()));
+                return {
+                  reg: coord,
+                  name: cName,
+                  members: members.map(mem => {
+                    const mName = getResidentName(mem);
+                    return { reg: mem, name: mName, downline: collectDownline(mName, memberTrail, 0) };
+                  })
+                };
+              })
+            });
+          }
+          return {
+            name: bName,
+            cfg,
+            leaderName,
+            leaderReg: leaderName ? (regByLowerName.get(leaderName.trim().toLowerCase()) || null) : null,
+            slots,
+            appointed: slots.filter(s => !s.open).length,
+            openSlots: slots.filter(s => s.open).length
+          };
+        })
+      : [];
+
+    const expandHierarchy = () => {
+      const keys = new Set();
+      hierarchyModel.forEach(b => {
+        keys.add(`brgy:${b.name}`);
+        if (b.openSlots > 0) keys.add(`open:${b.name}`);
+        b.slots.forEach(slot => {
+          if (slot.open) return;
+          keys.add(`sl:${b.name}:${slot.slot}`);
+          slot.coordinators.forEach(coord => {
+            keys.add(`coord:${coord.reg.id}`);
+            coord.members.forEach(mem => {
+              keys.add(`mem:${mem.reg.id}`);
+              const walk = (nodes) => nodes.forEach(node => {
+                keys.add(`down:${node.reg.id}`);
+                walk(node.downline || []);
+              });
+              walk(mem.downline || []);
+            });
+          });
+        });
+      });
+      setHierarchyExpanded(keys);
+    };
+
+    const collapseHierarchy = () => setHierarchyExpanded(new Set());
+
+    const renderDownlineNodes = (nodes, depth) => nodes.map(node => {
+      const key = `down:${node.reg.id}`;
+      const hasKids = (node.downline || []).length > 0;
+      const open = hierarchyExpanded.has(key);
+      return (
+        <div key={node.reg.id} className="nh-branch">
+          <button type="button" className="nh-row" onClick={() => hasKids ? toggleHierarchyNode(key) : setSelectedRegDetail(node.reg)}>
+            <ChevronRight size={14} className={`nh-chevron ${open ? 'open' : ''} ${hasKids ? '' : 'idle'}`} />
+            <span className="nh-role">Downline</span>
+            <span className="nh-name">{node.name}</span>
+            <span className="nh-count">{hasKids ? node.downline.length : ''}</span>
+          </button>
+          {open && hasKids && (
+            <div className="nh-nest">
+              {renderDownlineNodes(node.downline, depth + 1)}
+            </div>
+          )}
+        </div>
+      );
+    });
+
+    const renderBarangayHierarchy = () => {
+      const visible = hierarchyBrgy === 'all' ? hierarchyModel : hierarchyModel.filter(b => b.name === hierarchyBrgy);
+      const appointedTotal = hierarchyModel.reduce((sum, b) => sum + b.appointed, 0);
+      const subLeaderTotal = hierarchyModel.reduce((sum, b) => sum + b.cfg.subLeaderTarget, 0);
+      return (
+        <div className="nh-board">
+          <div className="nh-board-head">
+            <div>
+              <h3 className="nh-board-title">Barangay chain</h3>
+              <p className="nh-board-sub">Barangay leader, then sub-leader, coordinator, member, and everyone they recruited.</p>
+            </div>
+            <span className="nh-board-stat">{appointedTotal} / {subLeaderTotal} sub-leaders appointed</span>
+          </div>
+          <div className="nh-filters">
+            <button type="button" className={hierarchyBrgy === 'all' ? 'on' : ''} onClick={() => setHierarchyBrgy('all')}>All barangays</button>
+            {hierarchyModel.map(b => (
+              <button
+                key={b.name}
+                type="button"
+                className={hierarchyBrgy === b.name ? 'on' : ''}
+                onClick={() => {
+                  setHierarchyBrgy(b.name);
+                  setHierarchyExpanded(prev => new Set(prev).add(`brgy:${b.name}`));
+                }}
+              >
+                {b.name}
+                <span>{b.appointed}</span>
+              </button>
+            ))}
+          </div>
+          {visible.map(b => {
+            const brgyOpen = hierarchyExpanded.has(`brgy:${b.name}`);
+            const openList = hierarchyExpanded.has(`open:${b.name}`);
+            return (
+              <section key={b.name} className="nh-brgy">
+                <button type="button" className="nh-brgy-head" onClick={() => toggleHierarchyNode(`brgy:${b.name}`)}>
+                  <ChevronRight size={16} className={`nh-chevron ${brgyOpen ? 'open' : ''}`} />
+                  <span className="nh-brgy-name">{b.name}</span>
+                  <span className="nh-brgy-meta">{b.cfg.target60.toLocaleString()} voter target</span>
+                  <span className="nh-brgy-meta">{b.appointed} / {b.cfg.subLeaderTarget} sub-leaders</span>
+                </button>
+                {brgyOpen && (
+                  <div className="nh-tree">
+                    <div className="nh-branch">
+                      <button
+                        type="button"
+                        className="nh-row"
+                        onClick={() => b.leaderReg && setSelectedRegDetail(b.leaderReg)}
+                      >
+                        <span className="nh-chevron idle" />
+                        <span className="nh-role">Barangay leader</span>
+                        <span className={`nh-name ${b.leaderName ? '' : 'muted'}`}>{b.leaderName || 'Not appointed'}</span>
+                        <span className="nh-count" />
+                      </button>
+                    </div>
+                    {b.slots.filter(s => !s.open).map(slot => {
+                      const slKey = `sl:${b.name}:${slot.slot}`;
+                      const slOpen = hierarchyExpanded.has(slKey);
+                      return (
+                        <div key={slKey} className="nh-branch">
+                          <button type="button" className="nh-row" onClick={() => toggleHierarchyNode(slKey)}>
+                            <ChevronRight size={14} className={`nh-chevron ${slOpen ? 'open' : ''}`} />
+                            <span className="nh-role">Sub-leader {slot.slot}</span>
+                            <span className="nh-name">{slot.name}</span>
+                            <span className="nh-count">{slot.coordinators.length} / {b.cfg.coordinatorQuota}</span>
+                          </button>
+                          {slOpen && (
+                            <div className="nh-nest">
+                              {slot.coordinators.length === 0 ? (
+                                <p className="nh-empty">No coordinators yet. Quota is {b.cfg.coordinatorQuota}.</p>
+                              ) : slot.coordinators.map(coord => {
+                                const cKey = `coord:${coord.reg.id}`;
+                                const cOpen = hierarchyExpanded.has(cKey);
+                                return (
+                                  <div key={coord.reg.id} className="nh-branch">
+                                    <button type="button" className="nh-row" onClick={() => toggleHierarchyNode(cKey)}>
+                                      <ChevronRight size={14} className={`nh-chevron ${cOpen ? 'open' : ''} ${coord.members.length ? '' : 'idle'}`} />
+                                      <span className="nh-role">Coordinator</span>
+                                      <span className="nh-name">{coord.name}</span>
+                                      <span className="nh-count">{coord.members.length} / {b.cfg.memberQuota}</span>
+                                    </button>
+                                    {cOpen && (
+                                      <div className="nh-nest">
+                                        {coord.members.length === 0 ? (
+                                          <p className="nh-empty">No members yet. Each coordinator recruits {b.cfg.memberQuota}.</p>
+                                        ) : coord.members.map(mem => {
+                                          const mKey = `mem:${mem.reg.id}`;
+                                          const mOpen = hierarchyExpanded.has(mKey);
+                                          const downCount = (mem.downline || []).length;
+                                          return (
+                                            <div key={mem.reg.id} className="nh-branch">
+                                              <button type="button" className="nh-row" onClick={() => downCount ? toggleHierarchyNode(mKey) : setSelectedRegDetail(mem.reg)}>
+                                                <ChevronRight size={14} className={`nh-chevron ${mOpen ? 'open' : ''} ${downCount ? '' : 'idle'}`} />
+                                                <span className="nh-role">Member</span>
+                                                <span className="nh-name">{mem.name}</span>
+                                                <span className="nh-count">{downCount ? `${downCount} downline` : '0 downline'}</span>
+                                              </button>
+                                              {mOpen && downCount > 0 && (
+                                                <div className="nh-nest">
+                                                  {renderDownlineNodes(mem.downline, 0)}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {b.openSlots > 0 && (
+                      <div className="nh-branch">
+                        <button type="button" className="nh-row" onClick={() => toggleHierarchyNode(`open:${b.name}`)}>
+                          <ChevronRight size={14} className={`nh-chevron ${openList ? 'open' : ''}`} />
+                          <span className="nh-role">Open slots</span>
+                          <span className="nh-name muted">{b.openSlots} sub-leader {b.openSlots === 1 ? 'slot' : 'slots'} still empty</span>
+                          <span className="nh-count" />
+                        </button>
+                        {openList && (
+                          <div className="nh-nest">
+                            {b.slots.filter(s => s.open).map(slot => (
+                              <div key={`open-${b.name}-${slot.slot}`} className="nh-row static">
+                                <span className="nh-chevron idle" />
+                                <span className="nh-role">Sub-leader {slot.slot}</span>
+                                <span className="nh-name muted">Not appointed</span>
+                                <span className="nh-count" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      );
+    };
+
     // Helper for initials avatar
     const getInitials = (name) => {
       if (!name) return 'NP';
@@ -7741,97 +8907,6 @@ export default function AdminPage() {
         </div>
       );
     };
-
-    const renderLeaderList = (leaders, limit = 10) => {
-      const display = leaders.slice(0, limit);
-      return (
-        <div className="leader-mini-list">
-          {display.map((l, i) => {
-            const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
-            return (
-              <div 
-                key={l.name} 
-                className={`leader-mini-row ${rankClass}`} 
-                onClick={() => {
-                  const matchedMember = approvedRegs.find(r => getResidentName(r) === l.name);
-                  if (matchedMember) {
-                    setSelectedNetworkMember(matchedMember);
-                    setNetworkSearch(l.name);
-                  } else {
-                    setNetworkSearch(l.name);
-                  }
-                }} 
-                title="Click to view network hierarchy"
-              >
-                <div className={`leader-rank-badge ${rankClass}`}>
-                  {i === 0 ? <Award size={13} /> : i + 1}
-                </div>
-                <div className="leader-mini-avatar">{getInitials(l.name)}</div>
-                <div className="leader-mini-info">
-                  <span className="leader-mini-name">{l.name}</span>
-                </div>
-                <div className="leader-mini-badges">
-                  {networkLevelFilter === 'all' ? (
-                    <>
-                      <span className="lm-badge l1" title="Level 1 Direct">
-                        L1 <strong>{l.l1}</strong>
-                      </span>
-                      {l.l2 > 0 && (
-                        <span className="lm-badge l2" title="Level 2 Secondary">
-                          L2 <strong>{l.l2}</strong>
-                        </span>
-                      )}
-                      {l.l3 > 0 && (
-                        <span className="lm-badge l3" title="Level 3 Tertiary">
-                          L3 <strong>{l.l3}</strong>
-                        </span>
-                      )}
-                      {l.l4plus > 0 && (
-                        <span className="lm-badge l4" title="Level 4+ Deep">
-                          L4+ <strong>{l.l4plus}</strong>
-                        </span>
-                      )}
-                      <span className="lm-badge total" title="Total Downline">
-                        {l.total}
-                      </span>
-                    </>
-                  ) : networkLevelFilter === 'l1' ? (
-                    <span className="lm-badge l1 highlight" title="Level 1 Direct Recruits">
-                      L1 <strong>{l.l1}</strong>
-                    </span>
-                  ) : networkLevelFilter === 'l2' ? (
-                    <span className="lm-badge l2 highlight" title="Level 2 Secondary Recruits">
-                      L2 <strong>{l.l2}</strong>
-                    </span>
-                  ) : networkLevelFilter === 'l3' ? (
-                    <span className="lm-badge l3 highlight" title="Level 3 Tertiary Recruits">
-                      L3 <strong>{l.l3}</strong>
-                    </span>
-                  ) : networkLevelFilter === 'l4' ? (
-                    <span className="lm-badge l4 highlight" title="Level 4+ Deep Downlines">
-                      L4+ <strong>{l.l4plus}</strong>
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      );
-    };
-
-    const renderExpandedList = (leaders, title) => (
-      <div className="leader-expanded-panel">
-        <div className="leader-expanded-header">
-          <div>
-            <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>{title}</h4>
-            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Showing {leaders.length} total active leaders</span>
-          </div>
-          <button className="btn btn-sm btn-secondary" onClick={() => setNetworkViewMode(null)}>Close List</button>
-        </div>
-        {renderLeaderList(leaders, leaders.length)}
-      </div>
-    );
 
     // ── Barangay 60% Electoral Campaign Calculations (Option 1: 20-8-1) ──
     const activeBrgyConfig = BARANGAY_VOTER_DATA[networkBarangayFilter] || BARANGAY_VOTER_DATA['Santol'];
@@ -7982,20 +9057,44 @@ export default function AdminPage() {
       }
     }
 
+    const activeBrgyLeaderName = (appointedBarangayLeaders && appointedBarangayLeaders[networkBarangayFilter]) || null;
+    const isBrgyLeaderAssigned = !!activeBrgyLeaderName;
+    const brgyLeaderReg = isBrgyLeaderAssigned ? approvedRegs.find(r => getResidentName(r).toLowerCase() === activeBrgyLeaderName.toLowerCase()) : null;
+    const activeBarangayLeaderCount = isBrgyLeaderAssigned ? 1 : 0;
+
     const activeSubLeadersCount = subLeaderSlots.filter(s => s.isAssigned).length;
     const activeCoordinatorsCount = subLeaderSlots.reduce((acc, s) => acc + s.coordinatorsCount, 0);
+    const activeMembersInClusters = subLeaderSlots.reduce((acc, s) => acc + s.totalMembersCount, 0);
+    const activeRecruitsInClusters = subLeaderSlots.reduce((acc, s) => acc + s.totalRecruitsCount, 0);
+    const totalHierarchyMobilizedInBrgy = activeBarangayLeaderCount + activeSubLeadersCount + activeCoordinatorsCount + activeMembersInClusters + activeRecruitsInClusters;
+    const directUnassignedVotesInBrgy = Math.max(0, totalBrgyVotersEnrolled - totalHierarchyMobilizedInBrgy);
+
     const targetCoordinatorsTotal = activeBrgyConfig.subLeaderTarget * activeBrgyConfig.coordinatorQuota;
     const targetMembersTotal = targetCoordinatorsTotal * activeBrgyConfig.memberQuota;
     const projectedTargetVoters = 1 + activeBrgyConfig.subLeaderTarget + targetCoordinatorsTotal + targetMembersTotal + (targetMembersTotal * activeBrgyConfig.recruitQuota);
     const projectedYieldPct = ((projectedTargetVoters / activeBrgyConfig.totalVoters) * 100).toFixed(1);
 
     // ── Municipal & Advanced Analytics Aggregations ──
+    const sevenDaysAgoTs = Date.now() - (7 * 24 * 60 * 60 * 1000);
     const municipalStats = Object.entries(BARANGAY_VOTER_DATA).map(([bName, bCfg]) => {
       const regs = approvedRegs.filter(r => (r.barangay || '').toLowerCase().includes(bName.toLowerCase()));
-      const currentCount = regs.length;
+      const totalEnrolled = regs.length;
+
+      // Classify into Hierarchy Mobilized (in 60% Target) vs Direct Pool
+      const hierarchyRegs = regs.filter(r => {
+        const cat = memberHierarchyMap.get(r.id);
+        return cat && cat.inHierarchy;
+      });
+      const hierarchyCount = hierarchyRegs.length;
+      const directCount = totalEnrolled - hierarchyCount;
+
       const target60 = bCfg.target60;
-      const pct = Math.min(100, Math.round((currentCount / target60) * 100));
-      const deficit = Math.max(0, target60 - currentCount);
+      // 60% Target Progress is strictly based on Referral Network Hierarchy Mobilized
+      const pct = Math.min(100, Math.round((hierarchyCount / target60) * 100));
+      const deficit = Math.max(0, target60 - hierarchyCount);
+      const totalPct = Math.min(100, Math.round((totalEnrolled / bCfg.totalVoters) * 100));
+
+      const appointedLeaderName = (appointedBarangayLeaders && appointedBarangayLeaders[bName]) || null;
       const appointedMap = (appointedSubLeaders && appointedSubLeaders[bName]) || {};
       const appointedSLCount = Object.keys(appointedMap).length;
       let totalActiveCoords = 0;
@@ -8009,39 +9108,96 @@ export default function AdminPage() {
       const targetMembers = targetCoords * bCfg.memberQuota;
       const projectedTotal = 1 + bCfg.subLeaderTarget + targetCoords + targetMembers + (targetMembers * bCfg.recruitQuota);
       const projectedPct = ((projectedTotal / bCfg.totalVoters) * 100).toFixed(1);
+      const recent7DaysRecruits = hierarchyRegs.filter(r => new Date(r.created_at).getTime() >= sevenDaysAgoTs).length;
+      const recent7DaysTotal = regs.filter(r => new Date(r.created_at).getTime() >= sevenDaysAgoTs).length;
 
       return {
         name: bName,
         config: bCfg,
         totalVoters: bCfg.totalVoters,
         target60: bCfg.target60,
-        currentCount,
+        hierarchyCount,
+        directCount,
+        totalEnrolled,
+        currentCount: hierarchyCount, // For compatibility with existing views
         pct,
         deficit,
+        totalPct,
+        appointedLeaderName,
         appointedSLCount,
         subLeaderTarget: bCfg.subLeaderTarget,
         totalActiveCoords,
         targetCoords,
         coordinatorQuota: bCfg.coordinatorQuota,
         memberQuota: bCfg.memberQuota,
+        targetMembers,
+        targetRecruits: targetMembers * (bCfg.recruitQuota || 1),
         projectedTotal,
         projectedPct,
+        recent7DaysRecruits,
+        recent7DaysTotal,
         hasOfficialRecord: bCfg.hasOfficialRecord
       };
     });
 
     const municipalTotalVoters = municipalStats.reduce((sum, b) => sum + b.totalVoters, 0);
     const municipalTarget60 = municipalStats.reduce((sum, b) => sum + b.target60, 0);
-    const municipalCurrentMobilized = municipalStats.reduce((sum, b) => sum + b.currentCount, 0);
-    const municipalPctProgress = Math.min(100, Math.round((municipalCurrentMobilized / municipalTarget60) * 100));
+    const municipalHierarchyMobilized = municipalStats.reduce((sum, b) => sum + b.hierarchyCount, 0);
+    const municipalDirectPool = municipalStats.reduce((sum, b) => sum + b.directCount, 0);
+    const municipalTotalEnrolled = municipalStats.reduce((sum, b) => sum + b.totalEnrolled, 0);
+    const municipalCurrentMobilized = municipalHierarchyMobilized;
+    const municipalDeficit = Math.max(0, municipalTarget60 - municipalHierarchyMobilized);
+    const municipalPctProgress = Math.min(100, Math.round((municipalHierarchyMobilized / municipalTarget60) * 100));
     const municipalTotalAppointedSL = municipalStats.reduce((sum, b) => sum + b.appointedSLCount, 0);
     const municipalTargetSL = municipalStats.reduce((sum, b) => sum + b.subLeaderTarget, 0);
     const municipalTotalActiveCoords = municipalStats.reduce((sum, b) => sum + b.totalActiveCoords, 0);
     const municipalTargetCoords = municipalStats.reduce((sum, b) => sum + b.targetCoords, 0);
+    const municipal7dGrowth = municipalStats.reduce((sum, b) => sum + (b.recent7DaysRecruits || 0), 0);
+    const municipalProjectedCapacity = municipalStats.reduce((sum, b) => sum + (b.projectedTotal || 0), 0);
+    const municipalCapacityPct = ((municipalProjectedCapacity / (municipalTarget60 || 1)) * 100).toFixed(1);
 
-    const filteredMunicipalStats = municipalStats.filter(b => 
-      !analyticsSearchQuery || b.name.toLowerCase().includes(analyticsSearchQuery.toLowerCase())
-    );
+    const municipalTotalsPayload = {
+      totalVoters: municipalTotalVoters,
+      target60: municipalTarget60,
+      hierarchyMobilized: municipalHierarchyMobilized,
+      directPool: municipalDirectPool,
+      totalEnrolled: municipalTotalEnrolled,
+      currentMobilized: municipalCurrentMobilized,
+      pctProgress: municipalPctProgress,
+      totalAppointedSL: municipalTotalAppointedSL,
+      targetSL: municipalTargetSL,
+      totalActiveCoords: municipalTotalActiveCoords,
+      targetCoords: municipalTargetCoords,
+      recent7DaysTotal: municipal7dGrowth
+    };
+
+    let filteredMunicipalStats = municipalStats.filter(b => {
+      if (analyticsSearchQuery && !b.name.toLowerCase().includes(analyticsSearchQuery.toLowerCase())) {
+        return false;
+      }
+      if (analyticsStatusFilter === 'critical') {
+        return b.pct < 10;
+      }
+      if (analyticsStatusFilter === 'leadership_gap') {
+        return b.appointedSLCount === 0;
+      }
+      if (analyticsStatusFilter === 'met') {
+        return b.deficit === 0;
+      }
+      return true;
+    });
+
+    // Sorting
+    filteredMunicipalStats.sort((a, b) => {
+      const valA = a[analyticsSortColumn];
+      const valB = b[analyticsSortColumn];
+      if (typeof valA === 'string') {
+        return analyticsSortDirection === 'asc' 
+          ? valA.localeCompare(valB) 
+          : valB.localeCompare(valA);
+      }
+      return analyticsSortDirection === 'asc' ? (valA || 0) - (valB || 0) : (valB || 0) - (valA || 0);
+    });
 
     // Coalition Sector Distribution in current selected barangay
     const SECTOR_COLORS = {
@@ -8065,116 +9221,148 @@ export default function AdminPage() {
       color: SECTOR_COLORS[sector] || '#047857'
     })).sort((a, b) => b.count - a.count);
 
+    // Municipal coalition sector aggregation across all approved registrations
+    const municipalSectorCounts = {};
+    approvedRegs.forEach(r => {
+      const sec = r.sector_category || 'General Resident';
+      municipalSectorCounts[sec] = (municipalSectorCounts[sec] || 0) + 1;
+    });
+    const municipalSectorDistribution = SECTOR_CATEGORY_QUOTA_DISTRIBUTION.map(sCat => {
+      const count = municipalSectorCounts[sCat.id] || 0;
+      const actualPct = municipalCurrentMobilized > 0 ? Math.round((count / municipalCurrentMobilized) * 100) : 0;
+      return {
+        ...sCat,
+        count,
+        actualPct,
+        targetPct: sCat.pct
+      };
+    });
+
     const brgyTopRecruiters = filterAndSortLeaders(brgyLeaderMap, false);
 
     return (
       <div className="network-page-container">
-        {/* Header Section (Unboxed, clean page header directly on canvas) */}
+        {/* Header: title block, then one aligned toolbar row */}
         <div className="network-page-header">
           <div className="network-header-left">
             <div className="network-title-row">
-              <h2 className="network-page-title">Referral Network Hierarchy</h2>
+              <h2 className="network-page-title">
+                {networkTabMode === 'trees' && treesPurpose === 'hierarchy'
+                  ? 'Barangay Network Hierarchy'
+                  : networkTabMode === 'trees'
+                  ? 'Global Referral Trees'
+                  : 'Referral Network Hierarchy'}
+              </h2>
               <span className="network-status-chip">
-                <Target size={13} /> {networkBarangayFilter} 60% Goal: {activeBrgyConfig.target60.toLocaleString()} Voters
+                <Target size={13} strokeWidth={1.8} />
+                {networkTabMode === 'analytics'
+                  ? `Balagtas Municipal 60% Goal: ${municipalTarget60.toLocaleString()} Voters`
+                  : `${networkBarangayFilter} 60% Goal: ${activeBrgyConfig.target60.toLocaleString()} Voters`}
               </span>
             </div>
             <p className="network-page-subtitle">
-              Electoral command center: monitor 60% voter victory milestones, sub-leader quotas, and coordinator networks.
+              {networkTabMode === 'trees' && treesPurpose === 'hierarchy'
+                ? 'Follow one barangay from its leader to each sub-leader, coordinator, member, and downline.'
+                : networkTabMode === 'trees'
+                ? 'Referral forest ranked by who recruited whom, across every barangay.'
+                : 'Electoral command center: monitor 60% voter victory milestones, sub-leader quotas, and coordinator networks.'}
             </p>
           </div>
-          <div className="network-header-actions" style={{ gap: 10, flexWrap: 'wrap' }}>
-            {/* View Mode Toggle: Campaign vs Analytics vs Trees */}
+
+          <div className="network-header-toolbar">
             <div className="campaign-mode-tabs">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className={`campaign-mode-tab ${networkTabMode === 'campaign' ? 'active' : ''}`}
                 onClick={() => setNetworkTabMode('campaign')}
               >
-                <Target size={14} /> 60% Campaign Mode (Option 1)
+                <Target size={14} /> 60% Campaign Mode
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className={`campaign-mode-tab ${networkTabMode === 'analytics' ? 'active' : ''}`}
                 onClick={() => setNetworkTabMode('analytics')}
               >
                 <BarChart3 size={14} /> Summary & Analytics
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className={`campaign-mode-tab ${networkTabMode === 'trees' ? 'active' : ''}`}
                 onClick={() => setNetworkTabMode('trees')}
               >
-                <Network size={14} /> Global Trees View
+                <Network size={14} /> Trees
               </button>
             </div>
 
-            <button 
-              type="button" 
-              className="campaign-how-it-works-btn" 
-              onClick={() => {
-                setHowItWorksBrgyTab(networkBarangayFilter);
-                setShowHowItWorksModal(true);
-              }}
-              title="Click to view how the 60% quota formula works and calculation details for each barangay"
-            >
-              <HelpCircle size={14} /> How It Works & Quota Guide
-            </button>
-
-            {networkTabMode === 'analytics' && (
-              <button 
-                type="button" 
-                className="btn btn-sm btn-outline-emerald" 
-                onClick={() => window.print()}
-                title="Print executive campaign briefing report"
+            <div className="network-header-actions">
+              <button
+                type="button"
+                className="campaign-how-it-works-btn"
+                onClick={() => {
+                  setHowItWorksBrgyTab(networkBarangayFilter);
+                  setShowHowItWorksModal(true);
+                }}
+                title="Click to view how the 60% quota formula works and calculation details for each barangay"
               >
-                <Printer size={14} style={{ marginRight: 6 }} /> Print Briefing
+                <HelpCircle size={14} /> How It Works & Quota Guide
               </button>
-            )}
 
-            {networkTabMode === 'trees' && (
-              <>
-                <button 
-                  type="button" 
-                  className="btn btn-sm btn-outline-emerald" 
-                  onClick={expandAllTrees}
-                  title="Expand all tree branches"
+              {networkTabMode === 'analytics' && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-emerald network-tool-btn"
+                  onClick={() => window.print()}
+                  title="Print executive campaign briefing report"
                 >
-                  Expand All
+                  <Printer size={14} /> Print Briefing
                 </button>
-                <button 
-                  type="button" 
-                  className="btn btn-sm btn-secondary" 
-                  onClick={collapseAllTrees}
-                  title="Collapse all tree branches"
-                >
-                  Collapse All
-                </button>
-              </>
-            )}
+              )}
+
+              {networkTabMode === 'trees' && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-emerald network-tool-btn"
+                    onClick={treesPurpose === 'hierarchy' ? expandHierarchy : expandAllTrees}
+                    title="Expand all tree branches"
+                  >
+                    Expand All
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary network-tool-btn"
+                    onClick={treesPurpose === 'hierarchy' ? collapseHierarchy : collapseAllTrees}
+                    title="Collapse all tree branches"
+                  >
+                    Collapse All
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
         {/* ── CAMPAIGN 60% VIEW (OPTION 1) ── */}
         {networkTabMode === 'campaign' && (
           <div className="campaign-view-container">
-            {/* Hero Progress Banner */}
-            <div className="campaign-hero-banner">
+            <section className="campaign-hero-banner">
               <div className="campaign-hero-top">
                 <div className="campaign-hero-title-area">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <div className="campaign-hero-badge">
+                  <div className="campaign-hero-meta">
+                    <span className="campaign-hero-badge">
                       <Target size={12} /> 60% Electoral Victory Goal
-                    </div>
-                    <span style={{ fontSize: '0.78rem', color: '#a7f3d0', fontWeight: 600 }}>
-                      COMELEC Registered Base: {activeBrgyConfig.totalVoters.toLocaleString()} Voters
+                    </span>
+                    <span className="campaign-hero-base">
+                      COMELEC base · {activeBrgyConfig.totalVoters.toLocaleString()} voters
                     </span>
                   </div>
                   <h2 className="campaign-hero-title">
-                    Brgy. {networkBarangayFilter} Campaign Command Center
+                    Brgy. {networkBarangayFilter}
                   </h2>
+                  <p className="campaign-hero-sub">Campaign command center for hierarchy quota and field appointments.</p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div className="campaign-hero-tools">
                   <button
                     type="button"
                     className="campaign-hero-calc-link"
@@ -8184,10 +9372,10 @@ export default function AdminPage() {
                     }}
                     title={`View detailed quota calculation for Brgy. ${networkBarangayFilter}`}
                   >
-                    <HelpCircle size={13} /> View Quota Calculation
+                    <HelpCircle size={13} /> Quota guide
                   </button>
                   <div className="campaign-brgy-select-box">
-                    <MapPin size={15} color="#a7f3d0" />
+                    <MapPin size={15} />
                     <select
                       value={networkBarangayFilter}
                       onChange={(e) => setNetworkBarangayFilter(e.target.value)}
@@ -8204,85 +9392,151 @@ export default function AdminPage() {
               <div className="campaign-progress-card">
                 <div className="campaign-progress-stats">
                   <div className="campaign-progress-main-stat">
-                    <span className="campaign-progress-curr">{totalBrgyVotersEnrolled.toLocaleString()}</span>
-                    <span className="campaign-progress-target">/ {activeBrgyConfig.target60.toLocaleString()} Voters (60% Target)</span>
-                    <span className="campaign-progress-pct-badge">{brgyPctProgress}% Reached</span>
+                    <span className="campaign-progress-curr">{totalHierarchyMobilizedInBrgy.toLocaleString()}</span>
+                    <span className="campaign-progress-target">/ {activeBrgyConfig.target60.toLocaleString()}</span>
+                    <span className="campaign-progress-pct-badge">{Math.min(100, Math.round((totalHierarchyMobilizedInBrgy / activeBrgyConfig.target60) * 100))}%</span>
                   </div>
-                  <div style={{ fontSize: '0.82rem', color: '#d1fae5', fontWeight: 600 }}>
-                    {votesNeededToWin === 0 ? '🎉 60% Victory Goal Reached!' : `${votesNeededToWin.toLocaleString()} more voters needed to secure victory`}
-                  </div>
+                  <p className="campaign-progress-note">
+                    {Math.max(0, activeBrgyConfig.target60 - totalHierarchyMobilizedInBrgy) === 0
+                      ? '60% leadership quota reached'
+                      : `${Math.max(0, activeBrgyConfig.target60 - totalHierarchyMobilizedInBrgy).toLocaleString()} more hierarchy voters to reach the 60% target`}
+                  </p>
                 </div>
 
                 <div className="campaign-progress-track">
-                  <div className="campaign-progress-fill" style={{ width: `${Math.max(2, brgyPctProgress)}%` }} />
+                  <div className="campaign-progress-fill" style={{ width: `${Math.max(2, Math.min(100, Math.round((totalHierarchyMobilizedInBrgy / activeBrgyConfig.target60) * 100)))}%` }} />
                 </div>
 
                 <div className="campaign-milestones-row">
-                  <span>0%</span>
-                  <span>25% ({Math.round(activeBrgyConfig.target60 * 0.416).toLocaleString()})</span>
-                  <span>50% ({Math.round(activeBrgyConfig.target60 * 0.833).toLocaleString()})</span>
-                  <span style={{ color: '#fef08a', fontWeight: 800 }}>★ 60% Target ({activeBrgyConfig.target60.toLocaleString()})</span>
-                  <span>75% Supermajority</span>
+                  <span>0</span>
+                  <span>25%</span>
+                  <span>50%</span>
+                  <span className="is-goal">60% · {activeBrgyConfig.target60.toLocaleString()}</span>
+                  <span>75%</span>
+                </div>
+              </div>
+            </section>
+
+            <div className="campaign-pipeline">
+              <div className="campaign-pipeline-head">
+                <span className="campaign-pipeline-kicker">Quota pipeline</span>
+                <span className="campaign-pipeline-note">
+                  Hierarchy {totalHierarchyMobilizedInBrgy.toLocaleString()} · Direct pool {directUnassignedVotesInBrgy.toLocaleString()} · Enrolled {totalBrgyVotersEnrolled.toLocaleString()}
+                </span>
+              </div>
+              <div className="campaign-pipeline-row">
+                <div className="campaign-pipe">
+                  <span className="campaign-pipe-label">Sub-Leaders</span>
+                  <span className="campaign-pipe-num">{activeSubLeadersCount}<em>/{activeBrgyConfig.subLeaderTarget}</em></span>
+                  <span className="campaign-pipe-hint">{activeBrgyConfig.coordinatorQuota} coords each</span>
+                </div>
+                <span className="campaign-pipe-arrow" aria-hidden="true">→</span>
+                <div className="campaign-pipe">
+                  <span className="campaign-pipe-label">Coordinators</span>
+                  <span className="campaign-pipe-num">{activeCoordinatorsCount}<em>/{targetCoordinatorsTotal}</em></span>
+                  <span className="campaign-pipe-hint">{activeBrgyConfig.memberQuota} members each</span>
+                </div>
+                <span className="campaign-pipe-arrow" aria-hidden="true">→</span>
+                <div className="campaign-pipe">
+                  <span className="campaign-pipe-label">Members</span>
+                  <span className="campaign-pipe-num">{activeMembersInClusters}<em>/{targetMembersTotal.toLocaleString()}</em></span>
+                  <span className="campaign-pipe-hint">+1 recruit each</span>
+                </div>
+                <span className="campaign-pipe-arrow" aria-hidden="true">→</span>
+                <div className="campaign-pipe is-yield">
+                  <span className="campaign-pipe-label">Full tree</span>
+                  <span className="campaign-pipe-num">{projectedTargetVoters.toLocaleString()}<em> voters</em></span>
+                  <span className="campaign-pipe-hint">{projectedYieldPct}% of COMELEC · goal {activeBrgyConfig.target60.toLocaleString()}</span>
                 </div>
               </div>
             </div>
 
-            {/* 4-Tier Pipeline Health Cards (Option 1 Blueprint) */}
-            <div className="campaign-tiers-ribbon">
-              {/* Tier 1: Sub-Leaders */}
-              <div className="campaign-tier-card tier-1">
-                <div className="campaign-tier-accent" />
-                <div className="campaign-tier-top">
-                  <span className="campaign-tier-title">Category 1 · Sub-Leaders</span>
-                  <div className="campaign-tier-icon"><Users size={15} /></div>
+            <div className="brgy-leader-command-section">
+              <div className={`brgy-leader-card ${isBrgyLeaderAssigned ? 'is-filled' : 'is-vacant'}`}>
+                <div className="brgy-leader-header">
+                  <div className="brgy-leader-heading">
+                    <span className="brgy-leader-badge">Level 1 · Barangay Leader</span>
+                    <span className="brgy-leader-role">Brgy. {networkBarangayFilter} · 1 leader quota</span>
+                  </div>
+                  <span className={`brgy-leader-status ${isBrgyLeaderAssigned ? 'filled' : 'vacant'}`}>
+                    {isBrgyLeaderAssigned ? 'Filled' : 'Vacant'}
+                  </span>
                 </div>
-                <div className="campaign-tier-val">{activeSubLeadersCount} / {activeBrgyConfig.subLeaderTarget}</div>
-                <span className="campaign-tier-quota-pill" title="Target Quota for Sub-Leaders Category">
-                  🎯 Target Quota: {activeBrgyConfig.subLeaderTarget} Leaders ({activeBrgyConfig.coordinatorQuota} Coords each)
-                </span>
-                <p className="campaign-tier-sub">Appointed leaders across sectors & puroks</p>
-              </div>
 
-              {/* Tier 2: Coordinators */}
-              <div className="campaign-tier-card tier-2">
-                <div className="campaign-tier-accent" />
-                <div className="campaign-tier-top">
-                  <span className="campaign-tier-title">Category 2 · Coordinators</span>
-                  <div className="campaign-tier-icon"><UserCheck size={15} /></div>
-                </div>
-                <div className="campaign-tier-val">{activeCoordinatorsCount} / {targetCoordinatorsTotal}</div>
-                <span className="campaign-tier-quota-pill" title="Target Quota for Coordinators Category">
-                  🎯 Target Quota: {targetCoordinatorsTotal} Coords ({activeBrgyConfig.memberQuota} Members each)
-                </span>
-                <p className="campaign-tier-sub">Recruited coordinators across precincts</p>
-              </div>
+                {isBrgyLeaderAssigned ? (
+                  <div className="brgy-leader-content assigned">
+                    <div className="brgy-leader-info">
+                      <div className="brgy-leader-avatar">{getInitials(activeBrgyLeaderName)}</div>
+                      <div className="brgy-leader-details">
+                        <h3 className="brgy-leader-name">{activeBrgyLeaderName}</h3>
+                        <div className="brgy-leader-meta">
+                          <span>{brgyLeaderReg?.purok ? `Purok ${brgyLeaderReg.purok}, ` : ''}Brgy. {networkBarangayFilter}</span>
+                          {brgyLeaderReg?.contact && <span>{brgyLeaderReg.contact}</span>}
+                          {brgyLeaderReg?.em_card_no && <span>{brgyLeaderReg.em_card_no}</span>}
+                          {brgyLeaderReg?.sector_category && <span>{brgyLeaderReg.sector_category}</span>}
+                        </div>
+                      </div>
+                    </div>
 
-              {/* Tier 3: Members */}
-              <div className="campaign-tier-card tier-3">
-                <div className="campaign-tier-accent" />
-                <div className="campaign-tier-top">
-                  <span className="campaign-tier-title">Category 3 · Citizen Members</span>
-                  <div className="campaign-tier-icon"><Shield size={15} /></div>
-                </div>
-                <div className="campaign-tier-val">{totalBrgyVotersEnrolled} / {targetMembersTotal.toLocaleString()}</div>
-                <span className="campaign-tier-quota-pill" title="Target Quota for Members Category">
-                  🎯 Target Quota: {targetMembersTotal.toLocaleString()} Members (+1 Recruit each)
-                </span>
-                <p className="campaign-tier-sub">Registered residents issued EM Cards</p>
-              </div>
+                    <div className="brgy-leader-stats">
+                      <div className="brgy-leader-stat-item">
+                        <span className="stat-label">Sub-Leaders</span>
+                        <span className="stat-value">{activeSubLeadersCount}/{activeBrgyConfig.subLeaderTarget}</span>
+                      </div>
+                      <div className="brgy-leader-stat-item">
+                        <span className="stat-label">Coordinators</span>
+                        <span className="stat-value">{activeCoordinatorsCount}/{targetCoordinatorsTotal}</span>
+                      </div>
+                      <div className="brgy-leader-stat-item">
+                        <span className="stat-label">Hierarchy</span>
+                        <span className="stat-value emerald">{totalHierarchyMobilizedInBrgy.toLocaleString()}</span>
+                      </div>
+                    </div>
 
-              {/* Tier 4: Total Expected Yield */}
-              <div className="campaign-tier-card tier-4">
-                <div className="campaign-tier-accent" />
-                <div className="campaign-tier-top">
-                  <span className="campaign-tier-title">Category 4 · Total Target Yield</span>
-                  <div className="campaign-tier-icon"><Award size={15} /></div>
-                </div>
-                <div className="campaign-tier-val">{projectedTargetVoters.toLocaleString()} Voters</div>
-                <span className="campaign-tier-quota-pill" style={{ color: '#b45309', background: '#fef3c7' }} title="60% Supermajority Victory Target">
-                  🎯 60% Victory Goal: {activeBrgyConfig.target60.toLocaleString()} Voters ({projectedYieldPct}%)
-                </span>
-                <p className="campaign-tier-sub">Full capacity at 100% quota completion</p>
+                    <div className="brgy-leader-actions">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary network-tool-btn"
+                        onClick={() => {
+                          setAppointingLeaderBarangay(networkBarangayFilter);
+                          setAppointSearch('');
+                        }}
+                      >
+                        <Edit3 size={13} /> Reassign
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger network-tool-btn"
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to remove ${activeBrgyLeaderName} as Barangay Leader for Brgy. ${networkBarangayFilter}?`)) {
+                            saveAppointedBarangayLeader(networkBarangayFilter, null);
+                          }
+                        }}
+                      >
+                        <Trash2 size={13} /> Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="brgy-leader-content vacant">
+                    <div className="brgy-leader-vacant-text">
+                      <h5>Appoint the barangay leader</h5>
+                      <p>
+                        One Level 1 commander for the {activeBrgyConfig.subLeaderTarget} sub-leader slots and the 60% quota.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-emerald brgy-leader-appoint-btn"
+                      onClick={() => {
+                        setAppointingLeaderBarangay(networkBarangayFilter);
+                        setAppointSearch('');
+                      }}
+                    >
+                      <UserPlus size={15} /> Appoint Barangay Leader
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -8306,7 +9560,8 @@ export default function AdminPage() {
                     className={`subleader-filter-pill ${subLeaderFilterStatus === 'all' ? 'active' : ''}`}
                     onClick={() => setSubLeaderFilterStatus('all')}
                   >
-                    All ({subLeaderSlots.length})
+                    <span className="subleader-pill-label">All</span>
+                    <span className="subleader-pill-count">{subLeaderSlots.length}</span>
                   </button>
                   <button 
                     type="button" 
@@ -8314,7 +9569,9 @@ export default function AdminPage() {
                     onClick={() => setSubLeaderFilterStatus('on_track')}
                     title="Teams that actively recruited voters in the last 7 days"
                   >
-                    🟢 Active ({subLeaderSlots.filter(s => s.healthStatus === 'on_track').length})
+                    <span className="subleader-status-dot dot-active" />
+                    <span className="subleader-pill-label">Active</span>
+                    <span className="subleader-pill-count">{subLeaderSlots.filter(s => s.healthStatus === 'on_track').length}</span>
                   </button>
                   <button 
                     type="button" 
@@ -8322,7 +9579,9 @@ export default function AdminPage() {
                     onClick={() => setSubLeaderFilterStatus('bottleneck')}
                     title="Has coordinators, waiting for them to recruit members"
                   >
-                    🟡 Needs Members ({subLeaderSlots.filter(s => s.healthStatus === 'bottleneck').length})
+                    <span className="subleader-status-dot dot-warning" />
+                    <span className="subleader-pill-label">Needs Members</span>
+                    <span className="subleader-pill-count">{subLeaderSlots.filter(s => s.healthStatus === 'bottleneck').length}</span>
                   </button>
                   <button 
                     type="button" 
@@ -8330,7 +9589,9 @@ export default function AdminPage() {
                     onClick={() => setSubLeaderFilterStatus('dormant')}
                     title="0 recruits so far. Needs a follow-up call."
                   >
-                    🔴 No Recruits ({subLeaderSlots.filter(s => s.healthStatus === 'dormant').length})
+                    <span className="subleader-status-dot dot-danger" />
+                    <span className="subleader-pill-label">No Recruits</span>
+                    <span className="subleader-pill-count">{subLeaderSlots.filter(s => s.healthStatus === 'dormant').length}</span>
                   </button>
                   <button 
                     type="button" 
@@ -8338,7 +9599,9 @@ export default function AdminPage() {
                     onClick={() => setSubLeaderFilterStatus('met')}
                     title="100% quota achieved"
                   >
-                    ✓ Quota Met ({subLeaderSlots.filter(s => s.healthStatus === 'met').length})
+                    <span className="subleader-status-dot dot-met" />
+                    <span className="subleader-pill-label">Quota Met</span>
+                    <span className="subleader-pill-count">{subLeaderSlots.filter(s => s.healthStatus === 'met').length}</span>
                   </button>
                   <button 
                     type="button" 
@@ -8346,7 +9609,9 @@ export default function AdminPage() {
                     onClick={() => setSubLeaderFilterStatus('unassigned')}
                     title="Vacant slots ready for appointment"
                   >
-                    ⚪ Vacant ({subLeaderSlots.filter(s => !s.isAssigned).length})
+                    <span className="subleader-status-dot dot-vacant" />
+                    <span className="subleader-pill-label">Vacant</span>
+                    <span className="subleader-pill-count">{subLeaderSlots.filter(s => !s.isAssigned).length}</span>
                   </button>
                 </div>
 
@@ -8497,14 +9762,26 @@ export default function AdminPage() {
                                         'Growing team'
                                       }
                                     >
-                                      {slot.healthStatus === 'met' && '✓ Quota Met'}
-                                      {slot.healthStatus === 'on_track' && '🟢 Active'}
-                                      {slot.healthStatus === 'bottleneck' && '🟡 Needs Members'}
-                                      {slot.healthStatus === 'dormant' && '🔴 No Recruits'}
-                                      {slot.healthStatus === 'progress' && '🔵 Growing'}
+                                      {slot.healthStatus === 'met' && (
+                                        <><span className="subleader-status-dot dot-met" /> Quota Met</>
+                                      )}
+                                      {slot.healthStatus === 'on_track' && (
+                                        <><span className="subleader-status-dot dot-active" /> Active</>
+                                      )}
+                                      {slot.healthStatus === 'bottleneck' && (
+                                        <><span className="subleader-status-dot dot-warning" /> Needs Members</>
+                                      )}
+                                      {slot.healthStatus === 'dormant' && (
+                                        <><span className="subleader-status-dot dot-danger" /> No Recruits</>
+                                      )}
+                                      {slot.healthStatus === 'progress' && (
+                                        <><span className="subleader-status-dot dot-active" /> Growing</>
+                                      )}
                                     </span>
                                   ) : (
-                                    <span className="cascade-health-badge open">⚪ Vacant</span>
+                                    <span className="cascade-health-badge open">
+                                      <span className="subleader-status-dot dot-vacant" /> Vacant
+                                    </span>
                                   )}
                                 </td>
                                 <td style={{ padding: '12px 14px' }}>
@@ -8576,138 +9853,80 @@ export default function AdminPage() {
 
                       if (!slot.isAssigned) {
                         return (
-                          <div 
+                          <button
                             key={slot.slotNumber}
+                            type="button"
                             className="subleader-card unassigned"
                             onClick={() => {
                               setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
                               setAppointSearch('');
                             }}
                           >
-                            <div className="subleader-card-header-bar">
-                              <span className="subleader-slot-pill vacant">#{slot.slotNumber}</span>
-                              <span className="cascade-health-badge open">⚪ Open Slot</span>
-                            </div>
-
-                            <div className="subleader-vacant-center">
-                              <div className="subleader-avatar-modern vacant">
-                                <UserPlus size={20} color="#94a3b8" />
-                              </div>
-                              <div style={{ fontWeight: 800, fontSize: '0.88rem', color: '#334155', marginTop: 4 }}>
-                                Sub-Leader Position #{slot.slotNumber}
-                              </div>
-                              <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                                Target Quota: <strong>{slot.coordinatorQuota} Coordinators</strong>
-                              </div>
-                            </div>
-
-                            <div style={{ marginTop: 'auto', paddingTop: 6 }}>
-                              <button 
-                                type="button" 
-                                className="subleader-vacant-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAppointingSlot({ slotNumber: slot.slotNumber, barangay: networkBarangayFilter });
-                                  setAppointSearch('');
-                                }}
-                              >
-                                <Plus size={14} /> Appoint Sub-Leader
-                              </button>
-                            </div>
-                          </div>
+                            <span className="subleader-slot-num">#{slot.slotNumber}</span>
+                            <span className="subleader-vacant-copy">
+                              <strong>Open slot</strong>
+                              <span>{slot.coordinatorQuota} coordinators target</span>
+                            </span>
+                            <span className="subleader-vacant-cta"><Plus size={14} /> Appoint</span>
+                          </button>
                         );
                       }
 
+                      const healthLabel =
+                        slot.healthStatus === 'met' ? 'Quota met' :
+                        slot.healthStatus === 'on_track' ? 'Active' :
+                        slot.healthStatus === 'bottleneck' ? 'Needs members' :
+                        slot.healthStatus === 'dormant' ? 'No recruits' :
+                        'Growing';
+
                       return (
-                        <div 
+                        <button
                           key={slot.slotNumber}
-                          className="subleader-card assigned"
+                          type="button"
+                          className={`subleader-card assigned health-${slot.healthStatus}`}
                           onClick={() => setNetworkActiveSubLeaderModal(slot)}
                         >
-                          {/* Top Meta Bar */}
-                          <div className="subleader-card-header-bar">
-                            <span className="subleader-slot-pill">#{slot.slotNumber}</span>
-                            <span 
-                              className={`cascade-health-badge ${slot.healthStatus}`}
-                              title={
-                                slot.healthStatus === 'met' ? '100% quota achieved!' :
-                                slot.healthStatus === 'on_track' ? 'Recruiting new voters this week' :
-                                slot.healthStatus === 'bottleneck' ? 'Has coordinators, waiting for members' :
-                                slot.healthStatus === 'dormant' ? '0 recruits so far' :
-                                'Growing team'
-                              }
-                            >
-                              {slot.healthStatus === 'met' && '✓ Quota Met'}
-                              {slot.healthStatus === 'on_track' && '🟢 Active'}
-                              {slot.healthStatus === 'bottleneck' && '🟡 Needs Members'}
-                              {slot.healthStatus === 'dormant' && '🔴 No Recruits'}
-                              {slot.healthStatus === 'progress' && '🔵 Growing'}
-                            </span>
+                          <div className="subleader-card-top">
+                            <span className="subleader-slot-num">#{slot.slotNumber}</span>
+                            <span className={`subleader-health ${slot.healthStatus}`}>{healthLabel}</span>
                           </div>
 
-                          {/* Profile Row */}
                           <div className="subleader-profile-row">
-                            <div className="subleader-avatar-modern">
-                              {getInitials(slot.leaderName)}
-                            </div>
+                            <div className="subleader-avatar-modern">{getInitials(slot.leaderName)}</div>
                             <div className="subleader-details-col">
-                              <div className="subleader-name-modern" title={slot.leaderName}>
-                                {slot.leaderName}
-                              </div>
+                              <div className="subleader-name-modern" title={slot.leaderName}>{slot.leaderName}</div>
                               <div className="subleader-sub-modern">
-                                <MapPin size={11} color="#64748b" /> Brgy. {networkBarangayFilter} · {slot.leaderSector || 'Appointed'}
+                                Brgy. {networkBarangayFilter} · {slot.leaderSector || 'Appointed'}
                               </div>
                             </div>
                           </div>
 
-                          {/* Metrics & Quota Tracker */}
-                          <div className="subleader-metrics-container">
-                            <div className="subleader-tracker-box">
-                              <div className="subleader-tracker-header">
-                                <span className="subleader-tracker-title">Coordinators Quota</span>
-                                <span className="subleader-tracker-nums">
-                                  <strong>{slot.coordinatorsCount}</strong> / {slot.coordinatorQuota}
-                                  <small>({coordPct}%)</small>
-                                </span>
-                              </div>
-                              <div className="subleader-tracker-bar">
-                                <div 
-                                  className="subleader-tracker-fill" 
-                                  style={{ width: `${Math.max(coordPct > 0 ? coordPct : 2, 2)}%` }} 
-                                />
-                              </div>
+                          <div className="subleader-statline">
+                            <div>
+                              <span>Coords</span>
+                              <strong>{slot.coordinatorsCount}/{slot.coordinatorQuota}</strong>
                             </div>
-
-                            <div className="subleader-metrics-duo">
-                              <div className="subleader-metric-cell">
-                                <span className="subleader-metric-label">Citizen Members</span>
-                                <span className="subleader-metric-val">
-                                  {slot.totalMembersCount} <small style={{ fontSize: '0.72rem', color: '#64748b' }}>/ {slot.memberQuota}</small>
-                                </span>
-                              </div>
-                              <div className="subleader-metric-cell">
-                                <span className="subleader-metric-label">Overall Recruits</span>
-                                <span className="subleader-metric-val emerald">
-                                  {slot.totalClusterVotes} Recruits
-                                </span>
-                              </div>
+                            <div>
+                              <span>Members</span>
+                              <strong>{slot.totalMembersCount}/{slot.memberQuota}</strong>
+                            </div>
+                            <div>
+                              <span>Cluster</span>
+                              <strong>{slot.totalClusterVotes}</strong>
                             </div>
                           </div>
 
-                          {/* Footer */}
+                          <div className="subleader-tracker-bar">
+                            <div className="subleader-tracker-fill" style={{ width: `${Math.max(coordPct > 0 ? coordPct : 2, 2)}%` }} />
+                          </div>
+
                           <div className="subleader-card-footer-modern">
-                            <div className={`subleader-activity-pill ${slot.recent7DaysRecruits > 0 ? 'active' : ''}`}>
-                              {slot.recent7DaysRecruits > 0 ? (
-                                <>⚡ +{slot.recent7DaysRecruits} this week</>
-                              ) : (
-                                <>● Needs follow-up</>
-                              )}
-                            </div>
-                            <span className="subleader-action-link">
-                              Inspect Team <ChevronRight size={14} />
+                            <span className={`subleader-activity-pill ${slot.recent7DaysRecruits > 0 ? 'active' : ''}`}>
+                              {slot.recent7DaysRecruits > 0 ? `+${slot.recent7DaysRecruits} this week` : 'Needs follow-up'}
                             </span>
+                            <span className="subleader-action-link">Inspect <ChevronRight size={14} /></span>
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -8720,22 +9939,26 @@ export default function AdminPage() {
         {/* ── MUNICIPAL SUMMARY & ADVANCED ANALYTICS VIEW ── */}
         {networkTabMode === 'analytics' && (
           <div className="campaign-analytics-container">
-            {/* Executive Municipal Milestone Banner */}
-            <div className="campaign-hero-banner" style={{ background: 'linear-gradient(135deg, #064e3b 0%, #047857 50%, #0f766e 100%)' }}>
+            <section className="campaign-hero-banner is-municipal">
               <div className="campaign-hero-top">
                 <div className="campaign-hero-title-area">
-                  <div className="campaign-hero-badge">
-                    <Globe size={13} /> Municipality of Balagtas • Official COMELEC Voter Base
+                  <div className="campaign-hero-meta">
+                    <span className="campaign-hero-badge">
+                      <Globe size={13} /> Municipality of Balagtas · COMELEC base
+                    </span>
+                    <span className="campaign-hero-base">
+                      9 barangays · {municipalTotalVoters.toLocaleString()} registered voters
+                    </span>
                   </div>
-                  <h2 className="campaign-hero-title">
-                    Balagtas Municipal Electoral Overview
-                  </h2>
+                  <h2 className="campaign-hero-title">Balagtas municipal overview</h2>
                   <p className="campaign-hero-sub">
-                    Target: Mobilize at least 60% ({municipalTarget60.toLocaleString()} voters) out of {municipalTotalVoters.toLocaleString()} registered voters across all 9 Balagtas barangays.
+                    Mobilize 60% ({municipalTarget60.toLocaleString()} voters) across the municipality.
                   </p>
                 </div>
                 <div className="campaign-hero-status-pill">
-                  {municipalPctProgress >= 100 ? '🎉 Municipal Goal Reached!' : `${Math.max(0, 100 - municipalPctProgress)}% Remaining to Win`}
+                  {municipalPctProgress >= 100
+                    ? 'Municipal goal reached'
+                    : `${Math.max(0, 100 - municipalPctProgress)}% remaining`}
                 </div>
               </div>
 
@@ -8743,65 +9966,1815 @@ export default function AdminPage() {
                 <div className="campaign-progress-stats">
                   <div className="campaign-progress-main-stat">
                     <span className="campaign-progress-curr">{municipalCurrentMobilized.toLocaleString()}</span>
-                    <span className="campaign-progress-target">/ {municipalTarget60.toLocaleString()} Voters Goal (60%)</span>
-                    <span className="campaign-progress-pct-badge">{municipalPctProgress}% Achieved</span>
+                    <span className="campaign-progress-target">/ {municipalTarget60.toLocaleString()}</span>
+                    <span className="campaign-progress-pct-badge">{municipalPctProgress}%</span>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#d1fae5', fontWeight: 600 }}>
+                  <p className="campaign-progress-note">
                     {municipalCurrentMobilized >= municipalTarget60
-                      ? '🎉 Municipal Victory Threshold Secured!'
+                      ? 'Municipal victory threshold secured'
                       : `${Math.max(0, municipalTarget60 - municipalCurrentMobilized).toLocaleString()} more votes needed across Balagtas`}
-                  </div>
+                    <span className="campaign-velocity-tag">
+                      <TrendingUp size={11} strokeWidth={1.8} /> 7-day +{municipal7dGrowth.toLocaleString()}
+                    </span>
+                  </p>
                 </div>
 
                 <div className="campaign-progress-track">
-                  <div 
-                    className="campaign-progress-fill" 
-                    style={{ 
-                      width: `${Math.max(2, municipalPctProgress)}%`,
-                      background: 'linear-gradient(90deg, #10b981 0%, #34d399 50%, #6ee7b7 100%)'
-                    }} 
-                  />
+                  <div className="campaign-progress-fill" style={{ width: `${Math.max(2, municipalPctProgress)}%` }} />
                 </div>
 
                 <div className="campaign-milestones-row">
-                  <span>0% (Start)</span>
-                  <span>25% ({Math.round(municipalTarget60 * 0.416).toLocaleString()})</span>
-                  <span>50% ({Math.round(municipalTarget60 * 0.833).toLocaleString()})</span>
-                  <span style={{ color: '#fef08a', fontWeight: 800 }}>★ 60% Municipal Target ({municipalTarget60.toLocaleString()})</span>
-                  <span>75% Supermajority</span>
+                  <span>0</span>
+                  <span>25%</span>
+                  <span>50%</span>
+                  <span className="is-goal">60% · {municipalTarget60.toLocaleString()}</span>
+                  <span>75%</span>
+                </div>
+              </div>
+            </section>
+
+            <div className="campaign-pipeline is-municipal">
+              <div className="campaign-pipeline-head">
+                <span className="campaign-pipeline-kicker">Municipal capacity</span>
+                <span className="campaign-pipeline-note">
+                  Current mobilized {municipalCurrentMobilized.toLocaleString()} · Gap {Math.max(0, municipalTarget60 - municipalCurrentMobilized).toLocaleString()}
+                </span>
+              </div>
+              <div className="campaign-pipeline-row">
+                <div className="campaign-pipe">
+                  <span className="campaign-pipe-label">Registered voters</span>
+                  <span className="campaign-pipe-num">{municipalTotalVoters.toLocaleString()}</span>
+                  <span className="campaign-pipe-hint">COMELEC base · 9 barangays</span>
+                </div>
+                <span className="campaign-pipe-arrow" aria-hidden="true">→</span>
+                <div className="campaign-pipe">
+                  <span className="campaign-pipe-label">60% win target</span>
+                  <span className="campaign-pipe-num">{municipalTarget60.toLocaleString()}</span>
+                  <span className="campaign-pipe-hint">Electoral win threshold</span>
+                </div>
+                <span className="campaign-pipe-arrow" aria-hidden="true">→</span>
+                <div className="campaign-pipe">
+                  <span className="campaign-pipe-label">Sub-leaders</span>
+                  <span className="campaign-pipe-num">{municipalTotalAppointedSL}<em>/{municipalTargetSL}</em></span>
+                  <span className="campaign-pipe-hint">{Math.round((municipalTotalAppointedSL / (municipalTargetSL || 1)) * 100)}% fill rate</span>
+                </div>
+                <span className="campaign-pipe-arrow" aria-hidden="true">→</span>
+                <div className="campaign-pipe is-yield">
+                  <span className="campaign-pipe-label">Coordinators</span>
+                  <span className="campaign-pipe-num">{municipalTotalActiveCoords.toLocaleString()}<em>/{municipalTargetCoords.toLocaleString()}</em></span>
+                  <span className="campaign-pipe-hint">{Math.round((municipalTotalActiveCoords / (municipalTargetCoords || 1)) * 100)}% of target capacity</span>
                 </div>
               </div>
             </div>
 
-            {/* Municipal Macro Metrics Grid */}
-            <div className="analytics-metrics-grid">
-              <div className="analytics-card">
-                <div className="analytics-card-label">Total Balagtas Registered Voters</div>
-                <div className="analytics-card-val">{municipalTotalVoters.toLocaleString()}</div>
-                <div className="analytics-card-sub"><Building size={13} /> Across 9 Local Barangays</div>
+            {showCapacitySimulator && (
+              <div className="analytics-simulator-card">
+                <div className="simulator-header">
+                  <div>
+                    <h4 className="simulator-title">Capacity blueprint</h4>
+                    <p className="simulator-sub">
+                      Current turnout vs full {municipalTargetSL} sub-leader quota deployment
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-outline-secondary network-tool-btn"
+                    onClick={() => setShowCapacitySimulator(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="simulator-grid">
+                  <div className="simulator-col">
+                    <div className="sim-lbl">1. Current Turnout</div>
+                    <div className="sim-val">{municipalCurrentMobilized.toLocaleString()} <small>Voters</small></div>
+                    <div className="sim-sub">{((municipalCurrentMobilized / (municipalTarget60 || 1)) * 100).toFixed(1)}% of 60% Victory Goal</div>
+                  </div>
+                  <div className="sim-col-arrow">→</div>
+                  <div className="simulator-col">
+                    <div className="sim-lbl">2. Appointed Leadership Capacity</div>
+                    <div className="sim-val">~{Math.round(municipalTotalAppointedSL * (municipalTarget60 / (municipalTargetSL || 1))).toLocaleString()} <small>Voters</small></div>
+                    <div className="sim-sub">From {municipalTotalAppointedSL} currently appointed Sub-Leaders</div>
+                  </div>
+                  <div className="sim-col-arrow">→</div>
+                  <div className="simulator-col highlight">
+                    <div className="sim-lbl">3. Full Blueprint Capacity (103 SLs)</div>
+                    <div className="sim-val emerald">{municipalProjectedCapacity.toLocaleString()} <small>Voters</small></div>
+                    <div className="sim-sub"><strong>{municipalCapacityPct}%</strong> of Municipal Victory Threshold!</div>
+                  </div>
+                </div>
               </div>
-              <div className="analytics-card" style={{ borderColor: 'rgba(16, 185, 129, 0.4)' }}>
-                <div className="analytics-card-label" style={{ color: '#047857' }}>60% Win Target (All Barangays)</div>
-                <div className="analytics-card-val" style={{ color: '#047857' }}>{municipalTarget60.toLocaleString()}</div>
-                <div className="analytics-card-sub"><Target size={13} /> Electoral Win Threshold</div>
+            )}
+
+            {/* ── EXECUTIVE STRATEGIC INTELLIGENCE & VISUAL CHARTS SUITE ── */}
+            <div className="analytics-strategy-suite-card">
+              <div className="analytics-strategy-header">
+                <div className="analytics-strategy-title-wrap">
+                  <div className="analytics-strategy-kicker">
+                    <Target size={11} strokeWidth={2.5} /> STRATEGIC INTELLIGENCE
+                  </div>
+                  <h3 className="analytics-strategy-title">
+                    Electoral Strategy & Benchmark Charts
+                  </h3>
+                  <p className="analytics-strategy-sub">
+                    Comparative voter gaps, field leadership readiness, coalition demographics, and quota fulfillment across Balagtas.
+                  </p>
+                </div>
+
+                {/* Interactive Chart View Segmented Toggles */}
+                <div className="analytics-chart-tabs">
+                  <button 
+                    type="button" 
+                    className={`analytics-chart-tab ${analyticsChartMode === 'mobilization' ? 'active' : ''}`}
+                    onClick={() => setAnalyticsChartMode('mobilization')}
+                  >
+                    <BarChart3 size={13} strokeWidth={2} />
+                    <span>Mobilization & Deficit</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`analytics-chart-tab ${analyticsChartMode === 'pipeline' ? 'active' : ''}`}
+                    onClick={() => setAnalyticsChartMode('pipeline')}
+                    title="Comprehensive performance monitoring for Apex Leaders, Sub-Leaders, and Coordinators"
+                  >
+                    <Users size={13} strokeWidth={2} />
+                    <span>Leaders Performance</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`analytics-chart-tab ${analyticsChartMode === 'sectors' ? 'active' : ''}`}
+                    onClick={() => setAnalyticsChartMode('sectors')}
+                  >
+                    <PieChart size={13} strokeWidth={2} />
+                    <span>Sector Coalition</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`analytics-chart-tab ${analyticsChartMode === 'quotas' ? 'active' : ''}`}
+                    onClick={() => setAnalyticsChartMode('quotas')}
+                  >
+                    <PieChart size={13} strokeWidth={2} />
+                    <span>Quota Pie Charts</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`analytics-chart-tab ${analyticsChartMode === 'velocity' ? 'active' : ''}`}
+                    onClick={() => setAnalyticsChartMode('velocity')}
+                    title="Real-time recruitment speed, 7-day momentum, and projected milestone completion dates"
+                  >
+                    <Zap size={13} strokeWidth={2} />
+                    <span>Velocity & Forecast</span>
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`analytics-chart-tab ${analyticsChartMode === 'inactivity' ? 'active' : ''}`}
+                    onClick={() => setAnalyticsChartMode('inactivity')}
+                    title="Bottleneck & Stall radar: track inactive coordinators and send 1-click SMS nudges"
+                  >
+                    <AlertTriangle size={13} strokeWidth={2} />
+                    <span>Stall & Inactivity Radar</span>
+                  </button>
+                </div>
               </div>
-              <div className="analytics-card" style={{ borderColor: 'rgba(59, 130, 246, 0.4)' }}>
-                <div className="analytics-card-label" style={{ color: '#2563eb' }}>Sub-Leaders Appointed</div>
-                <div className="analytics-card-val" style={{ color: '#2563eb' }}>
-                  {municipalTotalAppointedSL} <span style={{ fontSize: '1rem', fontWeight: 500, color: '#64748b' }}>/ {municipalTargetSL}</span>
-                </div>
-                <div className="analytics-card-sub">
-                  <Award size={13} /> {Math.round((municipalTotalAppointedSL / municipalTargetSL) * 100)}% Leadership Fill Rate
-                </div>
-              </div>
-              <div className="analytics-card" style={{ borderColor: 'rgba(139, 92, 246, 0.4)' }}>
-                <div className="analytics-card-label" style={{ color: '#7c3aed' }}>Active Coordinators Recruited</div>
-                <div className="analytics-card-val" style={{ color: '#7c3aed' }}>
-                  {municipalTotalActiveCoords.toLocaleString()} <span style={{ fontSize: '1rem', fontWeight: 500, color: '#64748b' }}>/ {municipalTargetCoords.toLocaleString()}</span>
-                </div>
-                <div className="analytics-card-sub">
-                  <Users size={13} /> {Math.round((municipalTotalActiveCoords / (municipalTargetCoords || 1)) * 100)}% of Target Capacity
-                </div>
+
+              {/* Chart Body */}
+              <div className="analytics-chart-body">
+                {/* 1. MOBILIZATION & DEFICIT CHART */}
+                {analyticsChartMode === 'mobilization' && (
+                  <div className="strategy-chart-view">
+                    <div className="strategy-chart-legend-bar">
+                      <div className="legend-items">
+                        <span className="legend-item"><span className="legend-dot green" /> Current Mobilized</span>
+                        <span className="legend-item"><span className="legend-dot red" /> 60% Victory Goal Deficit</span>
+                        <span className="legend-item"><span className="legend-line-marker" /> 100% Victory Threshold Line</span>
+                      </div>
+                      <span className="legend-hint">Click any barangay to focus leadership command</span>
+                    </div>
+
+                    <div className="barangay-bars-chart-grid">
+                      {municipalStats.map(b => {
+                        const isSelected = b.name === networkBarangayFilter;
+                        const pctOfGoal = Math.min(100, Math.round((b.currentCount / (b.target60 || 1)) * 100));
+                        return (
+                          <div 
+                            key={b.name} 
+                            className={`chart-bar-row ${isSelected ? 'selected' : ''}`}
+                            onClick={() => setNetworkBarangayFilter(b.name)}
+                            title={`Click to focus on Brgy. ${b.name}`}
+                          >
+                            <div className="chart-bar-meta">
+                              <div className="chart-bar-left">
+                                <span className="chart-bar-name">Brgy. {b.name}</span>
+                                {isSelected && <span className="chart-selected-chip">Selected</span>}
+                                <span className="chart-bar-target-info">
+                                  Base: <strong>{b.totalVoters.toLocaleString()}</strong> · 60% Target: <strong style={{ color: '#047857' }}>{b.target60.toLocaleString()}</strong>
+                                </span>
+                              </div>
+                              <div className="chart-bar-right">
+                                <span className="chart-curr-val">{b.currentCount.toLocaleString()} voters</span>
+                                <span className="chart-pct-tag">{pctOfGoal}% of goal</span>
+                                <span className={`chart-deficit-pill ${b.deficit === 0 ? 'met' : ''}`}>
+                                  {b.deficit === 0 ? 'Goal Met' : `-${b.deficit.toLocaleString()} deficit`}
+                                </span>
+                                {b.recent7DaysRecruits > 0 && (
+                                  <span className="chart-growth-pill">+{b.recent7DaysRecruits} this wk</span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="chart-bar-track">
+                              <div 
+                                className="chart-bar-fill" 
+                                style={{ 
+                                  width: `${Math.max(1.5, pctOfGoal)}%`,
+                                  background: pctOfGoal >= 60 ? 'linear-gradient(90deg, #059669 0%, #10b981 100%)' : 'linear-gradient(90deg, #10b981 0%, #34d399 100%)'
+                                }} 
+                              />
+                              <div className="chart-bar-goal-line" title="60% Victory Goal Threshold" />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="strategy-clean-strip">
+                      <div className="clean-strip-left">
+                        <Target size={13} strokeWidth={2} />
+                        <span className="clean-strip-title">Strategic Shortfall:</span>
+                      </div>
+                      <span className="clean-strip-desc">
+                        Balagtas requires <strong>{Math.max(0, municipalTarget60 - municipalCurrentMobilized).toLocaleString()} more voters</strong> to lock victory. Top 3 deficit drivers (<strong>Santol</strong>, <strong>Panginay</strong>, and <strong>Borol 1st</strong>) account for <strong>74.8%</strong> of the gap.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. LEADERS PERFORMANCE (MULTI-TIER ADVANCED TRACKING & MONITORING) */}
+                {analyticsChartMode === 'pipeline' && (() => {
+                  const nowTs = Date.now();
+                  const sevenDaysAgoTs = nowTs - (7 * 24 * 60 * 60 * 1000);
+                  const hierarchyLeadersList = [];
+                  const nonHierarchyLeadersList = [];
+
+                  // Helper to safely get resident phone/contact
+                  const getContact = (reg) => reg?.contact || reg?.phone || reg?.mobile_number || reg?.contact_number || null;
+
+                  // 1. Apex Barangay Leaders (Tier 1 - Network Hierarchy)
+                  Object.entries(BARANGAY_VOTER_DATA).forEach(([bName, bCfg]) => {
+                    const apexName = (appointedBarangayLeaders && appointedBarangayLeaders[bName]) || null;
+                    if (apexName) {
+                      const apexReg = approvedRegs.find(r => getResidentName(r).toLowerCase() === apexName.toLowerCase());
+                      const brgyRegs = approvedRegs.filter(r => (r.barangay || '').toLowerCase().includes(bName.toLowerCase()));
+                      const directCoords = getChildren(apexName);
+                      const treeLeaders = computeLeadersFromRegs(brgyRegs);
+                      const myStats = treeLeaders.find(l => l.name.toLowerCase() === apexName.toLowerCase());
+                      const totalMobilized = myStats?.total || brgyRegs.length;
+
+                      let latestTs = 0;
+                      let recent7d = 0;
+                      brgyRegs.forEach(r => {
+                        const t = r.created_at ? new Date(r.created_at).getTime() : 0;
+                        if (t > latestTs) latestTs = t;
+                        if (t > sevenDaysAgoTs) recent7d++;
+                      });
+
+                      const daysInactive = latestTs > 0 ? Math.floor((nowTs - latestTs) / (24 * 60 * 60 * 1000)) : null;
+                      const quota = bCfg.target60;
+                      const pct = Math.min(100, Math.round((totalMobilized / (quota || 1)) * 100));
+
+                      let perf = 'dormant';
+                      if (pct >= 80 || recent7d >= 10) perf = 'star';
+                      else if ((pct >= 30 && recent7d > 0) || (daysInactive !== null && daysInactive < 7)) perf = 'on_track';
+                      else if (pct > 0 || (daysInactive !== null && daysInactive <= 14)) perf = 'developing';
+
+                      hierarchyLeadersList.push({
+                        id: apexReg?.id || `apex_${bName}`,
+                        name: apexName,
+                        contact: getContact(apexReg),
+                        barangay: bName,
+                        purok: apexReg?.purok || 'Brgy. Wide',
+                        sector: apexReg?.sector_category || 'Apex Command',
+                        tier: 'Barangay Leader',
+                        tierLevel: 1,
+                        inHierarchy: true,
+                        slotNumber: null,
+                        uplineName: 'Mayor / Municipal HQ',
+                        directRecruits: directCoords.length,
+                        directTarget: bCfg.subLeaderTarget,
+                        totalDownline: totalMobilized,
+                        targetQuota: quota,
+                        quotaProgressPct: pct,
+                        recent7DaysRecruits: recent7d,
+                        daysSinceLastRecruit: daysInactive,
+                        lastActiveTimestamp: latestTs,
+                        performanceCategory: perf,
+                        rawReg: apexReg
+                      });
+                    }
+                  });
+
+                  // 2. Sub-Leaders (Tier 2 - Network Hierarchy)
+                  Object.entries(BARANGAY_VOTER_DATA).forEach(([bName, bCfg]) => {
+                    const bAppointedMap = (appointedSubLeaders && appointedSubLeaders[bName]) || {};
+                    for (let slot = 1; slot <= bCfg.subLeaderTarget; slot++) {
+                      const slName = bAppointedMap[slot];
+                      if (slName) {
+                        const slReg = approvedRegs.find(r => getResidentName(r).toLowerCase() === slName.toLowerCase());
+                        const coords = getChildren(slName);
+                        let totalCluster = coords.length;
+                        let latestTs = 0;
+                        let recent7d = 0;
+
+                        coords.forEach(c => {
+                          const cCreated = c.created_at ? new Date(c.created_at).getTime() : 0;
+                          if (cCreated > latestTs) latestTs = cCreated;
+                          if (cCreated > sevenDaysAgoTs) recent7d++;
+
+                          const members = getChildren(getResidentName(c));
+                          totalCluster += members.length;
+                          members.forEach(m => {
+                            const mCreated = m.created_at ? new Date(m.created_at).getTime() : 0;
+                            if (mCreated > latestTs) latestTs = mCreated;
+                            if (mCreated > sevenDaysAgoTs) recent7d++;
+
+                            const recruits = getChildren(getResidentName(m));
+                            totalCluster += recruits.length;
+                            recruits.forEach(rc => {
+                              const rcCreated = rc.created_at ? new Date(rc.created_at).getTime() : 0;
+                              if (rcCreated > latestTs) latestTs = rcCreated;
+                              if (rcCreated > sevenDaysAgoTs) recent7d++;
+                            });
+                          });
+                        });
+
+                        const daysInactive = latestTs > 0 ? Math.floor((nowTs - latestTs) / (24 * 60 * 60 * 1000)) : null;
+                        const targetVoters = bCfg.coordinatorQuota * (bCfg.memberQuota || 9);
+                        const pct = Math.min(100, Math.round((totalCluster / (targetVoters || 1)) * 100));
+
+                        let perf = 'dormant';
+                        if (pct >= 80 || recent7d >= 5) perf = 'star';
+                        else if ((pct >= 30 && recent7d > 0) || (daysInactive !== null && daysInactive < 7)) perf = 'on_track';
+                        else if (pct > 0 || (daysInactive !== null && daysInactive <= 14)) perf = 'developing';
+
+                        const uplineApex = (appointedBarangayLeaders && appointedBarangayLeaders[bName]) || `Brgy. ${bName} Apex`;
+
+                        hierarchyLeadersList.push({
+                          id: slReg?.id || `sl_${bName}_${slot}`,
+                          name: slName,
+                          contact: getContact(slReg),
+                          barangay: bName,
+                          purok: slReg?.purok || '—',
+                          sector: slReg?.sector_category || 'General',
+                          tier: 'Sub-Leader',
+                          tierLevel: 2,
+                          inHierarchy: true,
+                          slotNumber: slot,
+                          uplineName: uplineApex,
+                          directRecruits: coords.length,
+                          directTarget: bCfg.coordinatorQuota,
+                          totalDownline: totalCluster,
+                          targetQuota: targetVoters,
+                          quotaProgressPct: pct,
+                          recent7DaysRecruits: recent7d,
+                          daysSinceLastRecruit: daysInactive,
+                          lastActiveTimestamp: latestTs,
+                          performanceCategory: perf,
+                          rawReg: slReg
+                        });
+                      }
+                    }
+                  });
+
+                  // 3. Coordinators IN Network Hierarchy (Tier 3 - inside Sub-Leader downline)
+                  const existingHierarchyNames = new Set(hierarchyLeadersList.map(l => l.name.toLowerCase()));
+                  approvedRegs.forEach(reg => {
+                    const rName = getResidentName(reg);
+                    if (existingHierarchyNames.has(rName.toLowerCase())) return;
+
+                    const hInfo = memberHierarchyMap.get(reg.id);
+                    if (hInfo && hInfo.inHierarchy && (hInfo.tier === 3 || hInfo.role === 'coordinator')) {
+                      const downlines = getChildren(rName);
+                      let totalTree = downlines.length;
+                      let latestTs = 0;
+                      let recent7d = 0;
+
+                      downlines.forEach(d => {
+                        const dCreated = d.created_at ? new Date(d.created_at).getTime() : 0;
+                        if (dCreated > latestTs) latestTs = dCreated;
+                        if (dCreated > sevenDaysAgoTs) recent7d++;
+                      });
+
+                      const daysInactive = latestTs > 0 ? Math.floor((nowTs - latestTs) / (24 * 60 * 60 * 1000)) : null;
+                      const bName = reg.barangay || 'Santol';
+                      const bCfg = BARANGAY_VOTER_DATA[bName] || BARANGAY_VOTER_DATA['Santol'];
+                      const targetMembers = bCfg.memberQuota || 9;
+                      const pct = Math.min(100, Math.round((downlines.length / (targetMembers || 1)) * 100));
+
+                      let perf = 'dormant';
+                      if (pct >= 80 || recent7d >= 3) perf = 'star';
+                      else if ((pct >= 30 && recent7d > 0) || (daysInactive !== null && daysInactive < 7)) perf = 'on_track';
+                      else if (pct > 0 || (daysInactive !== null && daysInactive <= 14)) perf = 'developing';
+
+                      hierarchyLeadersList.push({
+                        id: reg.id,
+                        name: rName,
+                        contact: getContact(reg),
+                        barangay: bName,
+                        purok: reg.purok || '—',
+                        sector: reg.sector_category || 'General',
+                        tier: 'Coordinator',
+                        tierLevel: 3,
+                        inHierarchy: true,
+                        slotNumber: null,
+                        uplineName: hInfo.parentLeader || reg.referral_name || 'Sub-Leader',
+                        directRecruits: downlines.length,
+                        directTarget: targetMembers,
+                        totalDownline: totalTree,
+                        targetQuota: targetMembers,
+                        quotaProgressPct: pct,
+                        recent7DaysRecruits: recent7d,
+                        daysSinceLastRecruit: daysInactive,
+                        lastActiveTimestamp: latestTs,
+                        performanceCategory: perf,
+                        rawReg: reg
+                      });
+                      existingHierarchyNames.add(rName.toLowerCase());
+                    }
+                  });
+
+                  // 4. Leaders NOT in Network Hierarchy (Direct Pool Referrers with Downlines)
+                  approvedRegs.forEach(reg => {
+                    const rName = getResidentName(reg);
+                    if (existingHierarchyNames.has(rName.toLowerCase())) return;
+
+                    const downlines = getChildren(rName);
+                    // Only include those who have actually mobilized/recruited citizens!
+                    if (downlines.length > 0) {
+                      let totalTree = downlines.length;
+                      let latestTs = 0;
+                      let recent7d = 0;
+
+                      downlines.forEach(d => {
+                        const dCreated = d.created_at ? new Date(d.created_at).getTime() : 0;
+                        if (dCreated > latestTs) latestTs = dCreated;
+                        if (dCreated > sevenDaysAgoTs) recent7d++;
+
+                        const dChildren = getChildren(getResidentName(d));
+                        totalTree += dChildren.length;
+                        dChildren.forEach(dc => {
+                          const dcCreated = dc.created_at ? new Date(dc.created_at).getTime() : 0;
+                          if (dcCreated > latestTs) latestTs = dcCreated;
+                          if (dcCreated > sevenDaysAgoTs) recent7d++;
+                        });
+                      });
+
+                      const daysInactive = latestTs > 0 ? Math.floor((nowTs - latestTs) / (24 * 60 * 60 * 1000)) : null;
+                      const bName = reg.barangay || 'Santol';
+                      const bCfg = BARANGAY_VOTER_DATA[bName] || BARANGAY_VOTER_DATA['Santol'];
+                      const targetMembers = bCfg.memberQuota || 9;
+                      const pct = Math.min(100, Math.round((downlines.length / (targetMembers || 1)) * 100));
+
+                      let perf = 'dormant';
+                      if (pct >= 80 || recent7d >= 3) perf = 'star';
+                      else if ((pct >= 30 && recent7d > 0) || (daysInactive !== null && daysInactive < 7)) perf = 'on_track';
+                      else if (pct > 0 || (daysInactive !== null && daysInactive <= 14)) perf = 'developing';
+
+                      nonHierarchyLeadersList.push({
+                        id: reg.id,
+                        name: rName,
+                        contact: getContact(reg),
+                        barangay: bName,
+                        purok: reg.purok || '—',
+                        sector: reg.sector_category || 'General',
+                        tier: 'Direct Mobilizer',
+                        tierLevel: 0,
+                        inHierarchy: false,
+                        slotNumber: null,
+                        uplineName: (reg.referral_name && reg.referral_name !== 'No Referral') ? reg.referral_name : 'Direct Sign-up',
+                        directRecruits: downlines.length,
+                        directTarget: targetMembers,
+                        totalDownline: totalTree,
+                        targetQuota: targetMembers,
+                        quotaProgressPct: pct,
+                        recent7DaysRecruits: recent7d,
+                        daysSinceLastRecruit: daysInactive,
+                        lastActiveTimestamp: latestTs,
+                        performanceCategory: perf,
+                        rawReg: reg
+                      });
+                    }
+                  });
+
+                  // Select active list based on user's hierarchy scope toggle
+                  const activeLeadersPool = leaderHierarchyScope === 'hierarchy' ? hierarchyLeadersList : nonHierarchyLeadersList;
+
+                  // Benchmarks & Metrics for current active pool
+                  const totalLeadersCount = activeLeadersPool.length;
+                  const starLeadersCount = activeLeadersPool.filter(l => l.performanceCategory === 'star').length;
+                  const onTrackLeadersCount = activeLeadersPool.filter(l => l.performanceCategory === 'on_track').length;
+                  const developingLeadersCount = activeLeadersPool.filter(l => l.performanceCategory === 'developing').length;
+                  const dormantLeadersCount = activeLeadersPool.filter(l => l.performanceCategory === 'dormant').length;
+
+                  const topPacesetter = [...activeLeadersPool].sort((a, b) => b.totalDownline - a.totalDownline)[0];
+                  const topVelocityLeader = [...activeLeadersPool].sort((a, b) => b.recent7DaysRecruits - a.recent7DaysRecruits)[0];
+                  const quotaAchievers = activeLeadersPool.filter(l => l.quotaProgressPct >= 80).length;
+
+                  // Filtering & Searching
+                  let filteredLeadersList = activeLeadersPool.filter(l => {
+                    if (leaderTierFilter === 'apex' && l.tierLevel !== 1) return false;
+                    if (leaderTierFilter === 'subleader' && l.tierLevel !== 2) return false;
+                    if (leaderTierFilter === 'coordinator' && l.tierLevel !== 3) return false;
+
+                    if (leaderStatusFilter !== 'all' && l.performanceCategory !== leaderStatusFilter) return false;
+
+                    if (leaderBrgyFilter !== 'all' && l.barangay.toLowerCase() !== leaderBrgyFilter.toLowerCase()) return false;
+
+                    if (leaderSearchQuery.trim()) {
+                      const q = leaderSearchQuery.toLowerCase().trim();
+                      const matchName = l.name.toLowerCase().includes(q);
+                      const matchContact = (l.contact || '').includes(q);
+                      const matchUpline = (l.uplineName || '').toLowerCase().includes(q);
+                      const matchPurok = (l.purok || '').toLowerCase().includes(q);
+                      if (!matchName && !matchContact && !matchUpline && !matchPurok) return false;
+                    }
+                    return true;
+                  });
+
+                  // Sorting (Default: Top Performance down to Not Active)
+                  filteredLeadersList.sort((a, b) => {
+                    if (leaderSortBy === 'total') return b.totalDownline - a.totalDownline || b.directRecruits - a.directRecruits;
+                    if (leaderSortBy === 'direct') return b.directRecruits - a.directRecruits || b.totalDownline - a.totalDownline;
+                    if (leaderSortBy === 'pct') return b.quotaProgressPct - a.quotaProgressPct || b.totalDownline - a.totalDownline;
+                    if (leaderSortBy === 'velocity') return b.recent7DaysRecruits - a.recent7DaysRecruits || b.totalDownline - a.totalDownline;
+                    if (leaderSortBy === 'inactive') {
+                      const dA = a.daysSinceLastRecruit === null ? 999 : a.daysSinceLastRecruit;
+                      const dB = b.daysSinceLastRecruit === null ? 999 : b.daysSinceLastRecruit;
+                      return dB - dA;
+                    }
+                    if (leaderSortBy === 'name') return a.name.localeCompare(b.name);
+                    return b.totalDownline - a.totalDownline;
+                  });
+
+                  return (
+                    <div className="strategy-chart-view leaders-perf-view">
+                      {/* Top Hierarchy Scope Toggle Bar */}
+                      <div className="hierarchy-scope-toggle-bar">
+                        <div className="hierarchy-scope-pills">
+                          <button
+                            type="button"
+                            className={`scope-pill-btn ${leaderHierarchyScope === 'hierarchy' ? 'active' : ''}`}
+                            onClick={() => {
+                              setLeaderHierarchyScope('hierarchy');
+                              setLeaderTierFilter('all');
+                            }}
+                          >
+                            <Shield size={13} strokeWidth={2} />
+                            <span>Network Hierarchy ({hierarchyLeadersList.length})</span>
+                            <span className="scope-count-badge">Official 60% Victory Quota</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={`scope-pill-btn ${leaderHierarchyScope === 'non_hierarchy' ? 'active' : ''}`}
+                            onClick={() => {
+                              setLeaderHierarchyScope('non_hierarchy');
+                              setLeaderTierFilter('all');
+                            }}
+                          >
+                            <Users size={13} strokeWidth={2} />
+                            <span>Outside Hierarchy ({nonHierarchyLeadersList.length})</span>
+                            <span className="scope-count-badge">Direct Pool Mobilizers</span>
+                          </button>
+                        </div>
+
+                        <span style={{ fontSize: '0.70rem', color: '#64748b' }}>
+                          {leaderHierarchyScope === 'hierarchy' 
+                            ? 'Monitoring appointed Sub-Leaders & coordinators counted toward the 60% Victory Target' 
+                            : 'Monitoring grassroots referrers in Direct Pool not yet assigned to Sub-Leader clusters'}
+                        </span>
+                      </div>
+
+                      {/* Top Metric Cards */}
+                      <div className="leaders-kpi-grid">
+                        <div className="leader-kpi-card">
+                          <div className="leader-kpi-header">
+                            <Award size={13} style={{ color: '#059669' }} />
+                            <span>{leaderHierarchyScope === 'hierarchy' ? 'Top Hierarchy Mobilizer' : 'Top Direct Mobilizer'}</span>
+                          </div>
+                          <div className="leader-kpi-val">
+                            {topPacesetter ? topPacesetter.name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : '—'}
+                          </div>
+                          <div className="leader-kpi-sub">
+                            {topPacesetter ? `${topPacesetter.totalDownline} voters mobilized · Brgy. ${topPacesetter.barangay}` : 'No active leaders in this pool'}
+                          </div>
+                        </div>
+
+                        <div className="leader-kpi-card">
+                          <div className="leader-kpi-header">
+                            <TrendingUp size={13} style={{ color: '#2563eb' }} />
+                            <span>Weekly Momentum</span>
+                          </div>
+                          <div className="leader-kpi-val">
+                            {topVelocityLeader && topVelocityLeader.recent7DaysRecruits > 0 ? `+${topVelocityLeader.recent7DaysRecruits} recruits / wk` : '0 recruits / wk'}
+                          </div>
+                          <div className="leader-kpi-sub">
+                            {topVelocityLeader && topVelocityLeader.recent7DaysRecruits > 0 ? `Paced by ${topVelocityLeader.name}` : 'Pacing steady across all clusters'}
+                          </div>
+                        </div>
+
+                        <div className="leader-kpi-card">
+                          <div className="leader-kpi-header">
+                            <Target size={13} style={{ color: '#059669' }} />
+                            <span>Quota Achievers (≥80%)</span>
+                          </div>
+                          <div className="leader-kpi-val">
+                            {quotaAchievers} <small style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>/ {totalLeadersCount} leaders</small>
+                          </div>
+                          <div className="leader-kpi-sub">
+                            {totalLeadersCount > 0 ? `${((quotaAchievers / totalLeadersCount) * 100).toFixed(1)}% meeting victory quota` : '0%'}
+                          </div>
+                        </div>
+
+                        <div className="leader-kpi-card">
+                          <div className="leader-kpi-header">
+                            <Clock size={13} style={{ color: '#64748b' }} />
+                            <span>Dormancy Audit</span>
+                          </div>
+                          <div className="leader-kpi-val">
+                            {dormantLeadersCount} <small style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 500 }}>leaders</small>
+                          </div>
+                          <div className="leader-kpi-sub">
+                            Pending recent field recruitment
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Professional Toolbar */}
+                      <div className="leaders-toolbar">
+                        <div className="leaders-toolbar-row">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Role:</span>
+                            {leaderHierarchyScope === 'hierarchy' ? (
+                              <div className="role-segmented-wrap">
+                                <button
+                                  type="button"
+                                  className={`role-segmented-btn ${leaderTierFilter === 'all' ? 'active' : ''}`}
+                                  onClick={() => setLeaderTierFilter('all')}
+                                >
+                                  All Hierarchy ({totalLeadersCount})
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`role-segmented-btn ${leaderTierFilter === 'subleader' ? 'active' : ''}`}
+                                  onClick={() => setLeaderTierFilter('subleader')}
+                                >
+                                  Sub-Leaders ({hierarchyLeadersList.filter(l => l.tierLevel === 2).length})
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`role-segmented-btn ${leaderTierFilter === 'coordinator' ? 'active' : ''}`}
+                                  onClick={() => setLeaderTierFilter('coordinator')}
+                                >
+                                  Coordinators ({hierarchyLeadersList.filter(l => l.tierLevel === 3).length})
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`role-segmented-btn ${leaderTierFilter === 'apex' ? 'active' : ''}`}
+                                  onClick={() => setLeaderTierFilter('apex')}
+                                >
+                                  Barangay Heads ({hierarchyLeadersList.filter(l => l.tierLevel === 1).length})
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="role-segmented-wrap">
+                                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#334155', padding: '5px 10px' }}>
+                                  Grassroots Referrers in Direct Pool ({totalLeadersCount})
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <select
+                              value={leaderBrgyFilter}
+                              onChange={(e) => setLeaderBrgyFilter(e.target.value)}
+                              className="clean-select"
+                              style={{ height: 32, fontSize: '0.72rem' }}
+                            >
+                              <option value="all">All Barangays</option>
+                              {Object.keys(BARANGAY_VOTER_DATA).map(bName => (
+                                <option key={bName} value={bName}>Brgy. {bName}</option>
+                              ))}
+                            </select>
+
+                            <select
+                              value={leaderSortBy}
+                              onChange={(e) => setLeaderSortBy(e.target.value)}
+                              className="clean-select"
+                              style={{ height: 32, fontSize: '0.72rem' }}
+                            >
+                              <option value="total">Sort: Mobilized Tree (High to Low)</option>
+                              <option value="direct">Sort: Direct Recruits</option>
+                              <option value="velocity">Sort: 7-Day Velocity</option>
+                              <option value="pct">Sort: Quota Progress %</option>
+                              <option value="inactive">Sort: Most Inactive</option>
+                              <option value="name">Sort: Name (A-Z)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="leaders-toolbar-row">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status:</span>
+                            <div className="status-dots-wrap">
+                              <button
+                                type="button"
+                                className={`status-filter-btn ${leaderStatusFilter === 'all' ? 'active' : ''}`}
+                                onClick={() => setLeaderStatusFilter('all')}
+                              >
+                                All ({activeLeadersPool.length})
+                              </button>
+                              <button
+                                type="button"
+                                className={`status-filter-btn ${leaderStatusFilter === 'star' ? 'active' : ''}`}
+                                onClick={() => setLeaderStatusFilter('star')}
+                              >
+                                <span className="perf-dot star" />
+                                Top Tier ({starLeadersCount})
+                              </button>
+                              <button
+                                type="button"
+                                className={`status-filter-btn ${leaderStatusFilter === 'on_track' ? 'active' : ''}`}
+                                onClick={() => setLeaderStatusFilter('on_track')}
+                              >
+                                <span className="perf-dot on-track" />
+                                On Track ({onTrackLeadersCount})
+                              </button>
+                              <button
+                                type="button"
+                                className={`status-filter-btn ${leaderStatusFilter === 'developing' ? 'active' : ''}`}
+                                onClick={() => setLeaderStatusFilter('developing')}
+                              >
+                                <span className="perf-dot developing" />
+                                Developing ({developingLeadersCount})
+                              </button>
+                              <button
+                                type="button"
+                                className={`status-filter-btn ${leaderStatusFilter === 'dormant' ? 'active' : ''}`}
+                                onClick={() => setLeaderStatusFilter('dormant')}
+                              >
+                                <span className="perf-dot inactive" />
+                                Inactive ({dormantLeadersCount})
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="clean-search-wrap" style={{ width: 240 }}>
+                            <Search size={13} className="clean-search-icon" />
+                            <input
+                              type="text"
+                              value={leaderSearchQuery}
+                              onChange={(e) => setLeaderSearchQuery(e.target.value)}
+                              placeholder="Search leader, phone, upline..."
+                              className="clean-search-input"
+                              style={{ height: 32, fontSize: '0.72rem' }}
+                            />
+                            {leaderSearchQuery && (
+                              <button type="button" className="clean-search-clear" onClick={() => setLeaderSearchQuery('')}>✕</button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Performance Table */}
+                      <div className="leaders-perf-table-wrap">
+                        <table className="leaders-perf-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: 32, textAlign: 'center', padding: '8px 2px' }}>#</th>
+                              <th style={{ minWidth: 145 }}>Leader &amp; Role</th>
+                              <th style={{ minWidth: 95 }}>Barangay &amp; Purok</th>
+                              <th style={{ width: 68, textAlign: 'center' }}>Direct (L1)</th>
+                              <th style={{ width: 66, textAlign: 'center' }}>Tree Reach</th>
+                              <th style={{ width: 92, textAlign: 'center' }}>Quota Progress</th>
+                              <th style={{ width: 54, textAlign: 'center' }}>7D Pace</th>
+                              <th style={{ width: 58, textAlign: 'center' }}>Activity</th>
+                              <th style={{ width: 74, textAlign: 'center' }}>Status</th>
+                              <th style={{ width: 130, textAlign: 'right', paddingRight: 8 }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredLeadersList.length === 0 ? (
+                              <tr>
+                                <td colSpan="10" style={{ textAlign: 'center', padding: '32px', color: '#64748b' }}>
+                                  {leaderHierarchyScope === 'hierarchy'
+                                    ? 'No appointed hierarchy leaders found matching the selected filter. Appoint Sub-Leaders in 60% Campaign Mode to track them here.'
+                                    : 'No direct pool mobilizers found matching the selected filter.'}
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredLeadersList.map((leader, idx) => {
+                                const roleClass = leader.tierLevel === 1 
+                                  ? 'apex' 
+                                  : leader.tierLevel === 2 
+                                    ? 'subleader' 
+                                    : leader.tierLevel === 3 
+                                      ? 'coord' 
+                                      : 'apex';
+                                const roleLabel = leader.tierLevel === 1 
+                                  ? 'Barangay Head' 
+                                  : leader.tierLevel === 2 
+                                    ? `Sub-Leader #${leader.slotNumber || ''}` 
+                                    : leader.tierLevel === 3 
+                                      ? 'Coordinator' 
+                                      : 'Direct Mobilizer';
+
+                                let perfLabel = 'Inactive';
+                                let perfClass = 'inactive';
+                                if (leader.performanceCategory === 'star') { perfLabel = 'Top Tier'; perfClass = 'star'; }
+                                else if (leader.performanceCategory === 'on_track') { perfLabel = 'On Track'; perfClass = 'on-track'; }
+                                else if (leader.performanceCategory === 'developing') { perfLabel = 'Developing'; perfClass = 'developing'; }
+
+                                const displayName = leader.name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+                                const isTreeSelected = showHierarchyTreeModal && (hierarchyTreeLeader?.name || '').trim().toLowerCase() === (leader.name || '').trim().toLowerCase();
+
+                                return (
+                                  <tr key={leader.id || leader.name} className={isTreeSelected ? 'is-tree-selected' : ''}>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <span className={`rank-text ${idx < 3 ? 'top' : ''}`}>
+                                        #{idx + 1}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
+                                          <span 
+                                            style={{ fontWeight: 600, color: '#0f172a', fontSize: '0.78rem', cursor: leader.rawReg ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                                            onClick={() => { if (leader.rawReg) setSelectedRegDetail(leader.rawReg); }}
+                                            title="Click to view dossier"
+                                          >
+                                            {displayName}
+                                          </span>
+                                          <span className={`role-tag-saas ${roleClass}`}>
+                                            {roleLabel}
+                                          </span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.65rem', color: '#64748b', whiteSpace: 'nowrap' }}>
+                                          {leader.contact && <span>{leader.contact}</span>}
+                                          {leader.uplineName && <span>· Upline: {leader.uplineName}</span>}
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <span style={{ fontWeight: 600, color: '#334155', fontSize: '0.74rem', whiteSpace: 'nowrap' }}>Brgy. {leader.barangay}</span>
+                                        <span style={{ fontSize: '0.65rem', color: '#64748b', whiteSpace: 'nowrap' }}>{leader.purok || '—'}</span>
+                                      </div>
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <span style={{ fontWeight: 600, color: '#0f172a' }}>{leader.directRecruits}</span>
+                                      <span style={{ fontSize: '0.66rem', color: '#94a3b8' }}> / {leader.directTarget}</span>
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <span style={{ fontWeight: 700, color: '#047857', fontSize: '0.82rem' }}>
+                                        {leader.totalDownline.toLocaleString()}
+                                      </span>
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, width: '100%', maxWidth: 84 }}>
+                                        <div className="table-progress-bar" style={{ flex: 1, height: 4, minWidth: 36 }}>
+                                          <div 
+                                            className="table-progress-fill" 
+                                            style={{ 
+                                              width: `${leader.quotaProgressPct}%`,
+                                              background: leader.quotaProgressPct >= 80 ? '#10b981' : leader.quotaProgressPct >= 30 ? '#0284c7' : '#f59e0b'
+                                            }} 
+                                          />
+                                        </div>
+                                        <span style={{ fontSize: '0.66rem', fontWeight: 600, minWidth: 24, textAlign: 'right', color: '#475569' }}>
+                                          {leader.quotaProgressPct}%
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      {leader.recent7DaysRecruits > 0 ? (
+                                        <span style={{ color: '#059669', fontWeight: 600 }}>+{leader.recent7DaysRecruits}</span>
+                                      ) : (
+                                        <span style={{ color: '#94a3b8' }}>0</span>
+                                      )}
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <span style={{ color: '#64748b', fontSize: '0.70rem' }}>
+                                        {leader.daysSinceLastRecruit !== null ? (leader.daysSinceLastRecruit === 0 ? 'Today' : `${leader.daysSinceLastRecruit}d ago`) : 'Never'}
+                                      </span>
+                                    </td>
+                                    <td style={{ textAlign: 'center' }}>
+                                      <span className={`status-badge-saas ${perfClass}`}>
+                                        <span className={`perf-dot ${perfClass}`} />
+                                        {perfLabel}
+                                      </span>
+                                    </td>
+                                    <td style={{ textAlign: 'right', paddingRight: 8 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 3 }}>
+                                        {!leader.inHierarchy && (
+                                          <button
+                                            type="button"
+                                            className="action-btn-saas"
+                                            onClick={() => {
+                                              setNetworkBarangayFilter(leader.barangay);
+                                              setNetworkTabMode('campaign');
+                                            }}
+                                            title="Appoint as official Sub-Leader in 60% Campaign Mode"
+                                            style={{ color: '#2563eb', borderColor: '#bfdbfe', background: '#eff6ff' }}
+                                          >
+                                            <UserCheck size={10} strokeWidth={2} />
+                                            <span>Appoint</span>
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          className="action-btn-saas primary"
+                                          onClick={() => openLeaderSmsModal(leader)}
+                                          title={leader.contact ? `Send official SMS via Semaphore to ${leader.contact}` : 'No phone number available'}
+                                        >
+                                          <MessageSquare size={10} strokeWidth={2.2} />
+                                          <span>SMS</span>
+                                        </button>
+                                        {leader.inHierarchy && (
+                                          <button
+                                            type="button"
+                                            className={`action-btn-saas ${isTreeSelected ? 'primary' : ''}`}
+                                            onClick={() => openHierarchyTreeModal(leader)}
+                                            title={`Inspect ${leader.name}'s official Network Hierarchy tree`}
+                                            style={isTreeSelected ? { background: '#059669', color: '#ffffff', borderColor: '#059669' } : {}}
+                                          >
+                                            <Network size={10} strokeWidth={2} />
+                                            <span>Tree</span>
+                                          </button>
+                                        )}
+                                        {leader.rawReg && (
+                                          <button
+                                            type="button"
+                                            className="action-btn-saas"
+                                            onClick={() => setSelectedRegDetail(leader.rawReg)}
+                                            title="View dossier profile"
+                                          >
+                                            <UserCheck size={10} strokeWidth={2} />
+                                            <span>Profile</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 3. VOTER COALITION & DEMOGRAPHIC PENETRATION CHART */}
+                {analyticsChartMode === 'sectors' && (
+                  <div className="strategy-chart-view">
+                    <div className="sectors-overview-ribbon">
+                      <div className="sectors-headline">
+                        <h4>Balagtas Municipal Demographic Coalition Breakdown</h4>
+                        <p>Comparative penetration across 7 key voting sectors against demographic campaign targets</p>
+                      </div>
+                      <span className="sectors-total-badge">
+                        {municipalCurrentMobilized.toLocaleString()} Total Mobilized Voters Analyzed
+                      </span>
+                    </div>
+
+                    <div className="coalition-multi-bar">
+                      {municipalSectorDistribution.map(sec => {
+                        if (sec.count === 0) return null;
+                        const share = municipalCurrentMobilized > 0 ? ((sec.count / municipalCurrentMobilized) * 100) : 0;
+                        return (
+                          <div 
+                            key={sec.id} 
+                            className="coalition-bar-segment" 
+                            style={{ width: `${Math.max(share, 3)}%`, background: sec.color }}
+                            title={`${sec.label}: ${sec.count} voters (${share.toFixed(1)}%)`}
+                          />
+                        );
+                      })}
+                    </div>
+
+                    <div className="sectors-chart-grid">
+                      {municipalSectorDistribution.map(sec => {
+                        const hasSurplus = sec.actualPct >= sec.targetPct;
+                        return (
+                          <div key={sec.id} className="sector-strategy-card">
+                            <div className="sector-card-top">
+                              <div className="sector-card-title-row">
+                                <span className="sector-color-badge" style={{ background: sec.color }} />
+                                <strong className="sector-card-name">{sec.label}</strong>
+                              </div>
+                              <span className={`sector-status-pill ${hasSurplus ? 'surplus' : 'gap'}`}>
+                                {hasSurplus ? '✓ On Target' : `${sec.targetPct - sec.actualPct}% Gap`}
+                              </span>
+                            </div>
+
+                            <div className="sector-stat-comparison">
+                              <div className="sec-stat-col">
+                                <span className="sec-stat-lbl">Current Mobilized</span>
+                                <span className="sec-stat-val" style={{ color: sec.color }}>
+                                  {sec.count.toLocaleString()} <small>({sec.actualPct}%)</small>
+                                </span>
+                              </div>
+                              <div className="sec-stat-divider">/</div>
+                              <div className="sec-stat-col">
+                                <span className="sec-stat-lbl">Campaign Target</span>
+                                <span className="sec-stat-val">
+                                  {sec.targetPct}% <small>target share</small>
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="sector-benchmark-track">
+                              <div 
+                                className="sector-benchmark-fill" 
+                                style={{ width: `${Math.min(100, Math.max(3, (sec.actualPct / (sec.targetPct || 1)) * 100))}%`, background: sec.color }} 
+                              />
+                            </div>
+
+                            <p className="sector-card-desc">{sec.desc}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="strategy-clean-strip">
+                      <div className="clean-strip-left">
+                        <PieChart size={13} strokeWidth={2} />
+                        <span className="clean-strip-title">Coalition Target:</span>
+                      </div>
+                      <span className="clean-strip-desc">
+                        Household voters form the foundation. Mobilizing <strong>Youth (18–30)</strong> and <strong>Tricycle / TODA Drivers</strong> offers the highest-velocity expansion through local association partnerships.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+
+
+                {/* 5. BARANGAY LEADERSHIP QUOTA PIE CHARTS (Subleader Quota · Coordinator Quota · Member Quota) */}
+                {analyticsChartMode === 'quotas' && (() => {
+                  const BRGY_PALETTE = {
+                    'Santol': '#059669',
+                    'Panginay': '#2563eb',
+                    'Borol 1st': '#7c3aed',
+                    'Pulong Gubat': '#ea580c',
+                    'Borol 2nd': '#0891b2',
+                    'Longos': '#db2777',
+                    'San Juan': '#d97706',
+                    'Wawa': '#4f46e5',
+                    'Dalig': '#16a34a',
+                  };
+
+                  const totalMunicipalSubleaders = municipalStats.reduce((sum, b) => sum + (Number(b.subLeaderTarget) || 0), 0);
+                  const totalMunicipalCoords = municipalStats.reduce((sum, b) => sum + (Number(b.targetCoords) || 0), 0);
+                  const totalMunicipalMembers = municipalStats.reduce((sum, b) => {
+                    const mVal = b.targetMembers || (b.targetCoords * (b.memberQuota || 1)) || 0;
+                    return sum + Number(mVal);
+                  }, 0);
+
+                  const displayedBrgyList = quotaChartBrgyFilter === 'all' 
+                    ? municipalStats 
+                    : municipalStats.filter(b => b.name === quotaChartBrgyFilter);
+
+                  const renderDonutSlices = (slices, size = 92, strokeWidth = 7.5, minArcPct = 0.08) => {
+                    const radius = (size / 2) - (strokeWidth / 2) - 1;
+                    const circumference = 2 * Math.PI * radius;
+                    const total = slices.reduce((sum, s) => sum + (Number(s.value) || 0), 0) || 1;
+
+                    // If any slice is small (< minArcPct), give it a balanced minimum visible arc for executive clarity
+                    const hasVerySmallSlices = slices.some(s => s.value > 0 && (s.value / total) < minArcPct);
+                    let displayPcts;
+                    if (hasVerySmallSlices && slices.length <= 6) {
+                      const rawPcts = slices.map(s => s.value > 0 ? (s.value / total) : 0);
+                      const boostedPcts = rawPcts.map(p => p > 0 ? Math.max(p, minArcPct) : 0);
+                      const boostedSum = boostedPcts.reduce((sum, p) => sum + p, 0);
+                      displayPcts = boostedPcts.map(p => p / boostedSum);
+                    } else {
+                      displayPcts = slices.map(s => (Number(s.value) || 0) / total);
+                    }
+
+                    let accumulated = 0;
+                    const activeSlicesCount = slices.filter(s => Number(s.value) > 0).length;
+                    const gapPx = activeSlicesCount > 1 ? 2.5 : 0;
+
+                    return (
+                      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="saas-donut-svg">
+                        <circle
+                          cx={size / 2}
+                          cy={size / 2}
+                          r={radius}
+                          fill="none"
+                          stroke="#f1f5f9"
+                          strokeWidth={strokeWidth}
+                        />
+                        {slices.map((slice, i) => {
+                          const val = Number(slice.value) || 0;
+                          if (val <= 0) return null;
+                          const pct = displayPcts[i];
+                          const rawPct = (val / total);
+                          const dash = Math.max(1, (pct * circumference) - gapPx);
+                          const offset = -accumulated * circumference;
+                          accumulated += pct;
+
+                          return (
+                            <circle
+                              key={i}
+                              cx={size / 2}
+                              cy={size / 2}
+                              r={radius}
+                              fill="none"
+                              stroke={slice.color}
+                              strokeWidth={strokeWidth}
+                              strokeDasharray={`${dash} ${circumference - dash}`}
+                              strokeDashoffset={offset}
+                              strokeLinecap="round"
+                              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                              style={{ transition: 'stroke-dasharray 0.3s cubic-bezier(0.16, 1, 0.3, 1), stroke-dashoffset 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}
+                            >
+                              <title>{`${slice.label}: ${val.toLocaleString()} (${(rawPct * 100).toFixed(1)}%)`}</title>
+                            </circle>
+                          );
+                        })}
+                      </svg>
+                    );
+                  };
+
+                  return (
+                    <div className="strategy-chart-view quota-charts-view">
+                      {/* Toolbar: View mode toggles & Barangay quick filter pills */}
+                      <div className="quota-charts-toolbar">
+                        <div className="quota-view-toggles">
+                          <button
+                            type="button"
+                            className={`quota-view-toggle-btn ${quotaChartViewMode === 'grid' ? 'active' : ''}`}
+                            onClick={() => setQuotaChartViewMode('grid')}
+                            title="View quota breakdown pie chart for each barangay"
+                          >
+                            <PieChart size={12} />
+                            <span>Per Barangay</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={`quota-view-toggle-btn ${quotaChartViewMode === 'comparative' ? 'active' : ''}`}
+                            onClick={() => setQuotaChartViewMode('comparative')}
+                            title="Compare Subleader, Coordinator, and Member quotas across all barangays"
+                          >
+                            <Layers size={12} />
+                            <span>Municipal Quotas</span>
+                          </button>
+                        </div>
+
+                        <div className="quota-brgy-pills">
+                          <button
+                            type="button"
+                            className={`quota-brgy-pill ${quotaChartBrgyFilter === 'all' ? 'active' : ''}`}
+                            onClick={() => setQuotaChartBrgyFilter('all')}
+                          >
+                            All ({municipalStats.length})
+                          </button>
+                          {municipalStats.map(b => (
+                            <button
+                              key={b.name}
+                              type="button"
+                              className={`quota-brgy-pill ${quotaChartBrgyFilter === b.name ? 'active' : ''}`}
+                              onClick={() => setQuotaChartBrgyFilter(b.name)}
+                            >
+                              {b.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* ── MODE 1: PER BARANGAY QUOTA PIE CHARTS ── */}
+                      {quotaChartViewMode === 'grid' && (
+                        <div className="quota-cards-grid">
+                          {displayedBrgyList.map(b => {
+                            const isFocused = b.name === networkBarangayFilter;
+                            const slQuota = Number(b.subLeaderTarget) || 0;
+                            const coordQuota = Number(b.targetCoords) || (slQuota * (b.coordinatorQuota || 1));
+                            const memberQuota = Number(b.targetMembers) || (coordQuota * (b.memberQuota || 1));
+                            const recruitQuota = Number(b.targetRecruits) || (memberQuota * (b.config?.recruitQuota || 1));
+                            const apexLeaderCount = 1;
+                            const projectedTotal = apexLeaderCount + slQuota + coordQuota + memberQuota + recruitQuota;
+                            const projectedYieldPct = ((projectedTotal / (b.totalVoters || 1)) * 100).toFixed(1);
+
+                            const slFulfilledPct = Math.min(100, Math.round((b.appointedSLCount / (slQuota || 1)) * 100));
+                            const coordFulfilledPct = Math.min(100, Math.round((b.totalActiveCoords / (coordQuota || 1)) * 100));
+                            const memFulfilledPct = Math.min(100, Math.round((b.hierarchyCount / (memberQuota || 1)) * 100));
+
+                            const slices = [
+                              { label: 'Subleader Quota', value: slQuota, color: '#8b5cf6' },
+                              { label: 'Coordinator Quota', value: coordQuota, color: '#0284c7' },
+                              { label: 'Citizen Member Quota', value: memberQuota, color: '#10b981' },
+                              { label: '+1 Member Recruits (Multiplier)', value: recruitQuota, color: '#f59e0b' },
+                            ];
+
+                            return (
+                              <div key={b.name} className={`brgy-quota-card ${isFocused ? 'focused' : ''}`}>
+                                <div className="brgy-quota-card-header">
+                                  <div className="brgy-quota-header-info">
+                                    <div className="brgy-quota-title-row">
+                                      <span className="brgy-quota-card-name">Brgy. {b.name}</span>
+                                      {isFocused && (
+                                        <span className="saas-focus-badge">
+                                          <span className="saas-focus-dot" />
+                                          Active Focus
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="brgy-quota-sub-meta">
+                                      <span className="brgy-meta-stat">{b.totalVoters.toLocaleString()} registered</span>
+                                      <span className="brgy-meta-sep">•</span>
+                                      <span className="brgy-meta-target">Target: <strong>{b.target60.toLocaleString()}</strong> (60%)</span>
+                                    </div>
+                                  </div>
+                                  {!isFocused && (
+                                    <button
+                                      type="button"
+                                      className="brgy-quota-card-focus-btn"
+                                      onClick={() => setNetworkBarangayFilter(b.name)}
+                                      title={`Focus campaign command on Brgy. ${b.name}`}
+                                    >
+                                      Focus
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="brgy-quota-chart-layout">
+                                  {/* Donut Chart */}
+                                  <div className="quota-donut-wrap">
+                                    {renderDonutSlices(slices, 92, 7.5)}
+                                    <div className="quota-donut-center">
+                                      <span className="quota-donut-num">{projectedTotal.toLocaleString()}</span>
+                                      <span className="quota-donut-lbl">{projectedYieldPct}% YIELD</span>
+                                    </div>
+                                  </div>
+
+                                  {/* 4-Tier Hierarchy Ladder */}
+                                  <div className="saas-quota-ladder">
+                                    {/* Sub-Leaders */}
+                                    <div className="saas-ladder-row">
+                                      <div className="saas-ladder-head">
+                                        <div className="saas-ladder-left">
+                                          <span className="saas-ladder-dot subleader" />
+                                          <span>Sub-Leaders</span>
+                                        </div>
+                                        <div className="saas-ladder-right">
+                                          <span className="saas-ladder-val"><strong>{b.appointedSLCount}</strong> / {slQuota}</span>
+                                          <span className={`saas-ladder-pill ${slFulfilledPct > 0 ? 'active' : ''}`}>{slFulfilledPct}%</span>
+                                        </div>
+                                      </div>
+                                      <div className="saas-ladder-track">
+                                        <div className="saas-ladder-fill subleader" style={{ width: `${Math.min(100, slFulfilledPct)}%` }} />
+                                      </div>
+                                    </div>
+
+                                    {/* Coordinators */}
+                                    <div className="saas-ladder-row">
+                                      <div className="saas-ladder-head">
+                                        <div className="saas-ladder-left">
+                                          <span className="saas-ladder-dot coordinator" />
+                                          <span>Coordinators</span>
+                                        </div>
+                                        <div className="saas-ladder-right">
+                                          <span className="saas-ladder-val"><strong>{b.totalActiveCoords}</strong> / {coordQuota.toLocaleString()}</span>
+                                          <span className="saas-ladder-tag">{b.config.coordinatorQuota}/SL</span>
+                                        </div>
+                                      </div>
+                                      <div className="saas-ladder-track">
+                                        <div className="saas-ladder-fill coordinator" style={{ width: `${Math.min(100, coordFulfilledPct)}%` }} />
+                                      </div>
+                                    </div>
+
+                                    {/* Core Members */}
+                                    <div className="saas-ladder-row">
+                                      <div className="saas-ladder-head">
+                                        <div className="saas-ladder-left">
+                                          <span className="saas-ladder-dot member" />
+                                          <span>Core Members</span>
+                                        </div>
+                                        <div className="saas-ladder-right">
+                                          <span className="saas-ladder-val"><strong>{b.hierarchyCount}</strong> / {memberQuota.toLocaleString()}</span>
+                                          <span className="saas-ladder-tag">{b.config.memberQuota}/Coord</span>
+                                        </div>
+                                      </div>
+                                      <div className="saas-ladder-track">
+                                        <div className="saas-ladder-fill member" style={{ width: `${Math.min(100, memFulfilledPct)}%` }} />
+                                      </div>
+                                    </div>
+
+                                    {/* +1 Recruits */}
+                                    <div className="saas-ladder-row">
+                                      <div className="saas-ladder-head">
+                                        <div className="saas-ladder-left">
+                                          <span className="saas-ladder-dot recruit" />
+                                          <span>+1 Recruits</span>
+                                        </div>
+                                        <div className="saas-ladder-right">
+                                          <span className="saas-ladder-val amber">+{recruitQuota.toLocaleString()}</span>
+                                          <span className="saas-ladder-tag amber">1:1 Mult.</span>
+                                        </div>
+                                      </div>
+                                      <div className="saas-ladder-track">
+                                        <div className="saas-ladder-fill recruit" style={{ width: '100%' }} />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="brgy-quota-footer">
+                                  <div className="quota-footer-left">
+                                    <span className="quota-footer-label">Projected Capacity:</span>
+                                    <span className="quota-footer-val">{projectedTotal.toLocaleString()} voters</span>
+                                  </div>
+                                  <div className="quota-footer-right">
+                                    {projectedTotal >= b.target60 ? (
+                                      <span className="saas-quota-status-pill success">
+                                        <CheckCircle size={11} />
+                                        <span>Quota Achieved ({projectedYieldPct}%)</span>
+                                      </span>
+                                    ) : (
+                                      <span className="saas-quota-status-pill warning">
+                                        <AlertTriangle size={11} />
+                                        <span>Shortfall -{(b.target60 - projectedTotal).toLocaleString()}</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* ── MODE 2: MUNICIPAL COMPARATIVE PIE CHARTS ── */}
+                      {quotaChartViewMode === 'comparative' && (
+                        <div className="municipal-quotas-grid">
+                          {/* Pie 1: Subleader Quota across all 9 Barangays */}
+                          {(() => {
+                            const slSlices = municipalStats.map(b => ({
+                              label: `Brgy. ${b.name}`,
+                              value: b.subLeaderTarget,
+                              color: BRGY_PALETTE[b.name] || '#64748b'
+                            }));
+
+                            return (
+                              <div className="municipal-quota-pie-card">
+                                <div className="municipal-quota-pie-card-header">
+                                  <div className="municipal-quota-pie-card-title">
+                                    <ShieldCheck size={16} style={{ color: '#7c3aed' }} />
+                                    <span>Subleader Quota</span>
+                                  </div>
+                                  <span className="municipal-quota-badge purple">{totalMunicipalSubleaders} Total SLs</span>
+                                </div>
+
+                                <div className="municipal-quota-pie-layout">
+                                  <div className="quota-donut-wrap">
+                                    {renderDonutSlices(slSlices, 130, 16)}
+                                    <div className="quota-donut-center">
+                                      <span className="quota-donut-num">{totalMunicipalSubleaders}</span>
+                                      <span className="quota-donut-lbl">Sub-Leaders</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="municipal-quota-legend-table">
+                                    {municipalStats.map(b => {
+                                      const share = ((b.subLeaderTarget / totalMunicipalSubleaders) * 100).toFixed(1);
+                                      return (
+                                        <div key={b.name} className="municipal-quota-legend-row" onClick={() => { setQuotaChartViewMode('grid'); setQuotaChartBrgyFilter(b.name); }} style={{ cursor: 'pointer' }} title={`Click to filter Brgy. ${b.name}`}>
+                                          <div className="legend-brgy-name">
+                                            <span className="legend-color-dot" style={{ background: BRGY_PALETTE[b.name] }} />
+                                            <span>{b.name}</span>
+                                          </div>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span className="legend-brgy-val">{b.subLeaderTarget} SLs</span>
+                                            <small style={{ color: '#94a3b8', fontSize: '0.68rem', minWidth: 32, textAlign: 'right' }}>({share}%)</small>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Pie 2: Coordinator Quota across all 9 Barangays */}
+                          {(() => {
+                            const coordSlices = municipalStats.map(b => ({
+                              label: `Brgy. ${b.name}`,
+                              value: b.targetCoords,
+                              color: BRGY_PALETTE[b.name] || '#64748b'
+                            }));
+
+                            return (
+                              <div className="municipal-quota-pie-card">
+                                <div className="municipal-quota-pie-card-header">
+                                  <div className="municipal-quota-pie-card-title">
+                                    <Users size={16} style={{ color: '#0284c7' }} />
+                                    <span>Coordinator Quota</span>
+                                  </div>
+                                  <span className="municipal-quota-badge blue">{totalMunicipalCoords.toLocaleString()} Total Coords</span>
+                                </div>
+
+                                <div className="municipal-quota-pie-layout">
+                                  <div className="quota-donut-wrap">
+                                    {renderDonutSlices(coordSlices, 130, 16)}
+                                    <div className="quota-donut-center">
+                                      <span className="quota-donut-num">{totalMunicipalCoords.toLocaleString()}</span>
+                                      <span className="quota-donut-lbl">Coordinators</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="municipal-quota-legend-table">
+                                    {municipalStats.map(b => {
+                                      const share = ((b.targetCoords / totalMunicipalCoords) * 100).toFixed(1);
+                                      return (
+                                        <div key={b.name} className="municipal-quota-legend-row" onClick={() => { setQuotaChartViewMode('grid'); setQuotaChartBrgyFilter(b.name); }} style={{ cursor: 'pointer' }} title={`Click to filter Brgy. ${b.name}`}>
+                                          <div className="legend-brgy-name">
+                                            <span className="legend-color-dot" style={{ background: BRGY_PALETTE[b.name] }} />
+                                            <span>{b.name}</span>
+                                          </div>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span className="legend-brgy-val">{b.targetCoords}</span>
+                                            <small style={{ color: '#94a3b8', fontSize: '0.68rem', minWidth: 32, textAlign: 'right' }}>({share}%)</small>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Pie 3: Member Quota across all 9 Barangays */}
+                          {(() => {
+                            const memberSlices = municipalStats.map(b => {
+                              const mVal = Number(b.targetMembers) || (Number(b.targetCoords) * (b.memberQuota || 1)) || 0;
+                              return {
+                                label: `Brgy. ${b.name}`,
+                                value: mVal,
+                                color: BRGY_PALETTE[b.name] || '#64748b'
+                              };
+                            });
+
+                            return (
+                              <div className="municipal-quota-pie-card">
+                                <div className="municipal-quota-pie-card-header">
+                                  <div className="municipal-quota-pie-card-title">
+                                    <UserPlus size={16} style={{ color: '#047857' }} />
+                                    <span>Member Quota</span>
+                                  </div>
+                                  <span className="municipal-quota-badge green">{totalMunicipalMembers.toLocaleString()} Core Members</span>
+                                </div>
+
+                                <div className="municipal-quota-pie-layout">
+                                  <div className="quota-donut-wrap">
+                                    {renderDonutSlices(memberSlices, 130, 16)}
+                                    <div className="quota-donut-center">
+                                      <span className="quota-donut-num">{totalMunicipalMembers.toLocaleString()}</span>
+                                      <span className="quota-donut-lbl">Core Members</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="municipal-quota-legend-table">
+                                    {municipalStats.map(b => {
+                                      const mVal = Number(b.targetMembers) || (Number(b.targetCoords) * (b.memberQuota || 1)) || 0;
+                                      const share = totalMunicipalMembers > 0 ? ((mVal / totalMunicipalMembers) * 100).toFixed(1) : '0.0';
+                                      return (
+                                        <div key={b.name} className="municipal-quota-legend-row" onClick={() => { setQuotaChartViewMode('grid'); setQuotaChartBrgyFilter(b.name); }} style={{ cursor: 'pointer' }} title={`Click to filter Brgy. ${b.name}`}>
+                                          <div className="legend-brgy-name">
+                                            <span className="legend-color-dot" style={{ background: BRGY_PALETTE[b.name] }} />
+                                            <span>{b.name}</span>
+                                          </div>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span className="legend-brgy-val">{mVal.toLocaleString()}</span>
+                                            <small style={{ color: '#94a3b8', fontSize: '0.68rem', minWidth: 32, textAlign: 'right' }}>({share}%)</small>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Pie 4: +1 Member Recruits Multiplier across all 9 Barangays */}
+                          {(() => {
+                            const recruitSlices = municipalStats.map(b => {
+                              const mVal = Number(b.targetMembers) || (Number(b.targetCoords) * (b.memberQuota || 1)) || 0;
+                              const rVal = mVal * (b.config?.recruitQuota || 1);
+                              return {
+                                label: `Brgy. ${b.name}`,
+                                value: rVal,
+                                color: BRGY_PALETTE[b.name] || '#64748b'
+                              };
+                            });
+
+                            return (
+                              <div className="municipal-quota-pie-card">
+                                <div className="municipal-quota-pie-card-header">
+                                  <div className="municipal-quota-pie-card-title">
+                                    <Sparkles size={16} style={{ color: '#d97706' }} />
+                                    <span>+1 Recruits Multiplier</span>
+                                  </div>
+                                  <span className="municipal-quota-badge amber">{totalMunicipalMembers.toLocaleString()} Multiplier Recruits</span>
+                                </div>
+
+                                <div className="municipal-quota-pie-layout">
+                                  <div className="quota-donut-wrap">
+                                    {renderDonutSlices(recruitSlices, 130, 16)}
+                                    <div className="quota-donut-center">
+                                      <span className="quota-donut-num">{totalMunicipalMembers.toLocaleString()}</span>
+                                      <span className="quota-donut-lbl">+1 Recruits</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="municipal-quota-legend-table">
+                                    {municipalStats.map(b => {
+                                      const mVal = Number(b.targetMembers) || (Number(b.targetCoords) * (b.memberQuota || 1)) || 0;
+                                      const rVal = mVal * (b.config?.recruitQuota || 1);
+                                      const share = totalMunicipalMembers > 0 ? ((rVal / totalMunicipalMembers) * 100).toFixed(1) : '0.0';
+                                      return (
+                                        <div key={b.name} className="municipal-quota-legend-row" onClick={() => { setQuotaChartViewMode('grid'); setQuotaChartBrgyFilter(b.name); }} style={{ cursor: 'pointer' }} title={`Click to filter Brgy. ${b.name}`}>
+                                          <div className="legend-brgy-name">
+                                            <span className="legend-color-dot" style={{ background: BRGY_PALETTE[b.name] }} />
+                                            <span>{b.name}</span>
+                                          </div>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span className="legend-brgy-val">+{rVal.toLocaleString()}</span>
+                                            <small style={{ color: '#94a3b8', fontSize: '0.68rem', minWidth: 32, textAlign: 'right' }}>({share}%)</small>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
+                      {/* Strategy Summary Strip */}
+                      <div className="strategy-clean-strip">
+                        <div className="clean-strip-left">
+                          <PieChart size={13} strokeWidth={2} />
+                          <span className="clean-strip-title">Quota Blueprint Architecture:</span>
+                        </div>
+                        <span className="clean-strip-desc">
+                          Each barangay follows the tailored 3-tier pyramid: <strong>Sub-Leaders</strong> mobilize <strong>Coordinators</strong> who mobilize <strong>Core Members</strong> to meet the 60% Victory Threshold.
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 6. RECRUITMENT VELOCITY & FORECAST VIEW */}
+                {analyticsChartMode === 'velocity' && (() => {
+                  const totalWeeklyGrowth = municipalStats.reduce((sum, b) => sum + (b.recent7DaysRecruits || 0), 0);
+                  const dailyRunRate = (totalWeeklyGrowth / 7).toFixed(1);
+                  const fastestBrgy = [...municipalStats].sort((a, b) => (b.recent7DaysRecruits || 0) - (a.recent7DaysRecruits || 0))[0];
+
+                  return (
+                    <div className="strategy-chart-view velocity-view">
+                      {/* Top Metric Cards */}
+                      <div className="velocity-hero-metrics">
+                        <div className="velocity-metric-card">
+                          <div className="velocity-metric-icon speed">
+                            <Zap size={20} />
+                          </div>
+                          <div className="velocity-metric-info">
+                            <span className="velocity-metric-label">Municipal Velocity</span>
+                            <span className="velocity-metric-value">+{totalWeeklyGrowth} Voters</span>
+                            <span className="velocity-metric-sub">~{dailyRunRate} voters / day pace</span>
+                          </div>
+                        </div>
+
+                        <div className="velocity-metric-card">
+                          <div className="velocity-metric-icon leader">
+                            <TrendingUp size={20} />
+                          </div>
+                          <div className="velocity-metric-info">
+                            <span className="velocity-metric-label">Pacesetter Barangay</span>
+                            <span className="velocity-metric-value">Brgy. {fastestBrgy?.name || 'Santol'}</span>
+                            <span className="velocity-metric-sub">+{fastestBrgy?.recent7DaysRecruits || 0} mobilized this week</span>
+                          </div>
+                        </div>
+
+                        <div className="velocity-metric-card">
+                          <div className="velocity-metric-icon target">
+                            <Target size={20} />
+                          </div>
+                          <div className="velocity-metric-info">
+                            <span className="velocity-metric-label">Municipal 60% Victory Goal</span>
+                            <span className="velocity-metric-value">{municipalTarget60.toLocaleString()}</span>
+                            <span className="velocity-metric-sub">{municipalDeficit > 0 ? `${municipalDeficit.toLocaleString()} needed to win` : '✓ 60% Threshold Met'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Barangay Run-Rate Forecast Grid */}
+                      <div className="velocity-grid">
+                        {municipalStats.map(b => {
+                          const weeklyRate = Number(b.recent7DaysRecruits) || 0;
+                          const dailyRate = weeklyRate > 0 ? (weeklyRate / 7) : 0;
+                          const deficit = Math.max(0, b.target60 - b.hierarchyCount);
+                          const daysToGoal = dailyRate > 0 ? Math.ceil(deficit / dailyRate) : null;
+                          const projectedDate = daysToGoal ? new Date(Date.now() + daysToGoal * 86400000) : null;
+
+                          let momentumLevel = 'stalled';
+                          let momentumLabel = '⚠️ No Growth (7d)';
+                          if (weeklyRate >= 5) {
+                            momentumLevel = 'high';
+                            momentumLabel = `🚀 Fast Pace (+${weeklyRate}/wk)`;
+                          } else if (weeklyRate > 0) {
+                            momentumLevel = 'steady';
+                            momentumLabel = `⚡ Steady (+${weeklyRate}/wk)`;
+                          }
+
+                          return (
+                            <div key={b.name} className="velocity-card">
+                              <div className="velocity-card-header">
+                                <span className="velocity-card-title">Brgy. {b.name}</span>
+                                <span className={`momentum-badge ${momentumLevel}`}>
+                                  {momentumLabel}
+                                </span>
+                              </div>
+
+                              <div className="velocity-stats-row">
+                                <div className="velocity-stat-item">
+                                  <span className="velocity-stat-lbl">Mobilized</span>
+                                  <span className="velocity-stat-val">{b.hierarchyCount.toLocaleString()}</span>
+                                </div>
+                                <div className="velocity-stat-item">
+                                  <span className="velocity-stat-lbl">60% Goal</span>
+                                  <span className="velocity-stat-val">{b.target60.toLocaleString()}</span>
+                                </div>
+                                <div className="velocity-stat-item">
+                                  <span className="velocity-stat-lbl">Deficit</span>
+                                  <span className="velocity-stat-val" style={{ color: deficit > 0 ? '#dc2626' : '#16a34a' }}>
+                                    {deficit > 0 ? `-${deficit.toLocaleString()}` : '✓ Met'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="velocity-forecast-box">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <Clock size={13} style={{ color: '#64748b' }} />
+                                  <span style={{ color: '#475569' }}>
+                                    {deficit === 0 
+                                      ? <strong style={{ color: '#047857' }}>✓ 60% Supermajority Achieved!</strong>
+                                      : daysToGoal 
+                                        ? <>Target Forecast: <strong>{projectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong> ({daysToGoal} days)</>
+                                        : <span style={{ color: '#b91c1c' }}>Pace stalled — deploy field coordinators</span>
+                                    }
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="brgy-quota-card-focus-btn"
+                                  onClick={() => setNetworkBarangayFilter(b.name)}
+                                >
+                                  Focus
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+
+
+                {/* 8. FIELD STALL & INACTIVITY RADAR */}
+                {analyticsChartMode === 'inactivity' && (() => {
+                  const targetBrgyName = networkBarangayFilter || 'Santol';
+                  const activeSlots = subLeaderSlots.filter(s => s.isAssigned);
+
+                  return (
+                    <div className="strategy-chart-view stall-radar-view">
+                      <div className="territory-toolbar">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#334155' }}>Filter Barangay:</span>
+                          <div className="quota-brgy-pills">
+                            {Object.keys(BARANGAY_VOTER_DATA).map(bName => (
+                              <button
+                                key={bName}
+                                type="button"
+                                className={`quota-brgy-pill ${targetBrgyName === bName ? 'active' : ''}`}
+                                onClick={() => setNetworkBarangayFilter(bName)}
+                              >
+                                {bName}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                          Real-time audit of assigned Sub-Leaders and coordinator downlines in <strong>Brgy. {targetBrgyName}</strong>
+                        </span>
+                      </div>
+
+                      <div className="stall-table-wrap">
+                        <table className="stall-table">
+                          <thead>
+                            <tr>
+                              <th>Cluster Slot</th>
+                              <th>Sub-Leader Name</th>
+                              <th>Coordinators</th>
+                              <th>Members</th>
+                              <th>7-Day Recruits</th>
+                              <th>Days Inactive</th>
+                              <th>Status</th>
+                              <th style={{ textAlign: 'right' }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeSlots.length === 0 ? (
+                              <tr>
+                                <td colSpan="8" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                                  No sub-leaders appointed in Brgy. {targetBrgyName} yet. Appoint sub-leaders in 60% Campaign Mode.
+                                </td>
+                              </tr>
+                            ) : (
+                              activeSlots.map(s => {
+                                const days = s.daysSinceLastRecruit;
+                                let statusClass = 'active';
+                                let statusText = '🟢 Active (<7d)';
+
+                                if (days === null || s.totalClusterVotes === 0) {
+                                  statusClass = 'dormant';
+                                  statusText = '⚪ Zero Recruits';
+                                } else if (days > 14) {
+                                  statusClass = 'stalled';
+                                  statusText = `🔴 Stalled (${days}d ago)`;
+                                } else if (days >= 7) {
+                                  statusClass = 'slowing';
+                                  statusText = `🟡 Slowing (${days}d ago)`;
+                                }
+
+                                return (
+                                  <tr key={s.slotNumber}>
+                                    <td><strong>Slot #{s.slotNumber}</strong></td>
+                                    <td>
+                                      <div style={{ fontWeight: 700, color: '#0f172a' }}>{s.leaderName}</div>
+                                      {s.leaderContact && <small style={{ color: '#64748b' }}>{s.leaderContact}</small>}
+                                    </td>
+                                    <td>{s.coordinatorsCount} / {s.coordinatorQuota}</td>
+                                    <td>{s.totalMembersCount.toLocaleString()} / {s.memberQuota.toLocaleString()}</td>
+                                    <td>
+                                      <span style={{ color: s.recent7DaysRecruits > 0 ? '#16a34a' : '#64748b', fontWeight: 700 }}>
+                                        +{s.recent7DaysRecruits}
+                                      </span>
+                                    </td>
+                                    <td>{days !== null ? `${days} days ago` : 'Never'}</td>
+                                    <td>
+                                      <span className={`stall-status-pill ${statusClass}`}>{statusText}</span>
+                                    </td>
+                                    <td style={{ textAlign: 'right' }}>
+                                      <button
+                                        type="button"
+                                        className="stall-nudge-btn"
+                                        onClick={() => openLeaderSmsModal({
+                                          name: s.leaderName,
+                                          contact: s.leaderContact,
+                                          barangay: targetBrgyName,
+                                          inHierarchy: true,
+                                          roleLabel: `Sub-Leader #${s.slotNumber}`,
+                                          performanceCategory: 'dormant'
+                                        })}
+                                        title={s.leaderContact ? `Send official SMS nudge to ${s.leaderContact}` : 'No phone number available'}
+                                      >
+                                        <MessageSquare size={12} />
+                                        <span>SMS Nudge</span>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -8814,208 +11787,477 @@ export default function AdminPage() {
                     Comprehensive view of COMELEC registered voters, 60% victory quotas, and real-time field mobilization for all 9 Balagtas barangays.
                   </p>
                 </div>
-                <div className="analytics-search-box">
-                  <Search size={15} color="#64748b" />
-                  <input 
-                    type="text" 
-                    placeholder="Search barangay..." 
-                    value={analyticsSearchQuery}
-                    onChange={(e) => setAnalyticsSearchQuery(e.target.value)}
-                    className="analytics-search-input"
-                  />
-                  {analyticsSearchQuery && (
-                    <button 
-                      type="button" 
-                      className="analytics-search-clear"
-                      onClick={() => setAnalyticsSearchQuery('')}
-                    >
-                      ✕
-                    </button>
-                  )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <div className="analytics-search-box">
+                    <Search size={14} color="#64748b" />
+                    <input 
+                      type="text" 
+                      placeholder="Search barangay..." 
+                      value={analyticsSearchQuery}
+                      onChange={(e) => setAnalyticsSearchQuery(e.target.value)}
+                      className="analytics-search-input"
+                    />
+                    {analyticsSearchQuery && (
+                      <button 
+                        type="button" 
+                        className="analytics-search-clear"
+                        onClick={() => setAnalyticsSearchQuery('')}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <button 
+                    type="button" 
+                    className={`btn btn-sm ${showCapacitySimulator ? 'btn-primary' : 'btn-outline-secondary'}`}
+                    onClick={() => {
+                      setShowCapacitySimulator(prev => {
+                        const next = !prev;
+                        if (next) setSimulationPct(100);
+                        return next;
+                      });
+                    }}
+                    title="Toggle full capacity quota simulation"
+                    style={{ 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: 5, 
+                      padding: '6px 12px', 
+                      fontSize: '0.76rem', 
+                      fontWeight: 700, 
+                      background: showCapacitySimulator ? '#047857' : '#ffffff', 
+                      color: showCapacitySimulator ? '#ffffff' : '#047857',
+                      borderColor: showCapacitySimulator ? '#047857' : '#a7f3d0',
+                      borderRadius: 8,
+                      boxShadow: showCapacitySimulator ? '0 2px 6px rgba(4, 120, 87, 0.25)' : 'none'
+                    }}
+                  >
+                    <Sparkles size={13} strokeWidth={2} color={showCapacitySimulator ? '#ffffff' : '#059669'} />
+                    <span>{showCapacitySimulator ? `🔮 Exit Simulation (${simulationPct}%)` : '✨ Activate Simulation'}</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => exportMasterAnalyticsExcel(filteredMunicipalStats, municipalTotalsPayload)}
+                    title="Export complete 9-barangay master mobilization table to Excel"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', fontSize: '0.76rem', fontWeight: 600, background: '#ffffff', borderRadius: 8 }}
+                  >
+                    <Download size={13} strokeWidth={1.8} />
+                    <span>Export Excel</span>
+                  </button>
                 </div>
+              </div>
+
+              {/* Interactive Table Simulation Panel */}
+              {showCapacitySimulator && (
+                <div className="table-simulation-panel">
+                  <div className="table-sim-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Sparkles size={16} color="#059669" />
+                      <strong style={{ fontSize: '0.88rem', color: '#062b1e' }}>Interactive 60% Victory Blueprint Simulator</strong>
+                      <span className="sim-active-pill">Simulation Active</span>
+                    </div>
+                    <div className="sim-presets">
+                      <span>Presets:</span>
+                      <button type="button" className={`sim-preset-btn ${simulationPct === 25 ? 'active' : ''}`} onClick={() => setSimulationPct(25)}>25% SLs</button>
+                      <button type="button" className={`sim-preset-btn ${simulationPct === 50 ? 'active' : ''}`} onClick={() => setSimulationPct(50)}>50% Coords</button>
+                      <button type="button" className={`sim-preset-btn ${simulationPct === 75 ? 'active' : ''}`} onClick={() => setSimulationPct(75)}>75% Mobilized</button>
+                      <button type="button" className={`sim-preset-btn ${simulationPct === 100 ? 'active' : ''}`} onClick={() => setSimulationPct(100)}>100% Full Blueprint (60%+)</button>
+                    </div>
+                    <button type="button" className="sim-close-btn" onClick={() => setShowCapacitySimulator(false)}>✕ Exit</button>
+                  </div>
+                  <div className="table-sim-slider-row">
+                    <span>Simulated Deployment Scale:</span>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      step="5"
+                      value={simulationPct} 
+                      onChange={(e) => setSimulationPct(Number(e.target.value))}
+                      className="sim-slider"
+                    />
+                    <span className="sim-pct-display">{simulationPct}% Deployment</span>
+                    <span style={{ fontSize: '0.74rem', color: '#334155' }}>
+                      → Simulated Municipal Mobilization: <strong style={{ color: '#047857' }}>{Math.round(municipalProjectedCapacity * (simulationPct / 100)).toLocaleString()} voters</strong> ({((municipalProjectedCapacity * (simulationPct / 100) / (municipalTarget60 || 1)) * 100).toFixed(1)}% of 32,558 Victory Target)
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Priority Status Filter Pills */}
+              <div className="analytics-priority-filter-row">
+                <span className="priority-filter-label">Quick Filter:</span>
+                <button
+                  type="button"
+                  className={`analytics-filter-btn ${analyticsStatusFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setAnalyticsStatusFilter('all')}
+                >
+                  All Barangays ({municipalStats.length})
+                </button>
+                <button
+                  type="button"
+                  className={`analytics-filter-btn ${analyticsStatusFilter === 'critical' ? 'active' : ''}`}
+                  onClick={() => setAnalyticsStatusFilter('critical')}
+                >
+                  Priority Deficit (&lt;10%) ({municipalStats.filter(b => b.pct < 10).length})
+                </button>
+                <button
+                  type="button"
+                  className={`analytics-filter-btn ${analyticsStatusFilter === 'leadership_gap' ? 'active' : ''}`}
+                  onClick={() => setAnalyticsStatusFilter('leadership_gap')}
+                >
+                  Leadership Gaps (0 Sub-Leaders) ({municipalStats.filter(b => b.appointedSLCount === 0).length})
+                </button>
+                <button
+                  type="button"
+                  className={`analytics-filter-btn ${analyticsStatusFilter === 'has_direct' ? 'active' : ''}`}
+                  onClick={() => setAnalyticsStatusFilter('has_direct')}
+                >
+                  Has Direct Pool ({municipalStats.filter(b => b.directCount > 0).length})
+                </button>
+                <button
+                  type="button"
+                  className={`analytics-filter-btn ${analyticsStatusFilter === 'met' ? 'active' : ''}`}
+                  onClick={() => setAnalyticsStatusFilter('met')}
+                >
+                  Goal Met (60%+) ({municipalStats.filter(b => b.deficit === 0).length})
+                </button>
               </div>
 
               <div className="analytics-table-wrapper">
                 <table className="analytics-master-table">
                   <thead>
                     <tr>
-                      <th>Barangay</th>
-                      <th style={{ textAlign: 'right' }}>Total Voters</th>
-                      <th style={{ textAlign: 'right' }}>60% Target</th>
-                      <th style={{ textAlign: 'center' }}>Mobilized</th>
-                      <th style={{ textAlign: 'center' }}>Progress</th>
-                      <th style={{ textAlign: 'right' }}>Deficit</th>
-                      <th style={{ textAlign: 'center' }}>Sub-Leaders</th>
-                      <th style={{ textAlign: 'center' }}>Coordinators</th>
-                      <th style={{ textAlign: 'center' }}>Target Model</th>
+                      <th 
+                        className="sortable-th"
+                        onClick={() => {
+                          if (analyticsSortColumn === 'name') {
+                            setAnalyticsSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setAnalyticsSortColumn('name');
+                            setAnalyticsSortDirection('asc');
+                          }
+                        }}
+                      >
+                        Barangay {analyticsSortColumn === 'name' ? (analyticsSortDirection === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th 
+                        style={{ textAlign: 'right' }}
+                        className="sortable-th"
+                        onClick={() => {
+                          if (analyticsSortColumn === 'totalVoters') {
+                            setAnalyticsSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setAnalyticsSortColumn('totalVoters');
+                            setAnalyticsSortDirection('desc');
+                          }
+                        }}
+                      >
+                        Voters {analyticsSortColumn === 'totalVoters' ? (analyticsSortDirection === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th 
+                        style={{ textAlign: 'right' }}
+                        className="sortable-th"
+                        onClick={() => {
+                          if (analyticsSortColumn === 'target60') {
+                            setAnalyticsSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setAnalyticsSortColumn('target60');
+                            setAnalyticsSortDirection('desc');
+                          }
+                        }}
+                      >
+                        60% Target {analyticsSortColumn === 'target60' ? (analyticsSortDirection === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th 
+                        style={{ textAlign: 'center' }}
+                        className="sortable-th"
+                        title="Voters mobilized through Referral Network Hierarchy (counts toward 60% Target)"
+                        onClick={() => {
+                          if (analyticsSortColumn === 'hierarchyCount') {
+                            setAnalyticsSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setAnalyticsSortColumn('hierarchyCount');
+                            setAnalyticsSortDirection('desc');
+                          }
+                        }}
+                      >
+                        Hierarchy (60%) {analyticsSortColumn === 'hierarchyCount' ? (analyticsSortDirection === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th 
+                        style={{ textAlign: 'center' }}
+                        className="sortable-th"
+                        title="Voters enrolled directly without a leader referral (not in 60% quota hierarchy)"
+                        onClick={() => {
+                          if (analyticsSortColumn === 'directCount') {
+                            setAnalyticsSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setAnalyticsSortColumn('directCount');
+                            setAnalyticsSortDirection('desc');
+                          }
+                        }}
+                      >
+                        Direct Pool {analyticsSortColumn === 'directCount' ? (analyticsSortDirection === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th 
+                        style={{ textAlign: 'center' }}
+                        className="sortable-th"
+                        onClick={() => {
+                          if (analyticsSortColumn === 'pct') {
+                            setAnalyticsSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setAnalyticsSortColumn('pct');
+                            setAnalyticsSortDirection('desc');
+                          }
+                        }}
+                      >
+                        Progress {analyticsSortColumn === 'pct' ? (analyticsSortDirection === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th 
+                        style={{ textAlign: 'right' }}
+                        className="sortable-th"
+                        onClick={() => {
+                          if (analyticsSortColumn === 'deficit') {
+                            setAnalyticsSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setAnalyticsSortColumn('deficit');
+                            setAnalyticsSortDirection('desc');
+                          }
+                        }}
+                      >
+                        Deficit {analyticsSortColumn === 'deficit' ? (analyticsSortDirection === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th 
+                        style={{ textAlign: 'center' }}
+                        className="sortable-th"
+                        onClick={() => {
+                          if (analyticsSortColumn === 'appointedSLCount') {
+                            setAnalyticsSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setAnalyticsSortColumn('appointedSLCount');
+                            setAnalyticsSortDirection('desc');
+                          }
+                        }}
+                      >
+                        Sub-Leaders {analyticsSortColumn === 'appointedSLCount' ? (analyticsSortDirection === 'asc' ? '↑' : '↓') : ''}
+                      </th>
+                      <th 
+                        style={{ textAlign: 'center' }}
+                        className="sortable-th"
+                        onClick={() => {
+                          if (analyticsSortColumn === 'totalActiveCoords') {
+                            setAnalyticsSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setAnalyticsSortColumn('totalActiveCoords');
+                            setAnalyticsSortDirection('desc');
+                          }
+                        }}
+                      >
+                        Coords {analyticsSortColumn === 'totalActiveCoords' ? (analyticsSortDirection === 'asc' ? '↑' : '↓') : ''}
+                      </th>
                       <th style={{ textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredMunicipalStats.map(b => (
+                    {filteredMunicipalStats.map(b => {
+                      const isSim = showCapacitySimulator;
+                      const simFactor = simulationPct / 100;
+                      const rowHierarchy = isSim ? Math.round(b.projectedTotal * simFactor) : b.hierarchyCount;
+                      const rowPct = isSim ? Math.min(100, Math.round((rowHierarchy / (b.target60 || 1)) * 100)) : b.pct;
+                      const rowDeficit = Math.max(0, b.target60 - rowHierarchy);
+                      const rowSurplus = Math.max(0, rowHierarchy - b.target60);
+                      const rowSL = isSim ? Math.round(b.subLeaderTarget * simFactor) : b.appointedSLCount;
+                      const rowCoords = isSim ? Math.round(b.targetCoords * simFactor) : b.totalActiveCoords;
+
+                      return (
                       <tr 
                         key={b.name} 
-                        className={b.name === networkBarangayFilter ? 'selected-row' : ''}
+                        className={`clickable-row ${b.name === networkBarangayFilter ? 'selected-row' : ''}`}
+                        onClick={() => setNetworkBarangayFilter(b.name)}
+                        title={`Click to focus command on Brgy. ${b.name}`}
                       >
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontWeight: 700, color: '#0f172a' }}>{b.name}</span>
-                            {b.hasOfficialRecord && (
-                              <span className="badge-official" title="Verified against COMELEC Resident Records">Verified</span>
-                            )}
-                            {b.name === networkBarangayFilter && (
-                              <span className="badge-active">Selected</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.82rem' }}>{b.name}</span>
+                              {b.hasOfficialRecord && (
+                                <span className="badge-official" title="Verified against COMELEC Resident Records">Verified</span>
+                              )}
+                              {b.name === networkBarangayFilter && (
+                                <span className="badge-active">Selected</span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                              {b.subLeaderTarget} SLs · {b.coordinatorQuota} Coords
+                            </span>
+                            {b.appointedLeaderName ? (
+                              <span style={{ fontSize: '0.64rem', color: '#0f172a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }} title={`Appointed Barangay Leader: ${b.appointedLeaderName}`}>
+                                <ShieldCheck size={10} strokeWidth={2.2} style={{ color: '#047857' }} /> {b.appointedLeaderName}
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', padding: 0, fontSize: '0.64rem', color: '#0284c7', fontWeight: 600, cursor: 'pointer', textAlign: 'left', textDecoration: 'underline' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setNetworkBarangayFilter(b.name);
+                                  setAppointingLeaderBarangay(b.name);
+                                  setAppointSearch('');
+                                }}
+                                title={`Click to appoint Barangay Leader for Brgy. ${b.name}`}
+                              >
+                                + Appoint Leader
+                              </button>
                             )}
                           </div>
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                        <td style={{ textAlign: 'right', fontWeight: 600, fontSize: '0.79rem' }}>
                           {b.totalVoters.toLocaleString()}
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#047857' }}>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#047857', fontSize: '0.79rem' }}>
                           {b.target60.toLocaleString()}
                         </td>
-                        <td style={{ textAlign: 'center', fontWeight: 700 }}>
-                          {b.currentCount.toLocaleString()}
-                        </td>
-                        <td style={{ textAlign: 'center', minWidth: 140 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                            <div className="table-progress-bar">
-                              <div 
-                                className="table-progress-fill" 
-                                style={{ width: `${b.pct}%` }} 
-                              />
-                            </div>
-                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: b.pct >= 60 ? '#047857' : '#334155' }}>
-                              {b.pct}%
-                            </span>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                            <span style={{ fontWeight: 700, color: '#047857', fontSize: '0.80rem' }}>{rowHierarchy.toLocaleString()}</span>
+                            {isSim ? (
+                              <span className="sim-active-pill" style={{ fontSize: '0.58rem', padding: '1px 4px' }}>Sim</span>
+                            ) : (
+                              b.recent7DaysRecruits > 0 && (
+                                <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#047857', background: '#ecfdf5', padding: '1px 3px', borderRadius: 3 }} title={`${b.recent7DaysRecruits} hierarchy recruits this week`}>
+                                  +{b.recent7DaysRecruits}
+                                </span>
+                              )
+                            )}
                           </div>
-                        </td>
-                        <td style={{ textAlign: 'right', color: b.deficit === 0 ? '#10b981' : '#e11d48', fontWeight: 700 }}>
-                          {b.deficit === 0 ? '✓ Goal Met' : `-${b.deficit.toLocaleString()}`}
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <span style={{ 
-                            padding: '3px 8px', 
-                            borderRadius: 6, 
-                            fontSize: '0.78rem', 
+                            fontSize: '0.72rem', 
+                            fontWeight: 700, 
+                            padding: '2px 6px', 
+                            borderRadius: 4, 
+                            background: b.directCount > 0 ? '#f1f5f9' : '#f8fafc', 
+                            color: b.directCount > 0 ? '#334155' : '#94a3b8',
+                            border: '1px solid #e2e8f0'
+                          }} title={`${b.directCount} registered voters not referred by leaders (unassigned to hierarchy)`}>
+                            {b.directCount.toLocaleString()}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'center' }}>
+                            <div className="table-progress-bar">
+                              <div 
+                                className="table-progress-fill" 
+                                style={{ width: `${rowPct}%`, background: isSim && rowPct >= 60 ? '#10b981' : undefined }} 
+                              />
+                            </div>
+                            <span style={{ fontSize: '0.72rem', fontWeight: 700, minWidth: 24, textAlign: 'left', color: rowPct >= 60 ? '#047857' : '#334155' }}>
+                              {rowPct}%
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '0.79rem' }}>
+                          {rowSurplus > 0 ? (
+                            <span style={{ color: '#059669', fontWeight: 800 }}>+{rowSurplus.toLocaleString()} Surplus</span>
+                          ) : (
+                            <span style={{ color: rowDeficit === 0 ? '#10b981' : '#e11d48' }}>
+                              {rowDeficit === 0 ? '✓ Met' : `-${rowDeficit.toLocaleString()}`}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ 
+                            padding: '2px 6px', 
+                            borderRadius: 4, 
+                            fontSize: '0.72rem', 
                             fontWeight: 700,
-                            background: b.appointedSLCount >= b.subLeaderTarget ? '#dcfce7' : '#f1f5f9',
-                            color: b.appointedSLCount >= b.subLeaderTarget ? '#166534' : '#475569'
+                            background: rowSL >= b.subLeaderTarget ? '#dcfce7' : (rowSL === 0 ? '#fef2f2' : '#f1f5f9'),
+                            color: rowSL >= b.subLeaderTarget ? '#166534' : (rowSL === 0 ? '#991b1b' : '#475569')
                           }}>
-                            {b.appointedSLCount} / {b.subLeaderTarget}
+                            {rowSL}/{b.subLeaderTarget}
                           </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 600 }}>
-                            {b.totalActiveCoords} <span style={{ color: '#94a3b8' }}>/ {b.targetCoords}</span>
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span style={{ fontSize: '0.75rem', color: '#64748b', background: '#f8fafc', padding: '2px 6px', borderRadius: 4 }}>
-                            {b.subLeaderTarget}SL × {b.coordinatorQuota}C × {b.memberQuota}M (+1)
+                          <span style={{ fontSize: '0.74rem', color: '#475569', fontWeight: 600 }}>
+                            {rowCoords} <span style={{ color: '#94a3b8' }}>/{b.targetCoords}</span>
                           </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
                           <button 
                             type="button" 
                             className="btn btn-xs btn-outline-emerald"
-                            onClick={() => {
+                            style={{ padding: '3px 7px', fontSize: '0.70rem', whiteSpace: 'nowrap' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setNetworkBarangayFilter(b.name);
                               setNetworkTabMode('campaign');
                             }}
                           >
-                            Open Command →
+                            Command →
                           </button>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                   <tfoot>
-                    <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
-                      <td>MUNICIPAL TOTAL</td>
-                      <td style={{ textAlign: 'right' }}>{municipalTotalVoters.toLocaleString()}</td>
-                      <td style={{ textAlign: 'right', color: '#047857' }}>{municipalTarget60.toLocaleString()}</td>
-                      <td style={{ textAlign: 'center' }}>{municipalCurrentMobilized.toLocaleString()}</td>
-                      <td style={{ textAlign: 'center' }}>{municipalPctProgress}%</td>
-                      <td style={{ textAlign: 'right', color: '#e11d48' }}>-{Math.max(0, municipalTarget60 - municipalCurrentMobilized).toLocaleString()}</td>
-                      <td style={{ textAlign: 'center' }}>{municipalTotalAppointedSL} / {municipalTargetSL}</td>
-                      <td style={{ textAlign: 'center' }}>{municipalTotalActiveCoords} / {municipalTargetCoords}</td>
-                      <td style={{ textAlign: 'center' }}>60% All Barangays</td>
-                      <td style={{ textAlign: 'center' }}>-</td>
-                    </tr>
+                    {(() => {
+                      const isSim = showCapacitySimulator;
+                      const simFactor = simulationPct / 100;
+                      const tfootHierarchy = isSim ? Math.round(municipalProjectedCapacity * simFactor) : municipalHierarchyMobilized;
+                      const tfootPct = isSim ? Math.min(100, Math.round((tfootHierarchy / (municipalTarget60 || 1)) * 100)) : municipalPctProgress;
+                      const tfootDeficit = Math.max(0, municipalTarget60 - tfootHierarchy);
+                      const tfootSurplus = Math.max(0, tfootHierarchy - municipalTarget60);
+                      const tfootSL = isSim ? Math.round(municipalTargetSL * simFactor) : municipalTotalAppointedSL;
+                      const tfootCoords = isSim ? Math.round(municipalTargetCoords * simFactor) : municipalTotalActiveCoords;
+
+                      return (
+                        <tr style={{ background: isSim ? '#f0fdf4' : '#f8fafc', fontWeight: 800 }}>
+                          <td style={{ fontSize: '0.78rem' }}>
+                            {isSim ? 'SIMULATED MUNICIPAL TOTAL (9)' : 'MUNICIPAL TOTAL (9)'}
+                          </td>
+                          <td style={{ textAlign: 'right', fontSize: '0.79rem' }}>{municipalTotalVoters.toLocaleString()}</td>
+                          <td style={{ textAlign: 'right', color: '#047857', fontSize: '0.79rem' }}>{municipalTarget60.toLocaleString()}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                              <span style={{ color: '#047857', fontSize: '0.80rem' }}>{tfootHierarchy.toLocaleString()}</span>
+                              {isSim ? (
+                                <span className="sim-active-pill" style={{ fontSize: '0.58rem', padding: '1px 4px' }}>Sim</span>
+                              ) : (
+                                municipal7dGrowth > 0 && (
+                                  <span style={{ fontSize: '0.62rem', color: '#047857', fontWeight: 700 }}>
+                                    +{municipal7dGrowth}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ fontSize: '0.72rem', padding: '2px 6px', borderRadius: 4, background: '#f1f5f9', color: '#334155' }}>
+                              {municipalDirectPool.toLocaleString()}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center', fontSize: '0.78rem', color: isSim && tfootPct >= 60 ? '#047857' : undefined }}>{tfootPct}%</td>
+                          <td style={{ textAlign: 'right', fontSize: '0.79rem' }}>
+                            {tfootSurplus > 0 ? (
+                              <span style={{ color: '#059669', fontWeight: 800 }}>+{tfootSurplus.toLocaleString()} Surplus</span>
+                            ) : (
+                              <span style={{ color: '#e11d48' }}>-{tfootDeficit.toLocaleString()}</span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center', fontSize: '0.74rem' }}>{tfootSL}/{municipalTargetSL}</td>
+                          <td style={{ textAlign: 'center', fontSize: '0.74rem' }}>{tfootCoords}/{municipalTargetCoords}</td>
+                          <td style={{ textAlign: 'center' }}>-</td>
+                        </tr>
+                      );
+                    })()}
                   </tfoot>
                 </table>
-              </div>
-            </div>
-
-            {/* Selected Barangay Deep-Dive Section */}
-            <div className="analytics-deepdive-grid">
-              {/* Sector / Coalition Demographics */}
-              <div className="analytics-deepdive-card">
-                <div className="deepdive-card-header">
-                  <div>
-                    <h4 className="deepdive-card-title">Brgy. {networkBarangayFilter} • Sector Mobilization</h4>
-                    <p className="deepdive-card-desc">Voters categorized by key voting sectors and community groups</p>
-                  </div>
-                  <span className="badge-tag">{totalBrgyVotersEnrolled} Total Enrolled</span>
-                </div>
-
-                <div className="sector-breakdown-list">
-                  {sectorDistribution.map(sec => (
-                    <div key={sec.sector} className="sector-item">
-                      <div className="sector-item-info">
-                        <span className="sector-dot" style={{ background: sec.color }} />
-                        <span className="sector-name">{sec.sector}</span>
-                        <span className="sector-stats">{sec.count} ({sec.pct}%)</span>
-                      </div>
-                      <div className="sector-bar-track">
-                        <div 
-                          className="sector-bar-fill" 
-                          style={{ width: `${sec.pct}%`, background: sec.color }} 
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  {sectorDistribution.length === 0 && (
-                    <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8' }}>
-                      No registered voters categorized yet for this barangay.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Top Recruiters Leaderboard */}
-              <div className="analytics-deepdive-card">
-                <div className="deepdive-card-header">
-                  <div>
-                    <h4 className="deepdive-card-title">Brgy. {networkBarangayFilter} • Field Network Leaders</h4>
-                    <p className="deepdive-card-desc">Active organizers with direct downstream recruits</p>
-                  </div>
-                  <span className="badge-tag">{brgyTopRecruiters.length} Active Recruiters</span>
-                </div>
-
-                <div className="recruiter-list-compact">
-                  {brgyTopRecruiters.slice(0, 7).map((ldr, idx) => (
-                    <div key={ldr.name} className="recruiter-item">
-                      <div className="recruiter-rank">#{idx + 1}</div>
-                      <div className="recruiter-info">
-                        <div className="recruiter-name">{ldr.name}</div>
-                        <div className="recruiter-sub">
-                          {ldr.count} direct recruits • Network Depth: Level {ldr.maxDepth || 1}
-                        </div>
-                      </div>
-                      <div className="recruiter-score">
-                        <span className="score-val">{ldr.count}</span>
-                        <span className="score-lbl">recruits</span>
-                      </div>
-                    </div>
-                  ))}
-                  {brgyTopRecruiters.length === 0 && (
-                    <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8' }}>
-                      No active recruiters recorded yet for {networkBarangayFilter}.
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -9051,250 +12293,119 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── GLOBAL TREES VIEW (PRESERVED) ── */}
+        {/* ── TREES: global referral forest, or barangay hierarchy ── */}
         {networkTabMode === 'trees' && (
           <>
-            {/* Global Level Metrics Ribbon */}
-            <div className="network-metrics-grid">
-              {/* Total Referrals Card */}
-              <div 
-                className={`network-metric-card total-card ${networkLevelFilter === 'all' ? 'active' : ''}`}
-                onClick={() => selectLevelFilter('all')}
-              >
-                <div className="network-metric-accent total" />
-                <div className="network-metric-card-top">
-                  <span className="network-metric-label">All Referrals</span>
-                  <div className="network-metric-icon total"><Users size={16} /></div>
-                </div>
-                <div className="network-metric-val">{totalReferrals}</div>
-                <div className="network-metric-sub">
-                  <strong>{allTimeLeaders.length}</strong> active recruiters
-                </div>
-              </div>
-
-              {/* Level 1 (Direct) Card */}
-              <div 
-                className={`network-metric-card l1-card ${networkLevelFilter === 'l1' ? 'active' : ''}`}
-                onClick={() => selectLevelFilter('l1')}
-              >
-                <div className="network-metric-accent l1" />
-                <div className="network-metric-card-top">
-                  <span className="network-metric-label">Level 1 (Direct)</span>
-                  <div className="network-metric-icon l1"><UserCheck size={16} /></div>
-                </div>
-                <div className="network-metric-val l1-text">{totalL1}</div>
-                <div className="network-metric-sub">
-                  <strong>{countL1Leaders}</strong> leaders with L1 direct
-                </div>
-              </div>
-
-              {/* Level 2 (Secondary) Card */}
-              <div 
-                className={`network-metric-card l2-card ${networkLevelFilter === 'l2' ? 'active' : ''}`}
-                onClick={() => selectLevelFilter('l2')}
-              >
-                <div className="network-metric-accent l2" />
-                <div className="network-metric-card-top">
-                  <span className="network-metric-label">Level 2 (Secondary)</span>
-                  <div className="network-metric-icon l2"><Network size={16} /></div>
-                </div>
-                <div className="network-metric-val l2-text">{totalL2}</div>
-                <div className="network-metric-sub">
-                  <strong>{countL2Leaders}</strong> leaders with L2 downlines
-                </div>
-              </div>
-
-              {/* Level 3 (Tertiary) Card */}
-              <div 
-                className={`network-metric-card l3-card ${networkLevelFilter === 'l3' ? 'active' : ''}`}
-                onClick={() => selectLevelFilter('l3')}
-              >
-                <div className="network-metric-accent l3" />
-                <div className="network-metric-card-top">
-                  <span className="network-metric-label">Level 3 (Tertiary)</span>
-                  <div className="network-metric-icon l3"><Share2 size={16} /></div>
-                </div>
-                <div className="network-metric-val l3-text">{totalL3}</div>
-                <div className="network-metric-sub">
-                  <strong>{countL3Leaders}</strong> leaders with L3 downlines
-                </div>
-              </div>
-
-              {/* Level 4+ (Deep) Card */}
-              {totalL4plus > 0 && (
-                <div 
-                  className={`network-metric-card l4-card ${networkLevelFilter === 'l4' ? 'active' : ''}`}
-                  onClick={() => selectLevelFilter('l4')}
-                >
-                  <div className="network-metric-accent l4" />
-                  <div className="network-metric-card-top">
-                    <span className="network-metric-label">Level 4+ (Deep)</span>
-                    <div className="network-metric-icon l4"><Sparkles size={16} /></div>
-                  </div>
-                  <div className="network-metric-val l4-text">{totalL4plus}</div>
-                  <div className="network-metric-sub">
-                    <strong>{countL4Leaders}</strong> deep tier leaders
-                  </div>
-                </div>
-              )}
-            </div>
-
-        {/* Level Filter & Sort Toolbar */}
-        <div className="network-controls-bar">
-          <div className="network-level-pills">
-            <button 
-              type="button"
-              className={`network-level-pill ${networkLevelFilter === 'all' ? 'active' : ''}`}
-              onClick={() => selectLevelFilter('all')}
-            >
-              <span>All Referrals</span>
-              <span className="count-tag">{totalReferrals}</span>
-            </button>
-            <button 
-              type="button"
-              className={`network-level-pill l1 ${networkLevelFilter === 'l1' ? 'active' : ''}`}
-              onClick={() => selectLevelFilter('l1')}
-            >
-              <span className="dot l1" />
-              <span>Level 1 Direct</span>
-              <span className="count-tag">{totalL1}</span>
-            </button>
-            <button 
-              type="button"
-              className={`network-level-pill l2 ${networkLevelFilter === 'l2' ? 'active' : ''}`}
-              onClick={() => selectLevelFilter('l2')}
-            >
-              <span className="dot l2" />
-              <span>Level 2 Secondary</span>
-              <span className="count-tag">{totalL2}</span>
-            </button>
-            <button 
-              type="button"
-              className={`network-level-pill l3 ${networkLevelFilter === 'l3' ? 'active' : ''}`}
-              onClick={() => selectLevelFilter('l3')}
-            >
-              <span className="dot l3" />
-              <span>Level 3 Tertiary</span>
-              <span className="count-tag">{totalL3}</span>
-            </button>
-            {totalL4plus > 0 && (
-              <button 
-                type="button"
-                className={`network-level-pill l4 ${networkLevelFilter === 'l4' ? 'active' : ''}`}
-                onClick={() => selectLevelFilter('l4')}
-              >
-                <span className="dot l4" />
-                <span>Level 4+ Deep</span>
-                <span className="count-tag">{totalL4plus}</span>
+            <div className="nh-switch" role="tablist" aria-label="Tree purpose">
+              <button type="button" className={treesPurpose === 'global' ? 'on' : ''} onClick={() => setTreesPurpose('global')}>
+                Global referral trees
               </button>
-            )}
-          </div>
-
-          <div className="network-sort-wrap">
-            <span className="network-sort-label">Sort By:</span>
-            <select 
-              value={networkSortBy} 
-              onChange={(e) => setNetworkSortBy(e.target.value)}
-              className="network-sort-select"
-            >
-              <option value="total">Total Referrals (High → Low)</option>
-              <option value="l1">Most Level 1 (Direct)</option>
-              <option value="l2">Most Level 2 (Secondary)</option>
-              <option value="l3">Most Level 3 (Tertiary)</option>
-              <option value="name">Leader Name (A → Z)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Leaderboards Row */}
-        {networkViewMode === null ? (
-          <div className="leader-cards-row">
-            {/* All Time */}
-            <div className="leader-card">
-              <div className="leader-card-header">
-                <div>
-                  <h4 className="leader-card-title">All-Time Leaders</h4>
-                  <span className="leader-card-sub">{levelBadgeTitle} ranking</span>
-                </div>
-                <span className="leader-count-chip">{rankedAllTimeLeaders.length}</span>
-              </div>
-              {rankedAllTimeLeaders.length === 0 ? (
-                <div className="leader-card-empty">No leaders with {levelBadgeTitle} referrals</div>
-              ) : (
-                <>
-                  {renderLeaderList(rankedAllTimeLeaders, 8)}
-                  {rankedAllTimeLeaders.length > 8 && (
-                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('all')}>
-                      View All {rankedAllTimeLeaders.length} Leaders →
-                    </button>
-                  )}
-                </>
-              )}
+              <button type="button" className={treesPurpose === 'hierarchy' ? 'on' : ''} onClick={() => setTreesPurpose('hierarchy')}>
+                Barangay hierarchy
+              </button>
             </div>
-
-            {/* This Month */}
-            <div className="leader-card">
-              <div className="leader-card-header">
-                <div>
-                  <h4 className="leader-card-title">Monthly Recruits</h4>
-                  <span className="leader-card-sub">{levelBadgeTitle} monthly</span>
-                </div>
-                <select
-                  className="leader-month-picker"
-                  value={networkMonthFilter}
-                  onChange={e => setNetworkMonthFilter(e.target.value)}
-                >
-                  {monthOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
+            {treesPurpose === 'global' && (
+            <>
+            <div className="gr-shell">
+              <div className="gr-stats">
+                {[
+                  { id: 'all', label: 'All referrals', value: totalReferrals, note: allTimeLeaders.length + ' recruiters' },
+                  { id: 'l1', label: 'Direct', value: totalL1, note: countL1Leaders + ' leaders' },
+                  { id: 'l2', label: 'Second level', value: totalL2, note: countL2Leaders + ' leaders' },
+                  { id: 'l3', label: 'Third level', value: totalL3, note: countL3Leaders + ' leaders' },
+                  ...(totalL4plus > 0 ? [{ id: 'l4', label: 'Deeper', value: totalL4plus, note: countL4Leaders + ' leaders' }] : []),
+                ].map(stat => (
+                  <button
+                    key={stat.id}
+                    type="button"
+                    className={'gr-stat' + (networkLevelFilter === stat.id ? ' on' : '')}
+                    onClick={() => selectLevelFilter(stat.id)}
+                  >
+                    <span className="gr-stat-label">{stat.label}</span>
+                    <span className="gr-stat-value">{stat.value.toLocaleString()}</span>
+                    <span className="gr-stat-note">{stat.note}</span>
+                  </button>
+                ))}
               </div>
-              {rankedMonthLeaders.length === 0 ? (
-                <div className="leader-card-empty">No new recruits in this period</div>
-              ) : (
-                <>
-                  {renderLeaderList(rankedMonthLeaders, 8)}
-                  {rankedMonthLeaders.length > 8 && (
-                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('month')}>
-                      View All {rankedMonthLeaders.length} Leaders →
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
 
-            {/* This Week */}
-            <div className="leader-card">
-              <div className="leader-card-header">
-                <div>
-                  <h4 className="leader-card-title">Weekly Recruits</h4>
-                  <span className="leader-card-sub">
-                    {levelBadgeTitle} ({startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})
-                  </span>
+              <section className="gr-board">
+                <div className="gr-board-bar">
+                  <div className="gr-periods">
+                    <button type="button" className={referralBoard === 'all' ? 'on' : ''} onClick={() => { setReferralBoard('all'); setReferralShowAll(false); }}>All-time</button>
+                    <button type="button" className={referralBoard === 'month' ? 'on' : ''} onClick={() => { setReferralBoard('month'); setReferralShowAll(false); }}>This month</button>
+                    <button type="button" className={referralBoard === 'week' ? 'on' : ''} onClick={() => { setReferralBoard('week'); setReferralShowAll(false); }}>This week</button>
+                  </div>
+                  <div className="gr-board-tools">
+                    {referralBoard === 'month' && (
+                      <select className="gr-select" value={networkMonthFilter} onChange={e => setNetworkMonthFilter(e.target.value)} aria-label="Month">
+                        {monthOptions.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    )}
+                    {referralBoard === 'week' && (
+                      <span className="gr-week">
+                        {startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                    <select className="gr-select" value={networkSortBy} onChange={(e) => setNetworkSortBy(e.target.value)} aria-label="Sort leaders">
+                      <option value="total">Total, high to low</option>
+                      <option value="l1">Most direct</option>
+                      <option value="l2">Most second level</option>
+                      <option value="l3">Most third level</option>
+                      <option value="name">Name, A to Z</option>
+                    </select>
+                  </div>
                 </div>
-                <span className="leader-count-chip">{rankedWeekLeaders.length}</span>
-              </div>
-              {rankedWeekLeaders.length === 0 ? (
-                <div className="leader-card-empty">No new recruits this week</div>
-              ) : (
-                <>
-                  {renderLeaderList(rankedWeekLeaders, 8)}
-                  {rankedWeekLeaders.length > 8 && (
-                    <button className="btn btn-view-all" onClick={() => setNetworkViewMode('week')}>
-                      View All {rankedWeekLeaders.length} Leaders →
-                    </button>
-                  )}
-                </>
-              )}
+                {(() => {
+                  const boardLeaders = referralBoard === 'month' ? rankedMonthLeaders : referralBoard === 'week' ? rankedWeekLeaders : rankedAllTimeLeaders;
+                  const visible = referralShowAll ? boardLeaders : boardLeaders.slice(0, 12);
+                  const scoreOf = (leader) => networkLevelFilter === 'l1' ? leader.l1 : networkLevelFilter === 'l2' ? leader.l2 : networkLevelFilter === 'l3' ? leader.l3 : networkLevelFilter === 'l4' ? leader.l4plus : leader.total;
+                  if (visible.length === 0) {
+                    return <p className="gr-empty">No leaders in this period.</p>;
+                  }
+                  return (
+                    <>
+                      <div className="gr-list">
+                        {visible.map((leader, index) => (
+                          <button
+                            key={leader.name}
+                            type="button"
+                            className="gr-row"
+                            onClick={() => {
+                              const matchedMember = approvedRegs.find(r => getResidentName(r) === leader.name);
+                              if (matchedMember) {
+                                setSelectedNetworkMember(matchedMember);
+                                setNetworkSearch(leader.name);
+                              } else {
+                                setNetworkSearch(leader.name);
+                              }
+                            }}
+                          >
+                            <span className="gr-rank">{index + 1}</span>
+                            <span className="gr-avatar">{getInitials(leader.name)}</span>
+                            <span className="gr-person">
+                              <span className="gr-name">{leader.name}</span>
+                              {networkLevelFilter === 'all' && (
+                                <span className="gr-levels">
+                                  {leader.l1} direct{leader.l2 ? ' · ' + leader.l2 + ' second' : ''}{leader.l3 ? ' · ' + leader.l3 + ' third' : ''}{leader.l4plus ? ' · ' + leader.l4plus + ' deeper' : ''}
+                                </span>
+                              )}
+                            </span>
+                            <span className="gr-total">{scoreOf(leader).toLocaleString()}</span>
+                          </button>
+                        ))}
+                      </div>
+                      {boardLeaders.length > 12 && (
+                        <button type="button" className="gr-more" onClick={() => setReferralShowAll(v => !v)}>
+                          {referralShowAll ? 'Show top 12' : 'Show all ' + boardLeaders.length}
+                        </button>
+                      )}
+                    </>
+                  );
+                })()}
+              </section>
             </div>
-          </div>
-        ) : (
-          <>
-            {networkViewMode === 'all' && renderExpandedList(rankedAllTimeLeaders, `All-Time Referral Leaders (${levelBadgeTitle})`)}
-            {networkViewMode === 'month' && renderExpandedList(rankedMonthLeaders, `Monthly Referral Leaders (${levelBadgeTitle}) — ${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`)}
-            {networkViewMode === 'week' && renderExpandedList(rankedWeekLeaders, `Weekly Referral Leaders (${levelBadgeTitle}) — ${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`)}
-          </>
-        )}
 
         {/* Search Bar with live dropdown */}
         <div className="network-search-section">
@@ -9679,6 +12790,9 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+            </>
+            )}
+            {treesPurpose === 'hierarchy' && renderBarangayHierarchy()}
           </>
         )}
 
@@ -9687,529 +12801,896 @@ export default function AdminPage() {
           <div className="modal-overlay" onClick={() => setNetworkActiveSubLeaderModal(null)}>
             <div className="modal-card coordinator-modal-card" onClick={e => e.stopPropagation()}>
               {/* Modal Header */}
-              <div className="modal-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div className="subleader-slot-badge" style={{ position: 'static' }}>
-                    #{networkActiveSubLeaderModal.slotNumber}
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
-                      {networkActiveSubLeaderModal.leaderName}’s Downline Team
-                    </h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
-                      Sub-Leader Multi-Tier Roster · Brgy. {networkBarangayFilter} · Quota: {networkActiveSubLeaderModal.coordinatorQuota} Coordinators (Each targeting {activeBrgyConfig.memberQuota} Members +1)
-                    </p>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button 
-                    type="button" 
-                    className="btn btn-sm btn-outline-emerald" 
-                    style={{ fontSize: '0.74rem', padding: '4px 12px' }}
-                    onClick={() => exportSubLeaderTeamExcel(networkActiveSubLeaderModal)}
-                    title="Export complete multi-tier cluster roster to Excel"
-                  >
-                    <Download size={13} style={{ marginRight: 4 }} /> Export Excel
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn btn-sm btn-outline-danger" 
-                    style={{ fontSize: '0.74rem', padding: '4px 10px' }}
-                    onClick={() => {
-                      if (confirm(`Remove ${networkActiveSubLeaderModal.leaderName} as Sub-Leader for Slot #${networkActiveSubLeaderModal.slotNumber}?`)) {
-                        saveAppointedSubLeader(networkBarangayFilter, networkActiveSubLeaderModal.slotNumber, null);
-                        setNetworkActiveSubLeaderModal(null);
-                      }
-                    }}
-                    title="Remove this appointed sub-leader"
-                  >
-                    Unassign
-                  </button>
-                  <button 
-                    type="button" 
-                    className="modal-close-x" 
-                    onClick={() => setNetworkActiveSubLeaderModal(null)}
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              </div>
+              {(() => {
+                const coordQuota = networkActiveSubLeaderModal.coordinatorQuota || activeBrgyConfig.coordinatorQuota || 20;
+                const memberTarget = coordQuota * activeBrgyConfig.memberQuota;
+                const coordPct = Math.min(100, Math.round(((networkActiveSubLeaderModal.coordinatorsCount || 0) / coordQuota) * 100));
+                const memPct = memberTarget > 0 ? Math.min(100, Math.round(((networkActiveSubLeaderModal.totalMembersCount || 0) / memberTarget) * 100)) : 0;
+                const remainingCoords = Math.max(0, coordQuota - (networkActiveSubLeaderModal.coordinatorsCount || 0));
 
-              <div className="modal-body">
-                {/* 4-Tier Pipeline Health Cards */}
-                <div className="modal-cluster-metrics-row">
-                  {/* Tier 1: Coordinators */}
-                  <div className="modal-cluster-metric-card">
-                    <span className="modal-cluster-metric-lbl">Tier 1 · Coordinators</span>
-                    <span className="modal-cluster-metric-val">
-                      {networkActiveSubLeaderModal.coordinatorsCount} / {networkActiveSubLeaderModal.coordinatorQuota}
-                    </span>
-                    <span className="modal-cluster-metric-sub">
-                      {Math.min(100, Math.round((networkActiveSubLeaderModal.coordinatorsCount / networkActiveSubLeaderModal.coordinatorQuota) * 100))}% of assigned quota
-                    </span>
-                  </div>
-
-                  {/* Tier 2: Citizen Members */}
-                  <div className="modal-cluster-metric-card">
-                    <span className="modal-cluster-metric-lbl">Tier 2 · Citizen Members</span>
-                    <span className="modal-cluster-metric-val">
-                      {networkActiveSubLeaderModal.totalMembersCount || 0}
-                    </span>
-                    <span className="modal-cluster-metric-sub">
-                      Goal: {networkActiveSubLeaderModal.coordinatorQuota * activeBrgyConfig.memberQuota} ({activeBrgyConfig.memberQuota}/coord)
-                    </span>
-                  </div>
-
-                  {/* Tier 3: +1 Recruits */}
-                  <div className="modal-cluster-metric-card">
-                    <span className="modal-cluster-metric-lbl">Tier 3 · +1 Recruits</span>
-                    <span className="modal-cluster-metric-val">
-                      {networkActiveSubLeaderModal.totalRecruitsCount || 0}
-                    </span>
-                    <span className="modal-cluster-metric-sub">
-                      Household / neighbor voters
-                    </span>
-                  </div>
-
-                  {/* Overall Recruits */}
-                  <div className="modal-cluster-metric-card" style={{ background: '#ecfdf5', borderColor: '#a7f3d0' }}>
-                    <span className="modal-cluster-metric-lbl" style={{ color: '#047857' }}>Overall Recruits</span>
-                    <span className="modal-cluster-metric-val" style={{ color: '#047857' }}>
-                      {networkActiveSubLeaderModal.totalClusterVotes || 0}
-                    </span>
-                    <span className="modal-cluster-metric-sub" style={{ color: '#065f46' }}>
-                      Recruited across downline
-                    </span>
-                  </div>
-                </div>
-
-                {/* Search & Toolbar Bar */}
-                <div className="modal-search-toolbar">
-                  <div className="modal-search-input-box">
-                    <Search size={14} color="#64748b" />
-                    <input 
-                      type="text" 
-                      placeholder="Search coordinator, member, or phone in this team..." 
-                      value={modalSearchFilter}
-                      onChange={e => setModalSearchFilter(e.target.value)}
-                    />
-                    {modalSearchFilter && (
-                      <X size={14} color="#94a3b8" style={{ cursor: 'pointer' }} onClick={() => setModalSearchFilter('')} />
-                    )}
-                  </div>
-
-                  <div className="modal-toolbar-actions">
-                    <button 
-                      type="button" 
-                      className="btn btn-xs btn-outline-secondary"
-                      onClick={() => {
-                        const allKeys = {};
-                        (networkActiveSubLeaderModal.coordinators || []).forEach(c => {
-                          allKeys[c.coordName] = true;
-                          (c.members || []).forEach(m => { allKeys[m.memName] = true; });
-                        });
-                        setModalExpandedCoords(allKeys);
-                        setModalExpandedMembers(allKeys);
-                      }}
-                      title="Expand all coordinators and members"
-                    >
-                      <ChevronDown size={12} style={{ marginRight: 2 }} /> Expand All
-                    </button>
-                    <button 
-                      type="button" 
-                      className="btn btn-xs btn-outline-secondary"
-                      onClick={() => {
-                        setModalExpandedCoords({});
-                        setModalExpandedMembers({});
-                      }}
-                      title="Collapse all"
-                    >
-                      Collapse All
-                    </button>
-                    <button 
-                      type="button" 
-                      className={`btn btn-xs ${modalShowOpenSlots ? 'btn-outline-emerald' : 'btn-outline-secondary'}`}
-                      onClick={() => setModalShowOpenSlots(prev => !prev)}
-                      title="Toggle open coordinator slots"
-                    >
-                      {modalShowOpenSlots ? 'Hide Open Slots' : 'Show Open Slots'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Coordinator Status Filter Pills */}
-                <div className="modal-filter-pills" style={{ marginBottom: 12 }}>
-                  <button 
-                    type="button" 
-                    className={`modal-filter-pill ${modalCoordFilterStatus === 'all' ? 'active' : ''}`}
-                    onClick={() => setModalCoordFilterStatus('all')}
-                  >
-                    All Coordinators ({networkActiveSubLeaderModal.coordinators?.length || 0})
-                  </button>
-                  <button 
-                    type="button" 
-                    className={`modal-filter-pill ${modalCoordFilterStatus === 'met' ? 'active' : ''}`}
-                    onClick={() => setModalCoordFilterStatus('met')}
-                  >
-                    ✓ Quota Met ({networkActiveSubLeaderModal.coordinators?.filter(c => c.status === 'met').length || 0})
-                  </button>
-                  <button 
-                    type="button" 
-                    className={`modal-filter-pill ${modalCoordFilterStatus === 'progress' ? 'active' : ''}`}
-                    onClick={() => setModalCoordFilterStatus('progress')}
-                  >
-                    ⏳ In Progress ({networkActiveSubLeaderModal.coordinators?.filter(c => c.status === 'progress').length || 0})
-                  </button>
-                  <button 
-                    type="button" 
-                    className={`modal-filter-pill ${modalCoordFilterStatus === 'dormant' ? 'active' : ''}`}
-                    onClick={() => setModalCoordFilterStatus('dormant')}
-                  >
-                    🔴 Dormant / Needs Follow-up ({networkActiveSubLeaderModal.coordinators?.filter(c => c.status === 'dormant').length || 0})
-                  </button>
-                </div>
-
-                {/* Coordinators Accordion List */}
-                <div className="coordinator-list-grid">
-                  {(() => {
-                    const query = modalSearchFilter.trim().toLowerCase();
-                    const filteredCoordinators = (networkActiveSubLeaderModal.coordinators || []).filter(cItem => {
-                      if (modalCoordFilterStatus !== 'all' && cItem.status !== modalCoordFilterStatus) return false;
-                      if (!query) return true;
-                      if (cItem.coordName.toLowerCase().includes(query)) return true;
-                      if (cItem.coord?.contact && cItem.coord.contact.includes(query)) return true;
-                      // Match inside members
-                      const matchMember = (cItem.members || []).some(m => 
-                        m.memName.toLowerCase().includes(query) || 
-                        (m.mem?.contact && m.mem.contact.includes(query)) ||
-                        (m.recruits || []).some(r => getResidentName(r).toLowerCase().includes(query))
-                      );
-                      return matchMember;
-                    });
-
-                    if (networkActiveSubLeaderModal.coordinators.length === 0) {
-                      return (
-                        <div className="network-empty-state" style={{ padding: '28px 20px', textAlign: 'center' }}>
-                          <Users size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-                          <h5 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 800 }}>No Coordinators Recruited Yet</h5>
-                          <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>
-                            {networkActiveSubLeaderModal.leaderName} has not recruited any Level 1 Coordinators yet.
-                          </p>
-                          <div style={{ marginTop: 12, fontSize: '0.78rem', color: '#047857', background: '#ecfdf5', padding: '8px 14px', borderRadius: 8, display: 'inline-block' }}>
-                            Target Quota: <strong>{networkActiveSubLeaderModal.coordinatorQuota} Coordinators</strong> (Each bringing {activeBrgyConfig.memberQuota} Members)
+                return (
+                  <>
+                    <div className="modal-header subleader-modal-header">
+                      <div className="subleader-header-identity">
+                        <div className="subleader-header-slot-pill">
+                          <span>Slot #{networkActiveSubLeaderModal.slotNumber}</span>
+                        </div>
+                        <div className="subleader-header-text">
+                          <div className="subleader-header-name-row">
+                            <h3 className="subleader-header-name">
+                              {networkActiveSubLeaderModal.leaderName}
+                            </h3>
+                            <span className="subleader-header-role-chip">
+                              <CheckCircle size={11} strokeWidth={1.8} /> Sub-Leader
+                            </span>
+                          </div>
+                          <div className="subleader-header-meta-chips">
+                            <span className="subleader-meta-chip">
+                              <MapPin size={11} strokeWidth={1.8} /> Brgy. {networkBarangayFilter}
+                            </span>
+                            <span className="subleader-meta-chip">
+                              <Target size={11} strokeWidth={1.8} /> Quota: {coordQuota} Coordinators
+                            </span>
+                            <span className="subleader-meta-chip">
+                              <Users size={11} strokeWidth={1.8} /> Goal: {memberTarget} Members ({activeBrgyConfig.memberQuota}/coord +1)
+                            </span>
                           </div>
                         </div>
-                      );
-                    }
+                      </div>
 
-                    if (filteredCoordinators.length === 0) {
-                      return (
-                        <div className="network-empty-state" style={{ padding: '24px 16px', textAlign: 'center' }}>
-                          <Search size={28} style={{ opacity: 0.3, marginBottom: 6 }} />
-                          <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748b' }}>
-                            No team members match "{modalSearchFilter}".
-                          </p>
-                        </div>
-                      );
-                    }
+                      <div className="subleader-header-actions">
+                        <button 
+                          type="button" 
+                          className="subleader-btn-export" 
+                          onClick={() => exportSubLeaderTeamExcel(networkActiveSubLeaderModal)}
+                          title="Export complete multi-tier cluster roster to Excel"
+                        >
+                          <Download size={13} strokeWidth={1.8} />
+                          <span>Export Excel</span>
+                        </button>
+                        <button 
+                          type="button" 
+                          className="subleader-btn-unassign" 
+                          onClick={() => {
+                            if (confirm(`Remove ${networkActiveSubLeaderModal.leaderName} as Sub-Leader for Slot #${networkActiveSubLeaderModal.slotNumber}?`)) {
+                              saveAppointedSubLeader(networkBarangayFilter, networkActiveSubLeaderModal.slotNumber, null);
+                              setNetworkActiveSubLeaderModal(null);
+                            }
+                          }}
+                          title="Remove this appointed sub-leader"
+                        >
+                          <Trash2 size={13} strokeWidth={1.8} />
+                          <span>Unassign</span>
+                        </button>
+                        <button 
+                          type="button" 
+                          className="subleader-btn-close" 
+                          onClick={() => setNetworkActiveSubLeaderModal(null)}
+                          aria-label="Close modal"
+                        >
+                          <X size={15} strokeWidth={1.8} />
+                        </button>
+                      </div>
+                    </div>
 
-                    return (
-                      <>
-                        {filteredCoordinators.map((cItem, cIdx) => {
-                          const { coord, coordName, members = [], membersCount = 0, recruitsCount = 0, recent7DaysRecruits = 0, status } = cItem;
-                          const isCoordExpanded = modalExpandedCoords[coordName] ?? Boolean(query);
-                          const memberPct = Math.min(100, Math.round((membersCount / activeBrgyConfig.memberQuota) * 100));
-
-                          return (
+                    <div className="modal-body subleader-modal-body">
+                      {/* 4-Tier Pipeline Health Cards */}
+                      <div className="modal-cluster-metrics-row">
+                        {/* Tier 1: Coordinators */}
+                        <div className="modal-cluster-metric-card">
+                          <div className="modal-metric-card-top">
+                            <span className="modal-cluster-metric-lbl">Tier 1 · Coordinators</span>
+                            <Users size={14} strokeWidth={1.8} className="modal-metric-icon-subtle" />
+                          </div>
+                          <div className="modal-metric-main-val">
+                            <span className="modal-cluster-metric-val">
+                              {networkActiveSubLeaderModal.coordinatorsCount || 0}
+                              <small className="modal-metric-denom"> / {coordQuota}</small>
+                            </span>
+                            <span className="modal-metric-pct-badge">
+                              {coordPct}%
+                            </span>
+                          </div>
+                          <div className="modal-metric-progress-track">
                             <div 
-                              key={coordName} 
-                              className={`coord-accordion-block ${isCoordExpanded ? 'is-expanded' : ''}`}
+                              className="modal-metric-progress-fill" 
+                              style={{ width: `${Math.max(coordPct > 0 ? coordPct : 2, 2)}%` }} 
+                            />
+                          </div>
+                          <span className="modal-cluster-metric-sub">
+                            {networkActiveSubLeaderModal.coordinatorsCount >= coordQuota
+                              ? 'Quota achieved'
+                              : `${remainingCoords} positions open`}
+                          </span>
+                        </div>
+
+                        {/* Tier 2: Citizen Members */}
+                        <div className="modal-cluster-metric-card">
+                          <div className="modal-metric-card-top">
+                            <span className="modal-cluster-metric-lbl">Tier 2 · Citizen Members</span>
+                            <Layers size={14} strokeWidth={1.8} className="modal-metric-icon-subtle" />
+                          </div>
+                          <div className="modal-metric-main-val">
+                            <span className="modal-cluster-metric-val">
+                              {networkActiveSubLeaderModal.totalMembersCount || 0}
+                              <small className="modal-metric-denom"> / {memberTarget}</small>
+                            </span>
+                            <span className="modal-metric-pct-badge">
+                              {memPct}%
+                            </span>
+                          </div>
+                          <div className="modal-metric-progress-track">
+                            <div 
+                              className="modal-metric-progress-fill" 
+                              style={{ width: `${Math.max(memPct > 0 ? memPct : 2, 2)}%` }} 
+                            />
+                          </div>
+                          <span className="modal-cluster-metric-sub">
+                            Target: {activeBrgyConfig.memberQuota} members per coordinator
+                          </span>
+                        </div>
+
+                        {/* Tier 3: +1 Recruits */}
+                        <div className="modal-cluster-metric-card">
+                          <div className="modal-metric-card-top">
+                            <span className="modal-cluster-metric-lbl">Tier 3 · +1 Recruits</span>
+                            <UserPlus size={14} strokeWidth={1.8} className="modal-metric-icon-subtle" />
+                          </div>
+                          <div className="modal-metric-main-val">
+                            <span className="modal-cluster-metric-val">
+                              {networkActiveSubLeaderModal.totalRecruitsCount || 0}
+                            </span>
+                            <span className="modal-metric-pct-badge">
+                              +1 Multiplier
+                            </span>
+                          </div>
+                          <div className="modal-metric-progress-track">
+                            <div 
+                              className="modal-metric-progress-fill" 
+                              style={{ width: `${Math.min(100, Math.max(2, (networkActiveSubLeaderModal.totalRecruitsCount || 0) * 4))}%` }} 
+                            />
+                          </div>
+                          <span className="modal-cluster-metric-sub">
+                            Household & neighbor voters
+                          </span>
+                        </div>
+
+                        {/* Overall Recruits */}
+                        <div className="modal-cluster-metric-card">
+                          <div className="modal-metric-card-top">
+                            <span className="modal-cluster-metric-lbl">Total Recruits</span>
+                            <TrendingUp size={14} strokeWidth={1.8} className="modal-metric-icon-subtle" />
+                          </div>
+                          <div className="modal-metric-main-val">
+                            <span className="modal-cluster-metric-val highlight-val">
+                              {networkActiveSubLeaderModal.totalClusterVotes || 0}
+                            </span>
+                            <span className="modal-metric-pct-badge">
+                              Secured
+                            </span>
+                          </div>
+                          <div className="modal-metric-progress-track">
+                            <div 
+                              className="modal-metric-progress-fill highlight-fill" 
+                              style={{ width: `${Math.min(100, Math.max(2, ((networkActiveSubLeaderModal.totalClusterVotes || 0) / (1 + coordQuota + (memberTarget * 2))) * 100))}%` }} 
+                            />
+                          </div>
+                          <span className="modal-cluster-metric-sub">
+                            Downline cluster votes
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Search & Toolbar Bar */}
+                      <div className="modal-search-toolbar">
+                        <div className="modal-search-input-box">
+                          <Search size={14} strokeWidth={1.8} color="#64748b" />
+                          <input 
+                            type="text" 
+                            placeholder="Search coordinator, member, or phone in this team..." 
+                            value={modalSearchFilter}
+                            onChange={e => setModalSearchFilter(e.target.value)}
+                          />
+                          {modalSearchFilter && (
+                            <button 
+                              type="button" 
+                              className="modal-search-clear-btn"
+                              onClick={() => setModalSearchFilter('')}
+                              aria-label="Clear search"
                             >
-                              {/* Coordinator Card Header */}
-                              <div 
-                                className="coord-accordion-header"
-                                onClick={() => {
-                                  setModalExpandedCoords(prev => ({
-                                    ...prev,
-                                    [coordName]: !isCoordExpanded
-                                  }));
-                                }}
-                              >
-                                <div className="coordinator-row-left">
-                                  <span className="coord-chevron-icon">
-                                    <ChevronRight size={16} />
-                                  </span>
-                                  <div className="subleader-slot-badge" style={{ width: 26, height: 26, fontSize: '0.72rem' }}>
-                                    C{cIdx + 1}
-                                  </div>
-                                  <div className="coordinator-row-avatar">
-                                    {getInitials(coordName)}
-                                  </div>
-                                  <div className="coordinator-row-name-box">
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                      <strong>{coordName}</strong>
-                                      <span style={{ 
-                                        fontSize: '0.68rem', 
-                                        fontWeight: 800, 
-                                        background: status === 'met' ? '#ecfdf5' : status === 'progress' ? '#eff6ff' : '#fef2f2', 
-                                        color: status === 'met' ? '#047857' : status === 'progress' ? '#2563eb' : '#b91c1c', 
-                                        padding: '1px 6px', 
-                                        borderRadius: 4 
-                                      }}>
-                                        {status === 'met' ? 'QUOTA MET ✓' : status === 'progress' ? 'COORDINATOR' : 'DORMANT (0 RECRUITS)'}
-                                      </span>
-                                    </div>
-                                    <span>
-                                      <MapPin size={10} style={{ marginRight: 2 }} /> {coord?.barangay || networkBarangayFilter} · <Phone size={10} style={{ marginRight: 2 }} /> {coord?.contact || 'No phone'} · {coord?.sector_category || 'General'}
-                                    </span>
-                                  </div>
+                              <X size={13} strokeWidth={1.8} />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="modal-toolbar-actions">
+                          <button 
+                            type="button" 
+                            className="btn-toolbar-toggle"
+                            onClick={() => {
+                              const allKeys = {};
+                              (networkActiveSubLeaderModal.coordinators || []).forEach(c => {
+                                allKeys[c.coordName] = true;
+                                (c.members || []).forEach(m => { allKeys[m.memName] = true; });
+                              });
+                              setModalExpandedCoords(allKeys);
+                              setModalExpandedMembers(allKeys);
+                            }}
+                            title="Expand all coordinators and members"
+                          >
+                            <ChevronDown size={13} strokeWidth={1.8} /> Expand All
+                          </button>
+                          <button 
+                            type="button" 
+                            className="btn-toolbar-toggle"
+                            onClick={() => {
+                              setModalExpandedCoords({});
+                              setModalExpandedMembers({});
+                            }}
+                            title="Collapse all"
+                          >
+                            Collapse All
+                          </button>
+                          <button 
+                            type="button" 
+                            className={`btn-toolbar-toggle ${modalShowOpenSlots ? 'active-slots' : ''}`}
+                            onClick={() => setModalShowOpenSlots(prev => !prev)}
+                            title="Toggle open coordinator slots"
+                          >
+                            {modalShowOpenSlots ? (
+                              <><EyeOff size={13} strokeWidth={1.8} /> Hide Open Slots</>
+                            ) : (
+                              <><Eye size={13} strokeWidth={1.8} /> Show Open Slots ({remainingCoords})</>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Coordinator Status Filter Pills */}
+                      <div className="modal-filter-pills">
+                        <button 
+                          type="button" 
+                          className={`modal-filter-pill ${modalCoordFilterStatus === 'all' ? 'active' : ''}`}
+                          onClick={() => setModalCoordFilterStatus('all')}
+                        >
+                          <Users size={12} strokeWidth={1.8} />
+                          <span>All Coordinators</span>
+                          <span className="pill-count-tag">{networkActiveSubLeaderModal.coordinators?.length || 0}</span>
+                        </button>
+                        <button 
+                          type="button" 
+                          className={`modal-filter-pill ${modalCoordFilterStatus === 'met' ? 'active' : ''}`}
+                          onClick={() => setModalCoordFilterStatus('met')}
+                        >
+                          <CheckCircle size={12} strokeWidth={1.8} />
+                          <span>Quota Met</span>
+                          <span className="pill-count-tag">{networkActiveSubLeaderModal.coordinators?.filter(c => c.status === 'met').length || 0}</span>
+                        </button>
+                        <button 
+                          type="button" 
+                          className={`modal-filter-pill ${modalCoordFilterStatus === 'progress' ? 'active' : ''}`}
+                          onClick={() => setModalCoordFilterStatus('progress')}
+                        >
+                          <Clock size={12} strokeWidth={1.8} />
+                          <span>In Progress</span>
+                          <span className="pill-count-tag">{networkActiveSubLeaderModal.coordinators?.filter(c => c.status === 'progress').length || 0}</span>
+                        </button>
+                        <button 
+                          type="button" 
+                          className={`modal-filter-pill ${modalCoordFilterStatus === 'dormant' ? 'active' : ''}`}
+                          onClick={() => setModalCoordFilterStatus('dormant')}
+                        >
+                          <AlertTriangle size={12} strokeWidth={1.8} />
+                          <span>Dormant</span>
+                          <span className="pill-count-tag">{networkActiveSubLeaderModal.coordinators?.filter(c => c.status === 'dormant').length || 0}</span>
+                        </button>
+                      </div>
+
+                      {/* Coordinators Accordion List */}
+                      <div className="coordinator-list-grid">
+                        {(() => {
+                          const query = modalSearchFilter.trim().toLowerCase();
+                          const filteredCoordinators = (networkActiveSubLeaderModal.coordinators || []).filter(cItem => {
+                            if (modalCoordFilterStatus !== 'all' && cItem.status !== modalCoordFilterStatus) return false;
+                            if (!query) return true;
+                            if (cItem.coordName.toLowerCase().includes(query)) return true;
+                            if (cItem.coord?.contact && cItem.coord.contact.includes(query)) return true;
+                            // Match inside members
+                            const matchMember = (cItem.members || []).some(m => 
+                              m.memName.toLowerCase().includes(query) || 
+                              (m.mem?.contact && m.mem.contact.includes(query)) ||
+                              (m.recruits || []).some(r => getResidentName(r).toLowerCase().includes(query))
+                            );
+                            return matchMember;
+                          });
+
+                          if (networkActiveSubLeaderModal.coordinators.length === 0) {
+                            return (
+                              <div className="subleader-empty-state-card">
+                                <div className="subleader-empty-icon-wrap">
+                                  <Users size={20} strokeWidth={1.8} color="#475569" />
                                 </div>
+                                <h4 className="subleader-empty-title">No Coordinators Recruited Yet</h4>
+                                <p className="subleader-empty-desc">
+                                  <strong>{networkActiveSubLeaderModal.leaderName}</strong> is appointed to Slot #{networkActiveSubLeaderModal.slotNumber} in Brgy. {networkBarangayFilter}. When residents register with this leader as referral, they will appear here as Level 1 Coordinators.
+                                </p>
 
-                                <div className="coordinator-row-right" onClick={e => e.stopPropagation()}>
-                                  {recent7DaysRecruits > 0 && (
-                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#047857', background: '#ecfdf5', padding: '2px 6px', borderRadius: 4 }}>
-                                      ⚡ +{recent7DaysRecruits} this wk
-                                    </span>
-                                  )}
-                                  <div className="coordinator-meter-pill">
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                      <span>{membersCount} / {activeBrgyConfig.memberQuota} Members</span>
-                                      <span style={{ 
-                                        fontSize: '0.68rem', 
-                                        fontWeight: 800, 
-                                        padding: '1px 6px', 
-                                        borderRadius: 4,
-                                        background: status === 'met' ? '#ecfdf5' : '#f1f5f9',
-                                        color: status === 'met' ? '#047857' : '#475569'
-                                      }}>
-                                        {status === 'met' ? '✓ Met' : `${memberPct}%`}
-                                      </span>
+                                {/* 3-Step Multi-Tier Victory Blueprint Roadmap */}
+                                <div className="subleader-roadmap-container">
+                                  <div className="subleader-roadmap-header">
+                                    <Target size={13} strokeWidth={1.8} />
+                                    <span>Option 1 Field Quota Structure</span>
+                                  </div>
+                                  <div className="subleader-roadmap-grid">
+                                    <div className="subleader-step-box">
+                                      <div className="step-badge">Step 1 · Tier 1</div>
+                                      <div className="step-val">{coordQuota} Coordinators</div>
+                                      <div className="step-desc">Sub-Leader field quota</div>
                                     </div>
-                                    <div className="coordinator-meter-track">
-                                      <div 
-                                        className="coordinator-meter-fill" 
-                                        style={{ 
-                                          width: `${Math.max(4, memberPct)}%`,
-                                          background: status === 'met' ? '#059669' : '#3b82f6'
-                                        }} 
-                                      />
+                                    <div className="step-connector-arrow">→</div>
+                                    <div className="subleader-step-box">
+                                      <div className="step-badge">Step 2 · Tier 2</div>
+                                      <div className="step-val">{memberTarget} Members</div>
+                                      <div className="step-desc">{activeBrgyConfig.memberQuota} members per coordinator</div>
+                                    </div>
+                                    <div className="step-connector-arrow">→</div>
+                                    <div className="subleader-step-box">
+                                      <div className="step-badge">Step 3 · Tier 3</div>
+                                      <div className="step-val">+{memberTarget} Recruits</div>
+                                      <div className="step-desc">+1 household voter per cardholder</div>
                                     </div>
                                   </div>
 
-                                  {coord?.contact && (
-                                    <a
-                                      href={`tel:${coord.contact}`}
-                                      className="btn btn-xs btn-outline-secondary"
-                                      title={`Contact ${coordName}`}
-                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '3px 7px' }}
-                                    >
-                                      <Phone size={10} /> Call
-                                    </a>
-                                  )}
-
-                                  <button
-                                    type="button"
-                                    className="btn btn-xs btn-outline-emerald"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setNetworkActiveSubLeaderModal(null);
-                                      setNetworkTabMode('trees');
-                                      if (coord) setSelectedNetworkMember(coord);
-                                      else setNetworkSearch(coordName);
-                                    }}
-                                    title="Inspect Coordinator downlines in tree view"
-                                  >
-                                    Trace →
-                                  </button>
+                                  <div className="subleader-roadmap-yield-bar">
+                                    <Award size={13} strokeWidth={1.8} color="#059669" />
+                                    <span>
+                                      Projected Yield: <strong>{1 + coordQuota + (memberTarget * 2)} Total Registered Voters</strong> towards Brgy. {networkBarangayFilter} 60% Victory Goal
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
+                            );
+                          }
 
-                              {/* Expanded Tier 3 (Citizen Members) */}
-                              {isCoordExpanded && (
-                                <div className="coord-accordion-children">
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#334155' }}>
-                                      Citizen Members ({membersCount} of {activeBrgyConfig.memberQuota} Quota):
-                                    </span>
-                                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                                      {recruitsCount} Total +1 Voter Recruits
-                                    </span>
-                                  </div>
+                          if (filteredCoordinators.length === 0) {
+                            return (
+                              <div className="network-empty-state" style={{ padding: '24px 16px', textAlign: 'center' }}>
+                                <Search size={22} strokeWidth={1.8} style={{ opacity: 0.3, marginBottom: 6 }} />
+                                <h5 style={{ margin: '0 0 3px', fontSize: '0.92rem', fontWeight: 600, color: '#334155' }}>No Matches Found</h5>
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                                  No team members in this cluster match "{modalSearchFilter}".
+                                </p>
+                              </div>
+                            );
+                          }
 
-                                  {members.length === 0 ? (
-                                    <div style={{
-                                      padding: '12px 14px',
-                                      background: '#ffffff',
-                                      border: '1px dashed #cbd5e1',
-                                      borderRadius: 8,
-                                      fontSize: '0.78rem',
-                                      color: '#64748b',
-                                      textAlign: 'center'
-                                    }}>
-                                      No members registered under {coordName} yet. Need {activeBrgyConfig.memberQuota} members to complete this coordinator's quota.
-                                    </div>
-                                  ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                      {members.map((mItem, mIdx) => {
-                                        const { mem, memName, recruits = [], recruitsCount = 0 } = mItem;
-                                        const isMemExpanded = modalExpandedMembers[memName] ?? Boolean(query);
+                          return (
+                            <>
+                              {filteredCoordinators.map((cItem, cIdx) => {
+                                const { coord, coordName, members = [], membersCount = 0, recruitsCount = 0, recent7DaysRecruits = 0, status } = cItem;
+                                const isCoordExpanded = modalExpandedCoords[coordName] ?? Boolean(query);
+                                const memberPct = Math.min(100, Math.round((membersCount / activeBrgyConfig.memberQuota) * 100));
 
-                                        return (
-                                          <div key={memName} className="member-row-card">
-                                            <div className="member-row-top">
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                                {recruitsCount > 0 ? (
-                                                  <span 
-                                                    style={{ cursor: 'pointer', display: 'flex', color: '#64748b' }}
-                                                    onClick={() => {
-                                                      setModalExpandedMembers(prev => ({
-                                                        ...prev,
-                                                        [memName]: !isMemExpanded
-                                                      }));
-                                                    }}
-                                                  >
-                                                    <ChevronRight size={14} style={{ transform: isMemExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-                                                  </span>
-                                                ) : (
-                                                  <span style={{ width: 14 }} />
-                                                )}
-
-                                                <span style={{ 
-                                                  fontSize: '0.68rem', 
-                                                  fontWeight: 800, 
-                                                  background: '#f1f5f9', 
-                                                  color: '#475569', 
-                                                  padding: '1px 5px', 
-                                                  borderRadius: 4 
-                                                }}>
-                                                  M{mIdx + 1}
-                                                </span>
-
-                                                <div style={{ 
-                                                  width: 26, 
-                                                  height: 26, 
-                                                  borderRadius: '50%', 
-                                                  background: '#f5f3ff', 
-                                                  color: '#7c3aed', 
-                                                  fontSize: '0.7rem', 
-                                                  fontWeight: 800, 
-                                                  display: 'flex', 
-                                                  alignItems: 'center', 
-                                                  justifyContent: 'center',
-                                                  flexShrink: 0
-                                                }}>
-                                                  {getInitials(memName)}
-                                                </div>
-
-                                                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                                                  <strong style={{ fontSize: '0.82rem', color: '#0f172a' }}>{memName}</strong>
-                                                  <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                                                    {mem?.contact || 'No phone'} · {mem?.sector_category || 'General'}
-                                                  </span>
-                                                </div>
-                                              </div>
-
-                                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                {recruitsCount >= 1 ? (
-                                                  <span style={{ 
-                                                    fontSize: '0.7rem', 
-                                                    fontWeight: 800, 
-                                                    background: '#ecfdf5', 
-                                                    color: '#047857', 
-                                                    border: '1px solid #a7f3d0', 
-                                                    padding: '2px 8px', 
-                                                    borderRadius: 6 
-                                                  }}>
-                                                    ✓ +1 Recruited ({recruitsCount})
-                                                  </span>
-                                                ) : (
-                                                  <span style={{ 
-                                                    fontSize: '0.7rem', 
-                                                    fontWeight: 600, 
-                                                    background: '#fffbeb', 
-                                                    color: '#b45309', 
-                                                    border: '1px solid #fde68a', 
-                                                    padding: '2px 8px', 
-                                                    borderRadius: 6 
-                                                  }}>
-                                                    ⏳ Pending +1
-                                                  </span>
-                                                )}
-
-                                                <button
-                                                  type="button"
-                                                  className="btn btn-xs btn-outline-secondary"
-                                                  style={{ padding: '2px 6px', fontSize: '0.7rem' }}
-                                                  onClick={() => {
-                                                    setNetworkActiveSubLeaderModal(null);
-                                                    setNetworkTabMode('trees');
-                                                    if (mem) setSelectedNetworkMember(mem);
-                                                    else setNetworkSearch(memName);
-                                                  }}
-                                                  title="Trace member in tree view"
-                                                >
-                                                  Trace
-                                                </button>
-                                              </div>
-                                            </div>
-
-                                            {/* Tier 4 (+1 Recruits) */}
-                                            {isMemExpanded && recruitsCount > 0 && (
-                                              <div className="recruits-branch-wrap">
-                                                <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#047857', textTransform: 'uppercase' }}>
-                                                  Tier 4 · Recruited Voters (+1):
-                                                </span>
-                                                {recruits.map((rItem, rIdx) => {
-                                                  const rName = getResidentName(rItem);
-                                                  return (
-                                                    <div key={rName || rIdx} className="recruit-leaf-item">
-                                                      <span style={{ fontWeight: 800, color: '#047857' }}>↳ +1 Recruit:</span>
-                                                      <span style={{ fontWeight: 700 }}>{rName}</span>
-                                                      <span style={{ color: '#64748b' }}>({rItem.contact || 'No phone'} · {rItem.sector_category || 'General'})</span>
-                                                    </div>
-                                                  );
-                                                })}
-                                              </div>
-                                            )}
+                                return (
+                                  <div 
+                                    key={coordName} 
+                                    className={`coord-accordion-block ${isCoordExpanded ? 'is-expanded' : ''}`}
+                                  >
+                                    {/* Coordinator Card Header */}
+                                    <div 
+                                      className="coord-accordion-header"
+                                      onClick={() => {
+                                        setModalExpandedCoords(prev => ({
+                                          ...prev,
+                                          [coordName]: !isCoordExpanded
+                                        }));
+                                      }}
+                                    >
+                                      <div className="coordinator-row-left">
+                                        <span className="coord-chevron-icon">
+                                          <ChevronRight size={16} strokeWidth={1.8} />
+                                        </span>
+                                        <div className="subleader-slot-badge" style={{ width: 28, height: 28, fontSize: '0.72rem', borderRadius: 7, background: '#0f172a', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>
+                                          C{cIdx + 1}
+                                        </div>
+                                        <div className="coordinator-row-avatar">
+                                          {getInitials(coordName)}
+                                        </div>
+                                        <div className="coordinator-row-name-box">
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <strong>{coordName}</strong>
+                                            <span style={{ 
+                                              fontSize: '0.66rem', 
+                                              fontWeight: 700, 
+                                              background: status === 'met' ? '#ecfdf5' : '#f1f5f9', 
+                                              color: status === 'met' ? '#047857' : '#475569', 
+                                              padding: '1px 6px', 
+                                              borderRadius: 4,
+                                              border: `1px solid ${status === 'met' ? '#a7f3d0' : '#e2e8f0'}`
+                                            }}>
+                                              {status === 'met' ? 'QUOTA MET' : status === 'progress' ? 'COORDINATOR' : 'DORMANT'}
+                                            </span>
                                           </div>
-                                        );
-                                      })}
+                                          <span>
+                                            <MapPin size={10} strokeWidth={1.8} style={{ marginRight: 2 }} /> {coord?.barangay || networkBarangayFilter} · <Phone size={10} strokeWidth={1.8} style={{ marginRight: 2 }} /> {coord?.contact || 'No phone'} · {coord?.sector_category || 'General'}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="coordinator-row-right" onClick={e => e.stopPropagation()}>
+                                        {recent7DaysRecruits > 0 && (
+                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '0.68rem', fontWeight: 700, color: '#047857', background: '#ecfdf5', padding: '2px 7px', borderRadius: 6, border: '1px solid #a7f3d0' }}>
+                                            <TrendingUp size={11} strokeWidth={1.8} /> +{recent7DaysRecruits} this wk
+                                          </span>
+                                        )}
+                                        <div className="coordinator-meter-pill">
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <span>{membersCount} / {activeBrgyConfig.memberQuota} Members</span>
+                                            <span style={{ 
+                                              fontSize: '0.68rem', 
+                                              fontWeight: 700, 
+                                              padding: '1px 6px', 
+                                              borderRadius: 4,
+                                              background: status === 'met' ? '#ecfdf5' : '#f1f5f9',
+                                              color: status === 'met' ? '#047857' : '#475569'
+                                            }}>
+                                              {status === 'met' ? 'Met' : `${memberPct}%`}
+                                            </span>
+                                          </div>
+                                          <div className="coordinator-meter-track">
+                                            <div 
+                                              className="coordinator-meter-fill" 
+                                              style={{ 
+                                                width: `${Math.max(4, memberPct)}%`,
+                                                background: status === 'met' ? '#059669' : '#0f172a'
+                                              }} 
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {coord?.contact && (
+                                          <a
+                                            href={`tel:${coord.contact}`}
+                                            className="btn btn-xs btn-outline-secondary"
+                                            title={`Contact ${coordName}`}
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '4px 8px', borderRadius: 6 }}
+                                          >
+                                            <Phone size={11} strokeWidth={1.8} /> Call
+                                          </a>
+                                        )}
+
+                                        <button
+                                          type="button"
+                                          className="btn btn-xs btn-outline-secondary"
+                                          style={{ padding: '4px 10px', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600 }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setNetworkActiveSubLeaderModal(null);
+                                            setNetworkTabMode('trees');
+                                            if (coord) setSelectedNetworkMember(coord);
+                                            else setNetworkSearch(coordName);
+                                          }}
+                                          title="Inspect Coordinator downlines in tree view"
+                                        >
+                                          Trace →
+                                        </button>
+                                      </div>
                                     </div>
-                                  )}
+
+                                    {/* Expanded Tier 2 (Citizen Members) */}
+                                    {isCoordExpanded && (
+                                      <div className="coord-accordion-children">
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#334155' }}>
+                                            Citizen Members ({membersCount} of {activeBrgyConfig.memberQuota} Quota):
+                                          </span>
+                                          <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                            {recruitsCount} Total +1 Voter Recruits
+                                          </span>
+                                        </div>
+
+                                        {members.length === 0 ? (
+                                          <div style={{
+                                            padding: '10px 12px',
+                                            background: '#ffffff',
+                                            border: '1px dashed #cbd5e1',
+                                            borderRadius: 8,
+                                            fontSize: '0.76rem',
+                                            color: '#64748b',
+                                            textAlign: 'center'
+                                          }}>
+                                            No members registered under {coordName} yet. Need {activeBrgyConfig.memberQuota} members to complete this coordinator's quota.
+                                          </div>
+                                        ) : (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            {members.map((mItem, mIdx) => {
+                                              const { mem, memName, recruits = [], recruitsCount = 0 } = mItem;
+                                              const isMemExpanded = modalExpandedMembers[memName] ?? Boolean(query);
+
+                                              return (
+                                                <div key={memName} className="member-row-card">
+                                                  <div className="member-row-top">
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                                                      {recruitsCount > 0 ? (
+                                                        <span 
+                                                          style={{ cursor: 'pointer', display: 'flex', color: '#64748b' }}
+                                                          onClick={() => {
+                                                            setModalExpandedMembers(prev => ({
+                                                              ...prev,
+                                                              [memName]: !isMemExpanded
+                                                            }));
+                                                          }}
+                                                        >
+                                                          <ChevronRight size={13} strokeWidth={1.8} style={{ transform: isMemExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                                                        </span>
+                                                      ) : (
+                                                        <span style={{ width: 13 }} />
+                                                      )}
+
+                                                      <span style={{ 
+                                                        fontSize: '0.68rem', 
+                                                        fontWeight: 700, 
+                                                        background: '#f1f5f9', 
+                                                        color: '#475569', 
+                                                        padding: '1px 5px', 
+                                                        borderRadius: 4 
+                                                      }}>
+                                                        M{mIdx + 1}
+                                                      </span>
+
+                                                      <div style={{ 
+                                                        width: 24, 
+                                                        height: 24, 
+                                                        borderRadius: '50%', 
+                                                        background: '#f1f5f9', 
+                                                        color: '#475569', 
+                                                        border: '1px solid #e2e8f0',
+                                                        fontSize: '0.68rem', 
+                                                        fontWeight: 700, 
+                                                        display: 'flex', 
+                                                        alignItems: 'center', 
+                                                        justifyContent: 'center',
+                                                        flexShrink: 0
+                                                      }}>
+                                                        {getInitials(memName)}
+                                                      </div>
+
+                                                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                                        <strong style={{ fontSize: '0.82rem', color: '#0f172a' }}>{memName}</strong>
+                                                        <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                                                          {mem?.contact || 'No phone'} · {mem?.sector_category || 'General'}
+                                                        </span>
+                                                      </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                      {recruitsCount >= 1 ? (
+                                                        <span style={{ 
+                                                          display: 'inline-flex',
+                                                          alignItems: 'center',
+                                                          gap: 4,
+                                                          fontSize: '0.68rem', 
+                                                          fontWeight: 700, 
+                                                          background: '#ecfdf5', 
+                                                          color: '#047857', 
+                                                          border: '1px solid #a7f3d0', 
+                                                          padding: '2px 7px', 
+                                                          borderRadius: 6 
+                                                        }}>
+                                                          <CheckCircle size={10} strokeWidth={1.8} /> +1 Recruited ({recruitsCount})
+                                                        </span>
+                                                      ) : (
+                                                        <span style={{ 
+                                                          display: 'inline-flex',
+                                                          alignItems: 'center',
+                                                          gap: 4,
+                                                          fontSize: '0.68rem', 
+                                                          fontWeight: 600, 
+                                                          background: '#f8fafc', 
+                                                          color: '#64748b', 
+                                                          border: '1px solid #e2e8f0', 
+                                                          padding: '2px 7px', 
+                                                          borderRadius: 6 
+                                                        }}>
+                                                          <Clock size={10} strokeWidth={1.8} /> Pending +1
+                                                        </span>
+                                                      )}
+
+                                                      <button
+                                                        type="button"
+                                                        className="btn btn-xs btn-outline-secondary"
+                                                        style={{ padding: '3px 8px', fontSize: '0.7rem', borderRadius: 6 }}
+                                                        onClick={() => {
+                                                          setNetworkActiveSubLeaderModal(null);
+                                                          setNetworkTabMode('trees');
+                                                          if (mem) setSelectedNetworkMember(mem);
+                                                          else setNetworkSearch(memName);
+                                                        }}
+                                                        title="Trace member in tree view"
+                                                      >
+                                                        Trace
+                                                      </button>
+                                                    </div>
+                                                  </div>
+
+                                                  {/* Tier 3 (+1 Recruits) */}
+                                                  {isMemExpanded && recruitsCount > 0 && (
+                                                    <div className="recruits-branch-wrap">
+                                                      <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                                                        Tier 3 · Recruited Voters (+1):
+                                                      </span>
+                                                      {recruits.map((rItem, rIdx) => {
+                                                        const rName = getResidentName(rItem);
+                                                        return (
+                                                          <div key={rName || rIdx} className="recruit-leaf-item">
+                                                            <UserPlus size={11} strokeWidth={1.8} color="#059669" />
+                                                            <span style={{ fontWeight: 700 }}>{rName}</span>
+                                                            <span style={{ color: '#64748b', fontSize: '0.7rem' }}>({rItem.contact || 'No phone'} · {rItem.sector_category || 'General'})</span>
+                                                          </div>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+
+                              {/* Open Coordinator Positions */}
+                              {modalShowOpenSlots && networkActiveSubLeaderModal.coordinatorsCount < coordQuota && (
+                                <div style={{ marginTop: 12 }}>
+                                  <div style={{ fontSize: '0.74rem', fontWeight: 800, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                    Open Coordinator Positions ({coordQuota - networkActiveSubLeaderModal.coordinatorsCount} Remaining):
+                                  </div>
+                                  {Array.from({ length: coordQuota - networkActiveSubLeaderModal.coordinatorsCount }).map((_, oIdx) => {
+                                    const posNum = networkActiveSubLeaderModal.coordinatorsCount + oIdx + 1;
+                                    return (
+                                      <div key={posNum} className="open-coord-slot-row">
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                          <div className="subleader-slot-badge" style={{ width: 26, height: 26, fontSize: '0.7rem', borderRadius: 6, background: '#f1f5f9', color: '#64748b', border: '1px solid #cbd5e1' }}>
+                                            C{posNum}
+                                          </div>
+                                          <div>
+                                            <strong style={{ fontSize: '0.82rem', color: '#334155' }}>Coordinator Position #{posNum}</strong>
+                                            <span style={{ display: 'block', fontSize: '0.72rem', color: '#94a3b8' }}>Vacant Field Coordinator Slot</span>
+                                          </div>
+                                        </div>
+                                        <span style={{ fontSize: '0.72rem', color: '#64748b', background: '#ffffff', padding: '3px 8px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                                          Target: {activeBrgyConfig.memberQuota} Members
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               )}
-                            </div>
+                            </>
                           );
-                        })}
+                        })()}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>,
+          document.body
+        )}
 
-                        {/* Open Coordinator Slots */}
-                        {modalShowOpenSlots && networkActiveSubLeaderModal.coordinatorsCount < networkActiveSubLeaderModal.coordinatorQuota && (
-                          <div style={{ marginTop: 10 }}>
-                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', marginBottom: 8, textTransform: 'uppercase' }}>
-                              Open Coordinator Positions ({networkActiveSubLeaderModal.coordinatorQuota - networkActiveSubLeaderModal.coordinatorsCount} Remaining):
-                            </div>
-                            {Array.from({ length: networkActiveSubLeaderModal.coordinatorQuota - networkActiveSubLeaderModal.coordinatorsCount }).map((_, oIdx) => {
-                              const posNum = networkActiveSubLeaderModal.coordinatorsCount + oIdx + 1;
-                              return (
-                                <div key={posNum} className="open-coord-slot-row">
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <div className="subleader-slot-badge" style={{ width: 24, height: 24, fontSize: '0.7rem' }}>
-                                      C{posNum}
-                                    </div>
-                                    <span>Coordinator Position #{posNum} · Open Position</span>
-                                  </div>
-                                  <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
-                                    Target: {activeBrgyConfig.memberQuota} Members
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
+        {/* Modal: Appoint Barangay Leader */}
+        {appointingLeaderBarangay && typeof document !== 'undefined' && createPortal(
+          <div className="modal-overlay" onClick={() => setAppointingLeaderBarangay(null)}>
+            <div className="modal-card appointing-modal-card" onClick={e => e.stopPropagation()}>
+              <div className="appointing-modal-header">
+                <div className="appointing-header-left">
+                  <div className="appointing-header-icon leader">
+                    <ShieldCheck size={20} strokeWidth={2.2} />
+                  </div>
+                  <div>
+                    <h3 className="appointing-header-title">
+                      Appoint Barangay Leader
+                    </h3>
+                    <div className="appointing-header-sub">
+                      <span>Brgy. {appointingLeaderBarangay}</span>
+                      <span>·</span>
+                      <span>Level 1 Apex Field Commander (Oversees {BARANGAY_VOTER_DATA[appointingLeaderBarangay]?.subLeaderTarget} Sub-Leaders)</span>
+                    </div>
+                  </div>
                 </div>
+                <button type="button" className="modal-close-x" onClick={() => setAppointingLeaderBarangay(null)} title="Close modal">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="modal-body" style={{ padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Executive Briefing Callout */}
+                <div className="appointing-briefing-box">
+                  <Shield size={16} strokeWidth={2.2} style={{ color: '#0f172a', flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <strong style={{ color: '#0f172a' }}>Chief Field Commander Role:</strong> Directly leads all {BARANGAY_VOTER_DATA[appointingLeaderBarangay]?.subLeaderTarget} Sub-Leaders in Brgy. {appointingLeaderBarangay}. All recruited coordinators and downlines cascade towards the <strong>60% victory quota</strong>.
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <div className="appointing-search-wrap">
+                  <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none', zIndex: 2 }} />
+                  <input
+                    type="text"
+                    className="appointing-search-input"
+                    style={{ paddingLeft: '44px', paddingRight: '38px' }}
+                    placeholder="Search approved resident by name, purok, or EM Card #..."
+                    value={appointSearch}
+                    onChange={e => setAppointSearch(e.target.value)}
+                    autoFocus
+                  />
+                  {appointSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setAppointSearch('')}
+                      style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}
+                      title="Clear search"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Candidate List Header / Sub-bar */}
+                {(() => {
+                  const query = appointSearch.trim().toLowerCase();
+                  const targetBrgy = (appointingLeaderBarangay || '').toLowerCase();
+
+                  // Filter approved members in this barangay
+                  const pool = (allRegs || []).filter(r => {
+                    const isApproved = (r.status || '').trim().toLowerCase() === 'approved';
+                    if (!isApproved) return false;
+
+                    const rBrgy = (r.barangay || '').toLowerCase();
+                    if (!rBrgy.includes(targetBrgy)) return false;
+
+                    const name = getResidentName(r).toLowerCase().trim();
+                    if (!query) return true;
+                    const contact = (r.contact || '').toLowerCase();
+                    const emNo = (r.em_card_no || '').toLowerCase();
+                    const purok = (r.purok || '').toLowerCase();
+                    return name.includes(query) || contact.includes(query) || emNo.includes(query) || purok.includes(query);
+                  });
+
+                  return (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
+                        <span style={{ fontSize: '0.76rem', color: '#047857', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                          <CheckCircle size={13} strokeWidth={2.2} /> Showing {pool.length} Approved Residents in Brgy. {appointingLeaderBarangay}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>
+                          1 Leader Position
+                        </span>
+                      </div>
+
+                      <div className="appointing-candidates-list">
+                        {pool.length === 0 ? (
+                          <div className="network-empty-state" style={{ padding: 32 }}>
+                            <Users size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+                            <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748b' }}>
+                              {appointSearch 
+                                ? `No approved members match "${appointSearch}".` 
+                                : `No approved members found in Brgy. ${appointingLeaderBarangay}.`}
+                            </p>
+                          </div>
+                        ) : (
+                          pool.slice(0, 35).map(member => {
+                            const mName = getResidentName(member);
+                            const directCount = getChildren(mName).length;
+                            const isCurrent = appointedBarangayLeaders[appointingLeaderBarangay] === mName;
+                            const isVoter = member.is_valid_resident === true || !!member.ValidResidents || !!member.precinct_no;
+
+                            // Check if this member is currently assigned to any sub-leader slot
+                            const brgySLs = appointedSubLeaders[appointingLeaderBarangay] || {};
+                            const assignedSlotKey = Object.keys(brgySLs).find(slot => brgySLs[slot] === mName);
+
+                            return (
+                              <div 
+                                key={member.id || mName}
+                                className={`appointing-candidate-card ${isCurrent ? 'is-current' : ''}`}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+                                  <div className="candidate-avatar">
+                                    {member.photo_url ? (
+                                      <img src={member.photo_url} alt="" />
+                                    ) : (
+                                      getInitials(mName)
+                                    )}
+                                  </div>
+                                  <div className="candidate-details">
+                                    <div className="candidate-name-row">
+                                      <span className="candidate-name" title={mName}>
+                                        {mName}
+                                      </span>
+                                      {isCurrent && (
+                                        <span className="candidate-tag" style={{ background: '#0f172a', color: '#ffffff', fontWeight: 700 }}>
+                                          <CheckCircle size={10} strokeWidth={2.2} /> Current Leader
+                                        </span>
+                                      )}
+                                      {assignedSlotKey && !isCurrent && (
+                                        <span className="candidate-tag subleader-warning">
+                                          <ShieldCheck size={10} strokeWidth={2} /> Sub-Leader (Slot #{assignedSlotKey})
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="candidate-badges-row">
+                                      {isVoter && (
+                                        <span className="candidate-tag voter">
+                                          <CheckCircle size={10} strokeWidth={2} /> Registered Voter
+                                        </span>
+                                      )}
+                                      {member.em_card_no && (
+                                        <span className="candidate-tag emcard">
+                                          <CreditCard size={10} strokeWidth={1.8} /> {member.em_card_no}
+                                        </span>
+                                      )}
+                                      {directCount > 0 && (
+                                        <span className="candidate-tag recruits">
+                                          <Users size={10} strokeWidth={2} /> {directCount} Recruits
+                                        </span>
+                                      )}
+                                      {member.purok && (
+                                        <span className="candidate-tag meta-item">
+                                          <MapPin size={10} strokeWidth={1.8} /> Purok {member.purok}
+                                        </span>
+                                      )}
+                                      {member.contact && (
+                                        <span className="candidate-tag meta-item">
+                                          <Phone size={10} strokeWidth={1.8} /> {member.contact}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {isCurrent ? (
+                                  <button type="button" disabled className="btn-appoint-action current">
+                                    <Check size={13} strokeWidth={2.5} /> Appointed
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn-appoint-action"
+                                    onClick={() => {
+                                      saveAppointedBarangayLeader(appointingLeaderBarangay, mName);
+                                      setAppointingLeaderBarangay(null);
+                                      setAppointSearch('');
+                                    }}
+                                  >
+                                    Appoint Leader <ArrowRight size={13} strokeWidth={2.2} />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+              <div className="appointing-modal-footer">
+                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                  Assigning a leader designates them as the Level 1 Chief Commander for Brgy. {appointingLeaderBarangay}.
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  style={{ padding: '6px 16px', fontSize: '0.78rem', borderRadius: 8, background: '#ffffff' }}
+                  onClick={() => setAppointingLeaderBarangay(null)}
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>,
@@ -10220,168 +13701,199 @@ export default function AdminPage() {
         {appointingSlot && typeof document !== 'undefined' && createPortal(
           <div className="modal-overlay" onClick={() => setAppointingSlot(null)}>
             <div className="modal-card appointing-modal-card" onClick={e => e.stopPropagation()}>
-              <div className="modal-header">
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
-                    Appoint Sub-Leader · Slot #{appointingSlot.slotNumber}
-                  </h3>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
-                    Brgy. {appointingSlot.barangay} · Quota: {activeBrgyConfig.coordinatorQuota} Coordinators
-                  </p>
+              <div className="appointing-modal-header">
+                <div className="appointing-header-left">
+                  <div className="appointing-header-icon subleader">
+                    <ShieldCheck size={22} strokeWidth={2.2} />
+                  </div>
+                  <div>
+                    <h3 className="appointing-header-title">
+                      Appoint Sub-Leader · Slot #{appointingSlot.slotNumber}
+                    </h3>
+                    <div className="appointing-header-sub">
+                      <span>Brgy. {appointingSlot.barangay}</span>
+                      <span>·</span>
+                      <span>Target Quota: {activeBrgyConfig.coordinatorQuota} Coordinators</span>
+                    </div>
+                  </div>
                 </div>
-                <button type="button" className="modal-close-x" onClick={() => setAppointingSlot(null)}>
+                <button type="button" className="modal-close-x" onClick={() => setAppointingSlot(null)} title="Close modal">
                   <X size={16} />
                 </button>
               </div>
 
-              <div className="modal-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <p style={{ margin: 0, fontSize: '0.84rem', color: '#475569', lineHeight: 1.5 }}>
-                  Select an approved member to appoint as the official Sub-Leader for this position. Their direct recruits will automatically count toward their {activeBrgyConfig.coordinatorQuota} Coordinators quota.
-                </p>
+              <div className="modal-body" style={{ padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Executive Briefing Callout */}
+                <div className="appointing-briefing-box">
+                  <ShieldCheck size={18} style={{ color: '#047857', flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <strong style={{ color: '#0f172a' }}>Cluster Captain Role:</strong> Responsible for mobilizing at least <strong>{activeBrgyConfig.coordinatorQuota} Coordinators</strong> in Brgy. {appointingSlot.barangay}. Their recruits automatically build their downline cluster.
+                  </div>
+                </div>
 
-                <div style={{ position: 'relative' }}>
-                  <Search size={16} style={{ position: 'absolute', left: 14, top: 13, color: '#94a3b8' }} />
+                {/* Search Bar */}
+                <div className="appointing-search-wrap">
+                  <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none', zIndex: 2 }} />
                   <input
                     type="text"
-                    style={{ 
-                      paddingLeft: 40, 
-                      paddingRight: 14,
-                      fontSize: '0.88rem', 
-                      height: 42, 
-                      background: '#f8fafc', 
-                      border: '1px solid #cbd5e1', 
-                      borderRadius: 10,
-                      width: '100%',
-                      color: '#0f172a',
-                      boxSizing: 'border-box',
-                      outline: 'none'
-                    }}
-                    placeholder="Search by resident name or contact..."
+                    className="appointing-search-input"
+                    style={{ paddingLeft: '44px', paddingRight: '38px' }}
+                    placeholder="Search approved resident by name, purok, or EM Card #..."
                     value={appointSearch}
                     onChange={e => setAppointSearch(e.target.value)}
                     autoFocus
                   />
+                  {appointSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setAppointSearch('')}
+                      style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}
+                      title="Clear search"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
-                  <span style={{ fontSize: '0.76rem', color: '#047857', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <CheckCircle size={13} /> Showing Approved Members Only
-                  </span>
-                  <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
-                    Brgy. {appointingSlot.barangay}
-                  </span>
-                </div>
+                {/* Candidate List Header / Sub-bar */}
+                {(() => {
+                  const query = appointSearch.trim().toLowerCase();
+                  const targetBrgy = (appointingSlot.barangay || '').toLowerCase();
 
-                <div style={{ maxHeight: 340, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 4 }}>
-                  {(() => {
-                    const query = appointSearch.trim().toLowerCase();
-                    const targetBrgy = (appointingSlot.barangay || '').toLowerCase();
+                  // Track already appointed leaders so they don't appear in other slots
+                  const alreadyAppointedNames = new Set(
+                    subLeaderSlots
+                      .filter(s => s.isAssigned && s.slotNumber !== appointingSlot.slotNumber)
+                      .map(s => (s.leaderName || '').toLowerCase().trim())
+                  );
 
-                    // Track already appointed leaders so they don't appear in other slots
-                    const alreadyAppointedNames = new Set(
-                      subLeaderSlots
-                        .filter(s => s.isAssigned && s.slotNumber !== appointingSlot.slotNumber)
-                        .map(s => (s.leaderName || '').toLowerCase().trim())
-                    );
+                  // STRICT FILTER: Must be status === 'Approved', in this barangay, and not yet assigned
+                  const pool = (allRegs || []).filter(r => {
+                    const isApproved = (r.status || '').trim().toLowerCase() === 'approved';
+                    if (!isApproved) return false;
 
-                    // STRICT FILTER: Must be status === 'Approved', in this barangay, and not yet assigned
-                    const pool = (allRegs || []).filter(r => {
-                      const isApproved = (r.status || '').trim().toLowerCase() === 'approved';
-                      if (!isApproved) return false;
+                    const rBrgy = (r.barangay || '').toLowerCase();
+                    if (!rBrgy.includes(targetBrgy)) return false;
 
-                      const rBrgy = (r.barangay || '').toLowerCase();
-                      if (!rBrgy.includes(targetBrgy)) return false;
+                    const name = getResidentName(r).toLowerCase().trim();
+                    if (alreadyAppointedNames.has(name)) return false;
 
-                      const name = getResidentName(r).toLowerCase().trim();
-                      if (alreadyAppointedNames.has(name)) return false;
+                    if (!query) return true;
+                    const contact = (r.contact || '').toLowerCase();
+                    const emNo = (r.em_card_no || '').toLowerCase();
+                    const purok = (r.purok || '').toLowerCase();
+                    return name.includes(query) || contact.includes(query) || emNo.includes(query) || purok.includes(query);
+                  });
 
-                      if (!query) return true;
-                      const contact = (r.contact || '').toLowerCase();
-                      const emNo = (r.em_card_no || '').toLowerCase();
-                      return name.includes(query) || contact.includes(query) || emNo.includes(query);
-                    });
+                  return (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px' }}>
+                        <span style={{ fontSize: '0.76rem', color: '#047857', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                          <CheckCircle size={13} strokeWidth={2.2} /> Showing {pool.length} Approved Residents in Brgy. {appointingSlot.barangay}
+                        </span>
+                        <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>
+                          Slot #{appointingSlot.slotNumber}
+                        </span>
+                      </div>
 
-                    if (pool.length === 0) {
-                      return (
-                        <div className="network-empty-state" style={{ padding: 24 }}>
-                          <Users size={28} style={{ opacity: 0.3, marginBottom: 6 }} />
-                          <p style={{ margin: 0, fontSize: '0.82rem', color: '#64748b' }}>
-                            {appointSearch 
-                              ? `No approved members match "${appointSearch}".` 
-                              : `No approved members found in Brgy. ${appointingSlot.barangay}.`}
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    return pool.slice(0, 30).map(member => {
-                      const mName = getResidentName(member);
-                      const directCount = getChildren(mName).length;
-                      return (
-                        <div 
-                          key={member.id || mName}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '12px 14px',
-                            borderRadius: 10,
-                            border: '1px solid #e2e8f0',
-                            background: '#ffffff',
-                            gap: 12,
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
-                            <div style={{ 
-                              width: 36, height: 36, borderRadius: '50%', background: '#ecfdf5', color: '#047857',
-                              fontWeight: 800, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                              border: '1.5px solid #a7f3d0'
-                            }}>
-                              {getInitials(mName)}
-                            </div>
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <strong style={{ fontSize: '0.88rem', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {mName}
-                                </strong>
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 3,
-                                  background: '#ecfdf5',
-                                  color: '#047857',
-                                  border: '1px solid #a7f3d0',
-                                  borderRadius: 999,
-                                  padding: '1px 7px',
-                                  fontSize: '0.66rem',
-                                  fontWeight: 700
-                                }}>
-                                  ✓ Approved Member
-                                </span>
-                              </div>
-                              <span style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', marginTop: 2 }}>
-                                {member.barangay || '-'} {member.purok ? `· Purok ${member.purok}` : ''} {member.em_card_no ? `· 💳 ${member.em_card_no}` : ''} {directCount > 0 ? `· 👥 ${directCount} recruits` : ''}
-                              </span>
-                            </div>
+                      <div className="appointing-candidates-list">
+                        {pool.length === 0 ? (
+                          <div className="network-empty-state" style={{ padding: 32 }}>
+                            <Users size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
+                            <p style={{ margin: 0, fontSize: '0.84rem', color: '#64748b' }}>
+                              {appointSearch 
+                                ? `No approved members match "${appointSearch}".` 
+                                : `No approved members found in Brgy. ${appointingSlot.barangay}.`}
+                            </p>
                           </div>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-emerald"
-                            style={{ fontSize: '0.76rem', padding: '6px 16px', flexShrink: 0, fontWeight: 700 }}
-                            onClick={() => {
-                              saveAppointedSubLeader(appointingSlot.barangay, appointingSlot.slotNumber, mName);
-                              setAppointingSlot(null);
-                              setAppointSearch('');
-                            }}
-                          >
-                            Appoint
-                          </button>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
+                        ) : (
+                          pool.slice(0, 35).map(member => {
+                            const mName = getResidentName(member);
+                            const directCount = getChildren(mName).length;
+                            const isVoter = member.is_valid_resident === true || !!member.ValidResidents || !!member.precinct_no;
+
+                            return (
+                              <div 
+                                key={member.id || mName}
+                                className="appointing-candidate-card"
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+                                  <div className="candidate-avatar">
+                                    {member.photo_url ? (
+                                      <img src={member.photo_url} alt="" />
+                                    ) : (
+                                      getInitials(mName)
+                                    )}
+                                  </div>
+                                  <div className="candidate-details">
+                                    <div className="candidate-name-row">
+                                      <span className="candidate-name" title={mName}>
+                                        {mName}
+                                      </span>
+                                    </div>
+                                    <div className="candidate-badges-row">
+                                      {isVoter && (
+                                        <span className="candidate-tag voter">
+                                          <CheckCircle size={10} strokeWidth={2} /> Registered Voter
+                                        </span>
+                                      )}
+                                      {member.em_card_no && (
+                                        <span className="candidate-tag emcard">
+                                          <CreditCard size={10} strokeWidth={1.8} /> {member.em_card_no}
+                                        </span>
+                                      )}
+                                      {directCount > 0 && (
+                                        <span className="candidate-tag recruits">
+                                          <Users size={10} strokeWidth={2} /> {directCount} Recruits
+                                        </span>
+                                      )}
+                                      {member.purok && (
+                                        <span className="candidate-tag meta-item">
+                                          <MapPin size={10} strokeWidth={1.8} /> Purok {member.purok}
+                                        </span>
+                                      )}
+                                      {member.contact && (
+                                        <span className="candidate-tag meta-item">
+                                          <Phone size={10} strokeWidth={1.8} /> {member.contact}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  className="btn-appoint-action"
+                                  onClick={() => {
+                                    saveAppointedSubLeader(appointingSlot.barangay, appointingSlot.slotNumber, mName);
+                                    setAppointingSlot(null);
+                                    setAppointSearch('');
+                                  }}
+                                >
+                                  Appoint Slot #{appointingSlot.slotNumber} <ArrowRight size={13} strokeWidth={2.2} />
+                                </button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+              <div className="appointing-modal-footer">
+                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                  Assigning a Sub-Leader binds them to Slot #{appointingSlot.slotNumber} and tracks their coordinator recruitment progress.
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  style={{ padding: '6px 16px', fontSize: '0.78rem', borderRadius: 8, background: '#ffffff' }}
+                  onClick={() => setAppointingSlot(null)}
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>,
@@ -13083,13 +16595,13 @@ export default function AdminPage() {
                                 </span>
                               )}
                               {log.details.location && (
-                                <span className="log-detail-chip">
-                                  📍 {log.details.location}
+                                <span className="log-detail-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <MapPin size={11} strokeWidth={1.8} /> {log.details.location}
                                 </span>
                               )}
                               {log.details.date && (
-                                <span className="log-detail-chip">
-                                  📅 {log.details.date}
+                                <span className="log-detail-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                  <Calendar size={11} strokeWidth={1.8} /> {log.details.date}
                                 </span>
                               )}
                               {!log.details.email && !log.details.location && !log.details.date && (
@@ -13535,9 +17047,19 @@ export default function AdminPage() {
               <div className="event-card-body" style={{ textAlign: 'left' }}>
                 <h5 style={{ marginBottom: 4 }}>{evt.title}</h5>
                 <p style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.35, marginBottom: 6 }}>{evt.description || 'No description'}</p>
-                <small style={{ display: 'flex', alignItems: 'center', gap: 4 }}>📅 {new Date(evt.event_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</small>
-                {evt.event_time && <small style={{ display: 'flex', alignItems: 'center', gap: 4 }}>🕐 {evt.event_time}</small>}
-                {evt.location && <small style={{ display: 'flex', alignItems: 'center', gap: 4 }}>📍 {evt.location}</small>}
+                <small style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Calendar size={12} strokeWidth={1.8} style={{ color: '#047857' }} /> {new Date(evt.event_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </small>
+                {evt.event_time && (
+                  <small style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Clock size={12} strokeWidth={1.8} style={{ color: '#64748b' }} /> {evt.event_time}
+                  </small>
+                )}
+                {evt.location && (
+                  <small style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <MapPin size={12} strokeWidth={1.8} style={{ color: '#64748b' }} /> {evt.location}
+                  </small>
+                )}
               </div>
               <div className="event-card-actions" style={{ flexDirection: 'row', marginTop: 'auto', gap: 8 }}>
                 <button className="btn btn-sm btn-secondary" onClick={() => {
@@ -15922,12 +19444,23 @@ export default function AdminPage() {
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
 
       {/* Sidebar */}
-      <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
+      <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-brand">
-          <Image src="/em-main-logo.png" alt="Epektibong Mamamayan Logo" width={42} height={42} className="sidebar-brand-mark-img" />
-          <div className="sidebar-brand-text">
-            <strong>EM Card</strong>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Image src="/em-main-logo.png" alt="Epektibong Mamamayan Logo" width={42} height={42} className="sidebar-brand-mark-img" />
+            <div className="sidebar-brand-text">
+              <strong>EM Card</strong>
+            </div>
           </div>
+          <button 
+            type="button" 
+            className="sidebar-collapse-toggle-btn"
+            onClick={toggleSidebar}
+            title="Hide Sidebar (Ctrl+B)"
+            aria-label="Hide Sidebar"
+          >
+            <ChevronLeft size={16} strokeWidth={2.2} />
+          </button>
         </div>
 
         <nav className="sidebar-nav">
@@ -15980,12 +19513,30 @@ export default function AdminPage() {
       </aside>
 
       {/* Main Content */}
-      <main className="admin-main">
+      <main className={`admin-main ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         <header className="admin-topbar">
-          <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          <div className="admin-topbar-title">{navItems.find(n => n.id === activeTab)?.label}</div>
+          <div className="admin-topbar-left" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button 
+              type="button"
+              className={`sidebar-toggle ${sidebarCollapsed ? 'is-collapsed' : ''}`} 
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? "Show Sidebar (Ctrl+B)" : "Hide Sidebar (Ctrl+B)"}
+              aria-label="Toggle Sidebar"
+            >
+              <Menu size={18} strokeWidth={2.2} />
+            </button>
+            {sidebarCollapsed && (
+              <div 
+                className="topbar-collapsed-brand" 
+                onClick={toggleSidebar} 
+                style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} 
+                title="Click to show sidebar"
+              >
+                <Image src="/em-main-logo.png" alt="Logo" width={26} height={26} />
+                <strong style={{ fontSize: '0.86rem', color: '#062b1e', letterSpacing: '-0.01em' }}>EM Card</strong>
+              </div>
+            )}
+          </div>
 
           <div className="admin-topbar-right">
             <span className="topbar-date">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</span>
@@ -16488,19 +20039,28 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* REGISTRATION DETAIL MODAL */}
-      {/* REGISTRATION DETAIL MODAL */}
+      {/* REGISTRATION DETAIL MODAL (ENTERPRISE SAAS STYLE) */}
       {selectedRegDetail && (
         <div className="modal-overlay" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>
           <div className="modal-card reg-detail-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h3>Registration Details</h3>
-                <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
-                  Member application review and verification
+            {/* SaaS Header */}
+            <div className="modal-header reg-detail-saas-header">
+              <div className="reg-detail-header-text">
+                <span className="reg-detail-sub-pill">
+                  <ShieldCheck size={12} strokeWidth={2.4} /> Citizen Dossier &bull; Verification Audit
+                </span>
+                <h3 className="reg-detail-title">Registration Details</h3>
+                <p className="reg-detail-subtitle">
+                  Municipal member application review and authorized network node assignment
                 </p>
               </div>
-              <button className="modal-close-x" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }} title="Close">
+              <button 
+                type="button"
+                className="reg-detail-close-btn" 
+                onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }} 
+                title="Close (Esc)"
+                aria-label="Close"
+              >
                 <X size={16} strokeWidth={2.2} />
               </button>
             </div>
@@ -16512,91 +20072,158 @@ export default function AdminPage() {
                   <img src={selectedRegDetail.photo_url || selectedRegDetail.photo_base64} alt="Portrait" className="reg-detail-avatar" />
                 ) : (
                   <div className="reg-detail-avatar-placeholder">
-                    <User size={28} strokeWidth={1.8} style={{ color: '#059669' }} />
+                    <User size={32} strokeWidth={1.8} />
                   </div>
                 )}
                 <div className="reg-detail-hero-info">
                   <h4 className="reg-detail-hero-name">{getResidentName(selectedRegDetail)}</h4>
                   <div className="reg-detail-badges-row">
-                    <span className={`status-badge status-${(selectedRegDetail.status || 'pending').toLowerCase()}`}>
-                      {selectedRegDetail.status || 'Pending'}
+                    {/* Status Pill */}
+                    <span className={`reg-detail-badge badge-${(selectedRegDetail.status || 'pending').toLowerCase()}`}>
+                      {selectedRegDetail.status === 'Pending' && <span className="badge-pending-dot" />}
+                      {selectedRegDetail.status === 'Approved' && <Check size={11} strokeWidth={2.5} />}
+                      {selectedRegDetail.status === 'Rejected' && <X size={11} strokeWidth={2.5} />}
+                      <span>{selectedRegDetail.status || 'Pending'}</span>
                     </span>
+
+                    {/* Voter Status Pill */}
                     <span className={`reg-detail-badge ${selectedRegDetail.is_valid_resident !== false ? 'badge-voter' : 'badge-nonvoter'}`}>
                       {selectedRegDetail.is_valid_resident !== false ? (
                         <>
-                          <Check size={12} strokeWidth={2.5} />
+                          <Check size={11} strokeWidth={2.5} />
                           <span>Registered Voter</span>
                         </>
                       ) : (
-                        'Non-Valid Resident'
+                        <span>Non-Voter Resident</span>
                       )}
                     </span>
+
+                    {/* 1-Click Clipboard Copy Chip for Reference No */}
                     {selectedRegDetail.reference_no && (
-                      <span className="reg-detail-badge badge-ref">
-                        Ref: {selectedRegDetail.reference_no}
-                      </span>
+                      <button 
+                        type="button" 
+                        className="reg-detail-ref-copy-chip"
+                        onClick={() => {
+                          if (selectedRegDetail.reference_no) {
+                            navigator.clipboard?.writeText(selectedRegDetail.reference_no);
+                            setCopiedRef(true);
+                            showToast('Reference number copied to clipboard', 'success');
+                            setTimeout(() => setCopiedRef(false), 2000);
+                          }
+                        }}
+                        title="Click to copy Reference No."
+                      >
+                        <span className="ref-prefix">REF:</span>
+                        <span>{selectedRegDetail.reference_no}</span>
+                        {copiedRef ? (
+                          <Check size={11} strokeWidth={2.5} className="ref-copy-icon success" />
+                        ) : (
+                          <Copy size={11} strokeWidth={2} className="ref-copy-icon" />
+                        )}
+                        {copiedRef && <span className="ref-copied-tooltip">Copied!</span>}
+                      </button>
                     )}
+
+                    {/* Resident ID Monospace Chip */}
                     {selectedRegDetail.resident_id && (
-                      <span className="reg-detail-badge badge-ref">
+                      <span className="reg-detail-id-chip" title={selectedRegDetail.resident_id}>
                         ID: {selectedRegDetail.resident_id.slice(0, 8)}
                       </span>
                     )}
+                  </div>
+
+                  {/* Submission Meta Row */}
+                  <div className="reg-detail-hero-meta">
+                    <span className="reg-detail-hero-meta-item">
+                      <Calendar size={11} strokeWidth={2} />
+                      <span>Submitted: {new Date(selectedRegDetail.created_at).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    </span>
+                    <span style={{ color: '#cbd5e1' }}>&bull;</span>
+                    <span className="reg-detail-hero-meta-item">
+                      <Camera size={11} strokeWidth={2} />
+                      <span>Photo: <strong>{getPhotoSize(selectedRegDetail.photo_url || selectedRegDetail.photo_base64)}</strong></span>
+                    </span>
                   </div>
                 </div>
               </div>
 
               {/* Personal Demographics Section */}
-              <div className="reg-detail-section">
-                <p className="reg-detail-section-title">Personal Information</p>
-                <div className="reg-detail-grid-v2">
-                  <div className="reg-detail-item-v2">
-                    <span className="reg-detail-label">Sector / Category</span>
+              <div className="saas-spec-card">
+                <div className="saas-spec-header">
+                  <span className="saas-spec-title">
+                    <User size={13} strokeWidth={2.2} className="saas-spec-title-icon" /> Personal Information
+                  </span>
+                  {regEditMode && (
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', padding: '2px 8px', borderRadius: 4 }}>
+                      Editing Mode
+                    </span>
+                  )}
+                </div>
+
+                <div className="saas-spec-grid">
+                  {/* Sector / Category */}
+                  <div className="saas-spec-cell">
+                    <span className="saas-spec-label">Sector / Category</span>
                     {regEditMode ? (
-                      <select className="reg-edit-input" value={regEditForm.sector_category} onChange={e => setRegEditForm(f => ({...f, sector_category: e.target.value}))}>
+                      <select className="saas-edit-input" value={regEditForm.sector_category} onChange={e => setRegEditForm(f => ({...f, sector_category: e.target.value}))}>
                         {['Senior Citizens','PWD','Solo Parents','Farmers / Fisherfolk','Workers / Labor','Youth','Indigenous People','Women','Others'].map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
-                    ) : <span className="reg-detail-value">{selectedRegDetail.sector_category || '-'}</span>}
+                    ) : (
+                      <span className="saas-spec-value">{selectedRegDetail.sector_category || '—'}</span>
+                    )}
                   </div>
-                  <div className="reg-detail-item-v2">
-                    <span className="reg-detail-label">Contact Number</span>
+
+                  {/* Contact Number */}
+                  <div className="saas-spec-cell">
+                    <span className="saas-spec-label">Contact Number</span>
                     {regEditMode ? (
-                      <input className="reg-edit-input" value={regEditForm.contact} onChange={e => setRegEditForm(f => ({...f, contact: e.target.value}))} />
+                      <input className="saas-edit-input" value={regEditForm.contact} onChange={e => setRegEditForm(f => ({...f, contact: e.target.value}))} />
                     ) : selectedRegDetail.contact ? (
-                      <a href={`tel:${selectedRegDetail.contact}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#0284c7', textDecoration: 'none', fontWeight: 700, fontFamily: 'monospace', fontSize: '0.82rem' }}>
+                      <a href={`tel:${selectedRegDetail.contact}`} className="saas-contact-link" title="Click to call resident">
                         <Phone size={13} strokeWidth={2.2} style={{ color: '#0284c7' }} />
                         <span>{selectedRegDetail.contact}</span>
                       </a>
                     ) : (
-                      <span className="reg-detail-value">-</span>
+                      <span className="saas-spec-value" style={{ color: '#94a3b8' }}>— None specified</span>
                     )}
                   </div>
-                  <div className="reg-detail-item-v2">
-                    <span className="reg-detail-label">Gender</span>
+
+                  {/* Gender */}
+                  <div className="saas-spec-cell">
+                    <span className="saas-spec-label">Gender</span>
                     {regEditMode ? (
-                      <select className="reg-edit-input" value={regEditForm.gender} onChange={e => setRegEditForm(f => ({...f, gender: e.target.value}))}>
+                      <select className="saas-edit-input" value={regEditForm.gender} onChange={e => setRegEditForm(f => ({...f, gender: e.target.value}))}>
                         <option value="">Select...</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
                         <option value="Other">Other</option>
                       </select>
-                    ) : <span className="reg-detail-value">{selectedRegDetail.gender || '-'}</span>}
+                    ) : (
+                      <span className="saas-spec-value">{selectedRegDetail.gender || '—'}</span>
+                    )}
                   </div>
-                  <div className="reg-detail-item-v2">
-                    <span className="reg-detail-label">Civil Status</span>
+
+                  {/* Civil Status */}
+                  <div className="saas-spec-cell">
+                    <span className="saas-spec-label">Civil Status</span>
                     {regEditMode ? (
-                      <select className="reg-edit-input" value={regEditForm.civil_status} onChange={e => setRegEditForm(f => ({...f, civil_status: e.target.value}))}>
+                      <select className="saas-edit-input" value={regEditForm.civil_status} onChange={e => setRegEditForm(f => ({...f, civil_status: e.target.value}))}>
                         <option value="">Select...</option>
                         <option value="Single">Single</option>
                         <option value="Married">Married</option>
                         <option value="Widowed">Widowed</option>
                         <option value="Separated">Separated</option>
                       </select>
-                    ) : <span className="reg-detail-value">{selectedRegDetail.civil_status || '-'}</span>}
+                    ) : (
+                      <span className="saas-spec-value">{selectedRegDetail.civil_status || '—'}</span>
+                    )}
                   </div>
-                  <div className="reg-detail-item-v2">
-                    <span className="reg-detail-label">Religion</span>
+
+                  {/* Religion */}
+                  <div className="saas-spec-cell">
+                    <span className="saas-spec-label">Religion</span>
                     {regEditMode ? (
-                      <select className="reg-edit-input" value={regEditForm.religion || ''} onChange={e => setRegEditForm(f => ({...f, religion: e.target.value}))}>
+                      <select className="saas-edit-input" value={regEditForm.religion || ''} onChange={e => setRegEditForm(f => ({...f, religion: e.target.value}))}>
                         <option value="">Select religion...</option>
                         <option value="Roman Catholicism">Roman Catholicism</option>
                         <option value="Islam">Islam</option>
@@ -16614,21 +20241,25 @@ export default function AdminPage() {
                         <option value="Other">Other</option>
                         <option value="None">None</option>
                       </select>
-                    ) : <span className="reg-detail-value">{selectedRegDetail.religion || '-'}</span>}
-                  </div>
-                  <div className="reg-detail-item-v2 full">
-                    <span className="reg-detail-label">Birthday</span>
-                    {regEditMode ? (
-                      <input type="date" className="reg-edit-input" value={regEditForm.birthday} onChange={e => setRegEditForm(f => ({...f, birthday: e.target.value}))} />
                     ) : (
-                      <span className="reg-detail-value">
+                      <span className="saas-spec-value">{selectedRegDetail.religion || '—'}</span>
+                    )}
+                  </div>
+
+                  {/* Birthday & Age */}
+                  <div className="saas-spec-cell">
+                    <span className="saas-spec-label">Date of Birth &amp; Age</span>
+                    {regEditMode ? (
+                      <input type="date" className="saas-edit-input" value={regEditForm.birthday} onChange={e => setRegEditForm(f => ({...f, birthday: e.target.value}))} />
+                    ) : (
+                      <span className="saas-spec-value">
                         {selectedRegDetail.birthday ? (() => {
                           const d = new Date(selectedRegDetail.birthday);
-                          if (isNaN(d.getTime())) return selectedRegDetail.birthday;
+                          if (isNaN(d.getTime())) return String(selectedRegDetail.birthday).toUpperCase();
                           const formatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                           const age = Math.floor((new Date() - d) / (365.25 * 24 * 60 * 60 * 1000));
-                          return `${formatted} (${age > 0 ? `${age} yrs` : 'Infant'})`;
-                        })() : '-'}
+                          return `${formatted.toUpperCase()} (${age > 0 ? `${age} YRS` : 'INFANT'})`;
+                        })() : '—'}
                       </span>
                     )}
                   </div>
@@ -16636,262 +20267,1183 @@ export default function AdminPage() {
               </div>
 
               {/* Address Section */}
-              <div className="reg-detail-section">
-                <p className="reg-detail-section-title">Residential Address</p>
-                <div className="reg-detail-grid-v2">
-                  <div className="reg-detail-item-v2">
-                    <span className="reg-detail-label">Barangay</span>
-                    {regEditMode ? <input className="reg-edit-input" value={regEditForm.barangay} onChange={e => setRegEditForm(f => ({...f, barangay: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.barangay || '-'}</span>}
+              <div className="saas-spec-card">
+                <div className="saas-spec-header">
+                  <span className="saas-spec-title">
+                    <MapPin size={13} strokeWidth={2.2} className="saas-spec-title-icon" /> Residential Address
+                  </span>
+                </div>
+
+                {/* Unified Formatted Address Overview in View Mode */}
+                {!regEditMode && (
+                  <div className="saas-address-overview">
+                    <div className="saas-address-pin-icon">
+                      <MapPin size={16} strokeWidth={2.2} />
+                    </div>
+                    <div className="saas-address-text-wrap">
+                      <div className="saas-address-primary">
+                        {(() => {
+                          const parts = [];
+                          if (SUBDIVISION_PUROKS.includes(selectedRegDetail.purok)) {
+                            if (selectedRegDetail.lot) parts.push(`Lot ${selectedRegDetail.lot}`);
+                            if (selectedRegDetail.block) parts.push(`Block ${selectedRegDetail.block}`);
+                            if (selectedRegDetail.phase) parts.push(`Phase ${selectedRegDetail.phase}`);
+                            if (selectedRegDetail.purok) parts.push(selectedRegDetail.purok);
+                          } else {
+                            if (selectedRegDetail.house_no) parts.push(selectedRegDetail.house_no);
+                            if (selectedRegDetail.purok) {
+                              const pStr = String(selectedRegDetail.purok).trim();
+                              parts.push(pStr.toLowerCase().startsWith('purok') ? pStr : `Purok ${pStr}`);
+                            }
+                          }
+                          if (selectedRegDetail.barangay) {
+                            const bStr = String(selectedRegDetail.barangay).trim();
+                            parts.push(bStr.toLowerCase().startsWith('brgy') ? bStr : `Brgy. ${bStr}`);
+                          }
+                          parts.push('Balagtas, Bulacan');
+                          return parts.join(', ').toUpperCase();
+                        })()}
+                      </div>
+                      <div className="saas-address-secondary">
+                        Verified residence within Municipality of Balagtas electoral territorial jurisdiction
+                      </div>
+                    </div>
                   </div>
-                  <div className="reg-detail-item-v2">
-                    <span className="reg-detail-label">Purok / Zone</span>
+                )}
+
+                {/* Structured Fields Grid */}
+                <div className={`saas-spec-grid ${SUBDIVISION_PUROKS.includes(regEditMode ? regEditForm.purok : selectedRegDetail.purok) ? 'cols-3' : ''}`}>
+                  <div className="saas-spec-cell">
+                    <span className="saas-spec-label">Barangay</span>
                     {regEditMode ? (
-                      <select className="reg-edit-input" value={regEditForm.purok} onChange={e => setRegEditForm(f => ({...f, purok: e.target.value}))}>
+                      <input className="saas-edit-input" value={regEditForm.barangay} onChange={e => setRegEditForm(f => ({...f, barangay: e.target.value}))} />
+                    ) : (
+                      <span className="saas-spec-value">{selectedRegDetail.barangay ? selectedRegDetail.barangay.toUpperCase() : '—'}</span>
+                    )}
+                  </div>
+
+                  <div className="saas-spec-cell">
+                    <span className="saas-spec-label">Purok / Zone</span>
+                    {regEditMode ? (
+                      <select className="saas-edit-input" value={regEditForm.purok} onChange={e => setRegEditForm(f => ({...f, purok: e.target.value}))}>
                         <option value="">Select purok...</option>
                         {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>Purok {n}</option>)}
                         {regEditForm.purok && ![1,2,3,4,5,6,7].map(String).includes(String(regEditForm.purok)) && regEditForm.purok !== '' && <option value={regEditForm.purok}>{regEditForm.purok}</option>}
                       </select>
-                    ) : <span className="reg-detail-value">{selectedRegDetail.purok ? (SUBDIVISION_PUROKS.includes(selectedRegDetail.purok) ? selectedRegDetail.purok : `Purok ${selectedRegDetail.purok}`) : '-'}</span>}
+                    ) : (
+                      <span className="saas-spec-value">
+                        {(() => {
+                          if (!selectedRegDetail.purok) return '—';
+                          const str = String(selectedRegDetail.purok).trim();
+                          if (!str) return '—';
+                          const cleaned = str.replace(/^purok\s*[-:.]?\s*/i, '').trim();
+                          return cleaned ? cleaned.toUpperCase() : str.toUpperCase();
+                        })()}
+                      </span>
+                    )}
                   </div>
+
                   {!SUBDIVISION_PUROKS.includes(regEditMode ? regEditForm.purok : selectedRegDetail.purok) && (
-                    <div className="reg-detail-item-v2 full">
-                      <span className="reg-detail-label">House Number / Street</span>
-                      {regEditMode ? <input className="reg-edit-input" value={regEditForm.house_no} onChange={e => setRegEditForm(f => ({...f, house_no: e.target.value}))} /> : <span className="reg-detail-value">{selectedRegDetail.house_no || '-'}</span>}
+                    <div className="saas-spec-cell full-width">
+                      <span className="saas-spec-label">House Number / Street</span>
+                      {regEditMode ? (
+                        <input className="saas-edit-input" value={regEditForm.house_no} onChange={e => setRegEditForm(f => ({...f, house_no: e.target.value}))} />
+                      ) : (
+                        <span className="saas-spec-value">{selectedRegDetail.house_no || '—'}</span>
+                      )}
                     </div>
                   )}
-                  {SUBDIVISION_PUROKS.includes(selectedRegDetail.purok) && (
+
+                  {SUBDIVISION_PUROKS.includes(regEditMode ? regEditForm.purok : selectedRegDetail.purok) && (
                     <>
-                      <div className="reg-detail-item-v2">
-                        <span className="reg-detail-label">Lot</span>
-                        <span className="reg-detail-value">{selectedRegDetail.lot || '-'}</span>
+                      <div className="saas-spec-cell">
+                        <span className="saas-spec-label">Lot</span>
+                        {regEditMode ? (
+                          <input className="saas-edit-input" value={regEditForm.lot} onChange={e => setRegEditForm(f => ({...f, lot: e.target.value}))} />
+                        ) : (
+                          <span className="saas-spec-value">{selectedRegDetail.lot || '—'}</span>
+                        )}
                       </div>
-                      <div className="reg-detail-item-v2">
-                        <span className="reg-detail-label">Block</span>
-                        <span className="reg-detail-value">{selectedRegDetail.block || '-'}</span>
+                      <div className="saas-spec-cell">
+                        <span className="saas-spec-label">Block</span>
+                        {regEditMode ? (
+                          <input className="saas-edit-input" value={regEditForm.block} onChange={e => setRegEditForm(f => ({...f, block: e.target.value}))} />
+                        ) : (
+                          <span className="saas-spec-value">{selectedRegDetail.block || '—'}</span>
+                        )}
                       </div>
-                      <div className="reg-detail-item-v2 full">
-                        <span className="reg-detail-label">Phase</span>
-                        <span className="reg-detail-value">{selectedRegDetail.phase || '-'}</span>
+                      <div className="saas-spec-cell">
+                        <span className="saas-spec-label">Phase</span>
+                        {regEditMode ? (
+                          <input className="saas-edit-input" value={regEditForm.phase} onChange={e => setRegEditForm(f => ({...f, phase: e.target.value}))} />
+                        ) : (
+                          <span className="saas-spec-value">{selectedRegDetail.phase || '—'}</span>
+                        )}
                       </div>
                     </>
                   )}
                 </div>
               </div>
 
-              {/* Referral Node Section */}
-              <div className="reg-detail-section">
-                <p className="reg-detail-section-title">Authorized Referral Node <span style={{ color: '#ef4444' }}>*</span></p>
-                {selectedRegDetail.status === 'Pending' ? (
-                  <div className="reg-detail-referral-box">
-                    <div style={{ position: 'relative', width: '100%' }}>
-                      <input
-                        type="text"
-                        placeholder="Start typing community referral name..."
-                        value={adminReferralQuery}
-                        onChange={(e) => {
-                          const val = e.target.value.toUpperCase();
-                          setAdminReferralQuery(val);
-                          setAdminReferralValid(false);
-                          setAdminReferral('');
-                          clearTimeout(adminReferralDebounceRef.current);
-                          const trimmedVal = val.trim();
-                          if (trimmedVal.length >= 2) {
-                            adminReferralDebounceRef.current = setTimeout(async () => {
-                              try {
-                                const excludeParam = selectedRegDetail.resident_id ? `&excludeId=${selectedRegDetail.resident_id}` : '';
-                                const apiUrl = `/api/search-residents?q=${encodeURIComponent(trimmedVal)}${excludeParam}`;
-                                const res = await fetch(apiUrl);
-                                if (res.status === 429) { _on429Handler?.(); return; }
-                                const json = await res.json();
-                                const data = json.data || [];
-                                const mapped = data.map(p => ({
-                                  ...p,
-                                  name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
-                                }));
-                                setAdminReferralResults(mapped);
-                              } catch (err) {
-                                setAdminReferralResults([]);
-                              }
-                            }, 250);
-                          } else {
-                            setAdminReferralResults([]);
-                          }
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '10px 14px',
-                          borderRadius: '8px',
-                          border: adminReferralValid ? '1.5px solid #059669' : '1.5px solid #cbd5e1',
-                          outline: 'none',
-                          fontSize: '0.88rem',
-                          background: adminReferralValid ? '#ecfdf5' : '#ffffff',
-                          transition: 'all 0.2s',
-                          color: '#0f172a'
-                        }}
-                        required
-                      />
-                      {adminReferralValid && (
-                        <span style={{
-                          position: 'absolute',
-                          right: '12px',
-                          top: '10px',
-                          color: '#059669',
-                          fontSize: '0.78rem',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4
-                        }}>
-                          <Check size={13} strokeWidth={2.5} /> Node Verified
-                        </span>
-                      )}
-                      {!adminReferralValid && adminReferralResults.length > 0 && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          background: '#ffffff',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: '8px',
-                          boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                          maxHeight: '180px',
-                          overflowY: 'auto',
-                          zIndex: 1000,
-                          marginTop: '4px'
-                        }}>
-                          {adminReferralResults.map((p) => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => {
-                                setAdminReferral(p.name);
-                                setAdminReferralQuery(p.name);
-                                setAdminReferralValid(true);
-                                setAdminReferralResults([]);
-                              }}
-                              style={{
-                                width: '100%',
-                                padding: '9px 12px',
-                                border: 'none',
-                                background: 'none',
-                                textAlign: 'left',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                borderBottom: '1px solid #f1f5f9',
-                                transition: 'background 0.15s'
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#ecfdf5'}
-                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                            >
-                              <strong style={{ fontSize: '0.86rem', color: '#0f172a' }}>{p.name}</strong>
-                              <span style={{ fontSize: '0.74rem', color: '#64748b' }}>{p.barangay}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {!adminReferralValid && adminReferralQuery.length >= 2 && adminReferralResults.length === 0 && (
-                        <p style={{ margin: '6px 0 0', color: '#ef4444', fontSize: '0.78rem' }}>
-                          Zero records found matching this node string in our directory.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="reg-detail-item-v2 full">
-                    <span className="reg-detail-value">{selectedRegDetail.referral_name || 'No referral node assigned'}</span>
-                  </div>
-                )}
-              </div>
+              {/* Authorized Referral Node Section */}
+              <div className="saas-spec-card">
+                <div className="saas-spec-header">
+                  <span className="saas-spec-title">
+                    <ShieldCheck size={13} strokeWidth={2.2} className="saas-spec-title-icon" /> Authorized Referral Node <span style={{ color: '#ef4444' }}>*</span>
+                  </span>
+                  {adminReferralValid && (
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <Check size={12} strokeWidth={2.5} /> Verified
+                    </span>
+                  )}
+                </div>
 
-              {/* Submission Meta Section */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f8fafc', borderRadius: 8, fontSize: '0.74rem', color: '#64748b' }}>
-                <span>Photo: <strong>{getPhotoSize(selectedRegDetail.photo_url || selectedRegDetail.photo_base64)}</strong></span>
-                <span>Submitted: <strong>{new Date(selectedRegDetail.created_at).toLocaleString()}</strong></span>
+                <div className="saas-referral-body">
+                  {selectedRegDetail.status === 'Pending' ? (
+                    <>
+                      {adminReferralValid ? (
+                        <div className="saas-referral-verified-box">
+                          <div className="saas-referral-verified-info">
+                            <div className="saas-referral-verified-icon">
+                              <CheckCircle size={20} strokeWidth={2.2} />
+                            </div>
+                            <div>
+                              <span className="saas-referral-verified-title">Verified Referral Leader</span>
+                              <div className="saas-referral-verified-name">{adminReferral}</div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="saas-referral-change-btn"
+                            onClick={() => {
+                              setAdminReferralValid(false);
+                              setAdminReferral('');
+                              setAdminReferralQuery('');
+                            }}
+                          >
+                            Change Node
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="saas-referral-search-input-wrap">
+                            <Search size={15} strokeWidth={2.2} className="saas-referral-search-icon" />
+                            <input
+                              type="text"
+                              placeholder="Search approved member name or EM-Card number..."
+                              value={adminReferralQuery}
+                              onChange={(e) => {
+                                const val = e.target.value.toUpperCase();
+                                setAdminReferralQuery(val);
+                                setAdminReferralValid(false);
+                                setAdminReferral('');
+                                clearTimeout(adminReferralDebounceRef.current);
+                                const trimmedVal = val.trim();
+                                if (trimmedVal.length >= 2) {
+                                  adminReferralDebounceRef.current = setTimeout(async () => {
+                                    try {
+                                      const excludeId = selectedRegDetail?.id || selectedRegDetail?.resident_id;
+                                      const results = await searchApprovedMembers(trimmedVal, excludeId);
+                                      setAdminReferralResults(results);
+                                    } catch (err) {
+                                      setAdminReferralResults([]);
+                                    }
+                                  }, 200);
+                                } else {
+                                  setAdminReferralResults([]);
+                                }
+                              }}
+                              className="saas-referral-input"
+                              required
+                            />
+
+                            {/* Dropdown Results */}
+                            {!adminReferralValid && adminReferralResults.length > 0 && (
+                              <div className="saas-referral-dropdown">
+                                {adminReferralResults.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setAdminReferral(p.name);
+                                      setAdminReferralQuery(p.name);
+                                      setAdminReferralValid(true);
+                                      setAdminReferralResults([]);
+                                    }}
+                                    className="saas-referral-option"
+                                  >
+                                    <div>
+                                      <div className="saas-referral-opt-name">{p.name}</div>
+                                      <span style={{ fontSize: '0.72rem', color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+                                        <ShieldCheck size={11} strokeWidth={2.4} />
+                                        {p.em_card_no ? `${p.em_card_no} • Approved Member` : 'Approved Member'}
+                                      </span>
+                                    </div>
+                                    <span className="saas-referral-opt-brgy">{p.barangay ? String(p.barangay).toUpperCase() : 'BALAGTAS'}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {!adminReferralValid && adminReferralQuery.length >= 2 && adminReferralResults.length === 0 && (
+                            <p style={{ margin: 0, color: '#dc2626', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <AlertTriangle size={13} strokeWidth={2} /> No approved member matches &quot;{adminReferralQuery}&quot;. Only approved members can serve as referrals.
+                            </p>
+                          )}
+
+                          <p className="saas-referral-hint">
+                            Select and verify an approved member to serve as the community referral node.
+                          </p>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
+                      <CheckCircle size={18} strokeWidth={2.2} style={{ color: '#059669' }} />
+                      <div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a' }}>
+                          {selectedRegDetail.referral_name || 'No referral node assigned'}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                          Authorized Network Parent
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="modal-footer">
-              <div className="reg-detail-footer-primary-actions">
-                {!regEditMode && selectedRegDetail.status === 'Pending' && (
+            {/* Single-Row SaaS Action Bar */}
+            <div className="modal-footer reg-detail-footer-saas">
+              {/* Left Group: Destructive / Administration / Management */}
+              <div className="reg-footer-left-group">
+                {regEditMode ? (
+                  <button 
+                    type="button" 
+                    className="btn btn-saas-secondary" 
+                    onClick={() => setRegEditMode(false)}
+                  >
+                    Cancel
+                  </button>
+                ) : (
                   <>
                     <button 
                       type="button" 
-                      className="btn btn-approve" 
+                      className="btn btn-saas-ghost-danger" 
+                      onClick={() => { 
+                        setDeleteRegId(selectedRegDetail.id); 
+                        setDeleteRegName(getResidentName(selectedRegDetail)); 
+                        setShowDeleteRegModal(true); 
+                      }} 
+                      title="Permanently delete registration"
+                    >
+                      <Trash2 size={13} strokeWidth={2} />
+                      <span>Delete</span>
+                    </button>
+
+                    <button 
+                      type="button" 
+                      className="btn btn-saas-secondary" 
+                      onClick={() => {
+                        setRegEditForm({
+                          house_no: selectedRegDetail.house_no || '',
+                          purok: selectedRegDetail.purok || '',
+                          barangay: selectedRegDetail.barangay || '',
+                          contact: selectedRegDetail.contact || '',
+                          sector_category: selectedRegDetail.sector_category || '',
+                          gender: selectedRegDetail.gender || '',
+                          civil_status: selectedRegDetail.civil_status || '',
+                          religion: selectedRegDetail.religion || '',
+                          birthday: selectedRegDetail.birthday ? (() => { const d = new Date(selectedRegDetail.birthday); return isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '',
+                          lot: selectedRegDetail.lot || '',
+                          block: selectedRegDetail.block || '',
+                          phase: selectedRegDetail.phase || '',
+                        });
+                        setRegEditMode(true);
+                      }}
+                      title="Edit citizen demographic details"
+                    >
+                      <Edit3 size={13} strokeWidth={2} />
+                      <span>Edit Details</span>
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Right Group: Workflow & Decisions */}
+              <div className="reg-footer-right-group">
+                {regEditMode ? (
+                  <button 
+                    type="button" 
+                    className="btn btn-saas-primary-emerald" 
+                    onClick={handleSaveRegEdit} 
+                    disabled={regEditLoading}
+                  >
+                    <Check size={14} strokeWidth={2.5} />
+                    <span>{regEditLoading ? 'Saving...' : 'Save Changes'}</span>
+                  </button>
+                ) : selectedRegDetail.status === 'Pending' ? (
+                  <>
+                    <button 
+                      type="button" 
+                      className="btn btn-saas-danger-outline" 
+                      onClick={() => { rejectRegistration(selectedRegDetail.id); setSelectedRegDetail(null); }}
+                      title="Reject this member application"
+                    >
+                      <X size={14} strokeWidth={2.4} />
+                      <span>Reject</span>
+                    </button>
+
+                    <button 
+                      type="button" 
+                      className="btn btn-saas-primary-emerald" 
                       onClick={async () => {
                         const success = await approveRegistration(selectedRegDetail.id, adminReferral);
                         if (success) setSelectedRegDetail(null);
                       }}
                       disabled={!adminReferralValid}
-                      style={{ flex: 2, padding: '10px 14px', opacity: adminReferralValid ? 1 : 0.5, cursor: adminReferralValid ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                      title={!adminReferralValid ? "Please verify an Authorized Referral Node before approving" : "Approve registration"}
+                      title={!adminReferralValid ? "Authorized Referral Node must be selected and verified before approving" : "Approve application and issue EM-ID card"}
                     >
-                      <Check size={15} strokeWidth={2.5} />
+                      <Check size={14} strokeWidth={2.5} />
                       <span>Approve Registration</span>
                     </button>
-                    <button type="button" className="btn btn-reject" style={{ flex: 1, padding: '10px 14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => { rejectRegistration(selectedRegDetail.id); setSelectedRegDetail(null); }}>
-                      <X size={15} strokeWidth={2.5} />
-                      <span>Reject</span>
-                    </button>
                   </>
-                )}
-                {!regEditMode && selectedRegDetail.status === 'Approved' && (
-                  <button type="button" className="btn btn-print" onClick={() => setSelectedRegDetail(null)} style={{ width: '100%', background: '#059669', color: '#ffffff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    <Printer size={15} strokeWidth={2} />
-                    <span>Print Member Card</span>
-                  </button>
-                )}
-                {regEditMode && (
+                ) : selectedRegDetail.status === 'Approved' ? (
                   <>
-                    <button type="button" className="btn btn-modal-primary" onClick={handleSaveRegEdit} disabled={regEditLoading} style={{ flex: 1, background: '#059669', color: '#ffffff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                      <Check size={15} strokeWidth={2.5} />
-                      <span>{regEditLoading ? 'Saving...' : 'Save Changes'}</span>
-                    </button>
-                    <button type="button" className="btn btn-modal-secondary" style={{ flex: 1 }} onClick={() => setRegEditMode(false)}>Cancel</button>
-                  </>
-                )}
-              </div>
-
-              <div className="reg-detail-footer-secondary-actions">
-                {!regEditMode && (
-                  <>
-                    <button type="button" className="btn reg-foot-close-btn" onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-saas-secondary" 
+                      onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}
+                    >
                       <X size={13} strokeWidth={2} />
                       <span>Close</span>
                     </button>
-                    <button type="button" className="btn reg-foot-edit-btn" onClick={() => {
-                      setRegEditForm({
-                        house_no: selectedRegDetail.house_no || '',
-                        purok: selectedRegDetail.purok || '',
-                        barangay: selectedRegDetail.barangay || '',
-                        contact: selectedRegDetail.contact || '',
-                        sector_category: selectedRegDetail.sector_category || '',
-                        gender: selectedRegDetail.gender || '',
-                        civil_status: selectedRegDetail.civil_status || '',
-                        religion: selectedRegDetail.religion || '',
-                        birthday: selectedRegDetail.birthday ? (() => { const d = new Date(selectedRegDetail.birthday); return isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : '',
-                        lot: selectedRegDetail.lot || '',
-                        block: selectedRegDetail.block || '',
-                        phase: selectedRegDetail.phase || '',
-                      });
-                      setRegEditMode(true);
-                    }}>
-                      <Edit3 size={13} strokeWidth={2} />
-                      <span>Edit Details</span>
-                    </button>
-                    <button type="button" className="btn reg-foot-del-btn" onClick={() => { setDeleteRegId(selectedRegDetail.id); setDeleteRegName(getResidentName(selectedRegDetail)); setShowDeleteRegModal(true); }} title="Delete registration">
-                      <Trash2 size={13} strokeWidth={2} />
-                      <span>Delete</span>
+                    <button 
+                      type="button" 
+                      className="btn btn-saas-primary-emerald" 
+                      onClick={() => setSelectedRegDetail(null)}
+                      title="Print Member EM Card"
+                    >
+                      <Printer size={14} strokeWidth={2} />
+                      <span>Print Member Card</span>
                     </button>
                   </>
+                ) : (
+                  <button 
+                    type="button" 
+                    className="btn btn-saas-secondary" 
+                    onClick={() => { setSelectedRegDetail(null); setRegEditMode(false); }}
+                  >
+                    <X size={13} strokeWidth={2} />
+                    <span>Close</span>
+                  </button>
                 )}
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* ─── BULK ASSIGN REFERRAL & AUTO-APPROVE MODAL ─── */}
+      {showBulkReferralModal && (
+        <div className="modal-overlay" onClick={() => !bulkAssignLoading && setShowBulkReferralModal(false)}>
+          <div className="modal-card reg-detail-card saas-bulk-referral-card" onClick={e => e.stopPropagation()}>
+            {/* SaaS Header */}
+            <div className="modal-header reg-detail-saas-header">
+              <div className="reg-detail-header-text">
+                <span className="reg-detail-sub-pill">
+                  <ShieldCheck size={12} strokeWidth={2.4} /> Bulk Referral Workflow &bull; Auto-Approval Engine
+                </span>
+                <h3 className="reg-detail-title">Bulk Assign Referral Node</h3>
+                <p className="reg-detail-subtitle">
+                  Assign an authorized community leader to {selectedRegIds.length} selected pending applicant{selectedRegIds.length === 1 ? '' : 's'} and automatically approve their registrations.
+                </p>
+              </div>
+              <button 
+                type="button" 
+                className="reg-detail-close-btn" 
+                onClick={() => !bulkAssignLoading && setShowBulkReferralModal(false)}
+                disabled={bulkAssignLoading}
+                title="Close"
+              >
+                <X size={15} strokeWidth={2.4} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="modal-body saas-bulk-modal-body">
+              {/* Card 1: Target Applicants Summary */}
+              <div className="saas-spec-card">
+                <div className="saas-spec-header">
+                  <span className="saas-spec-title">
+                    <Users size={13} strokeWidth={2.2} className="saas-spec-title-icon" /> Queued Applicants ({selectedRegIds.length})
+                  </span>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                    Will be approved together upon assignment
+                  </span>
+                </div>
+
+                <div className="saas-bulk-applicants-list">
+                  {allRegs.filter(r => selectedRegIds.includes(r.id)).map(r => {
+                    const applicantName = getResidentName(r);
+                    return (
+                      <div key={r.id} className="saas-bulk-applicant-pill">
+                        <div className="saas-bulk-pill-avatar">
+                          {r.photo_url || r.photo_base64 ? (
+                            <img src={r.photo_url || r.photo_base64} alt="" />
+                          ) : (
+                            getInitials(applicantName)
+                          )}
+                        </div>
+                        <div className="saas-bulk-pill-info">
+                          <span className="saas-bulk-pill-name">{applicantName}</span>
+                          <span className="saas-bulk-pill-brgy">BRGY. {r.barangay ? String(r.barangay).toUpperCase() : 'BALAGTAS'}</span>
+                        </div>
+                        {!bulkAssignLoading && selectedRegIds.length > 1 && (
+                          <button
+                            type="button"
+                            className="saas-bulk-pill-remove"
+                            onClick={() => setSelectedRegIds(prev => prev.filter(id => id !== r.id))}
+                            title="Remove from batch"
+                          >
+                            <X size={11} strokeWidth={2.5} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Card 2: Authorized Referral Node Search & Selection */}
+              <div className="saas-spec-card">
+                <div className="saas-spec-header">
+                  <span className="saas-spec-title">
+                    <ShieldCheck size={13} strokeWidth={2.2} className="saas-spec-title-icon" /> Target Referral Node (Approved Member Only) <span style={{ color: '#ef4444' }}>*</span>
+                  </span>
+                  {bulkReferralValid && (
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <Check size={12} strokeWidth={2.5} /> Verified Approved Member
+                    </span>
+                  )}
+                </div>
+
+                <div className="saas-referral-body">
+                  {bulkReferralValid ? (
+                    <div className="saas-referral-verified-box">
+                      <div className="saas-referral-verified-info">
+                        <div className="saas-referral-verified-icon">
+                          <CheckCircle size={20} strokeWidth={2.2} />
+                        </div>
+                        <div>
+                          <span className="saas-referral-verified-title">Selected Approved Member Referral Node</span>
+                          <div className="saas-referral-verified-name">{bulkReferral}</div>
+                        </div>
+                      </div>
+                      {!bulkAssignLoading && (
+                        <button
+                          type="button"
+                          className="saas-referral-change-btn"
+                          onClick={() => {
+                            setBulkReferralValid(false);
+                            setBulkReferral('');
+                            setBulkReferralQuery('');
+                          }}
+                        >
+                          Change Member
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="saas-referral-search-input-wrap">
+                      <Search size={15} strokeWidth={2.2} className="saas-referral-search-icon" />
+                      <input
+                        type="text"
+                        placeholder="Search approved member name or EM-Card number..."
+                        value={bulkReferralQuery}
+                        onChange={(e) => handleSearchBulkReferral(e.target.value)}
+                        className="saas-referral-input"
+                        autoFocus
+                        disabled={bulkAssignLoading}
+                      />
+
+                      {/* Dropdown Results */}
+                      {!bulkReferralValid && bulkReferralResults.length > 0 && (
+                        <div className="saas-referral-dropdown">
+                          {bulkReferralResults.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setBulkReferral(p.name);
+                                setBulkReferralQuery(p.name);
+                                setBulkReferralValid(true);
+                                setBulkReferralResults([]);
+                              }}
+                              className="saas-referral-option"
+                            >
+                              <div>
+                                <div className="saas-referral-opt-name">{p.name}</div>
+                                <span style={{ fontSize: '0.72rem', color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
+                                  <ShieldCheck size={11} strokeWidth={2.4} />
+                                  {p.em_card_no ? `${p.em_card_no} • Approved Member` : 'Approved Community Member'}
+                                </span>
+                              </div>
+                              <span className="saas-referral-opt-brgy">{p.barangay ? String(p.barangay).toUpperCase() : 'BALAGTAS'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {!bulkReferralValid && bulkReferralSearching && (
+                        <div style={{ padding: '8px 12px', fontSize: '0.74rem', color: '#64748b', fontStyle: 'italic' }}>
+                          Searching approved members...
+                        </div>
+                      )}
+
+                      {!bulkReferralValid && bulkReferralQuery.trim().length >= 2 && !bulkReferralSearching && bulkReferralResults.length === 0 && (
+                        <div style={{ padding: '10px 14px', fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 8, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <AlertTriangle size={14} strokeWidth={2.2} />
+                          <span>No approved member matches &quot;{bulkReferralQuery}&quot;. Only approved members can be assigned as referrals.</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 3: Automatic Approval Guarantee */}
+              <div className="saas-bulk-guarantee-card">
+                <div className="saas-bulk-guarantee-icon">
+                  <CheckCircle size={18} strokeWidth={2.4} />
+                </div>
+                <div className="saas-bulk-guarantee-text">
+                  <div className="saas-bulk-guarantee-title">Automatic Registration Approval &amp; EM Card Issuance</div>
+                  <div className="saas-bulk-guarantee-desc">
+                    All {selectedRegIds.length} applicants will have their referral node set to <strong>{bulkReferralValid ? bulkReferral : 'the chosen leader'}</strong>, status immediately updated to <strong>Approved</strong>, and unique EM Card numbers generated.
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress Indicator when loading */}
+              {bulkAssignLoading && (
+                <div className="saas-bulk-progress-wrap">
+                  <div className="saas-bulk-progress-header">
+                    <span>Approving applications...</span>
+                    <span>{bulkAssignProgress.current} / {bulkAssignProgress.total} ({Math.round((bulkAssignProgress.current / (bulkAssignProgress.total || 1)) * 100)}%)</span>
+                  </div>
+                  <div className="saas-bulk-progress-track">
+                    <div 
+                      className="saas-bulk-progress-fill" 
+                      style={{ width: `${Math.round((bulkAssignProgress.current / (bulkAssignProgress.total || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="modal-footer reg-detail-footer">
+              <div className="reg-footer-left-group">
+                <button
+                  type="button"
+                  className="btn btn-saas-secondary"
+                  onClick={() => setShowBulkReferralModal(false)}
+                  disabled={bulkAssignLoading}
+                >
+                  <X size={13} strokeWidth={2} />
+                  <span>Cancel</span>
+                </button>
+              </div>
+
+              <div className="reg-footer-right-group">
+                <button
+                  type="button"
+                  className="btn btn-saas-primary-emerald"
+                  onClick={handleExecuteBulkReferral}
+                  disabled={!bulkReferralValid || bulkAssignLoading || selectedRegIds.length === 0}
+                  title={!bulkReferralValid ? "Please verify a referral leader first" : "Assign referral and approve all selected applications"}
+                >
+                  {bulkAssignLoading ? (
+                    <>
+                      <RefreshCw size={14} className="spin-icon" />
+                      <span>Processing {bulkAssignProgress.current}/{bulkAssignProgress.total}...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck size={14} strokeWidth={2.5} />
+                      <span>Assign &amp; Approve ({selectedRegIds.length})</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIRECT LEADER SMS MODAL */}
+      {showLeaderSmsModal && leaderSmsTarget && (
+        <div className="modal-overlay" onClick={() => !leaderSmsSending && setShowLeaderSmsModal(false)}>
+          <div className="modal-card saas-leader-sms-card" onClick={(e) => e.stopPropagation()}>
+            {/* Professional SaaS Header */}
+            <div className="saas-sms-modal-header">
+              <div className="saas-sms-modal-header-left">
+                <div className="saas-sms-header-badge">
+                  <MessageSquare size={11} strokeWidth={2.5} />
+                  <span>OFFICIAL SEMAPHORE SMS GATEWAY</span>
+                </div>
+                <h3 className="saas-sms-modal-title">Send SMS to Leader</h3>
+                <p className="saas-sms-modal-subtitle">
+                  Dispatch official text message communication directly to {leaderSmsTarget.displayName}.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="saas-sms-modal-close"
+                onClick={() => !leaderSmsSending && setShowLeaderSmsModal(false)}
+                title="Close modal"
+              >
+                <X size={16} strokeWidth={2.2} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="saas-leader-sms-body">
+              {/* Recipient Card */}
+              <div className="saas-sms-recipient-card">
+                <div className="saas-sms-recipient-left">
+                  <div className="saas-sms-recipient-avatar">
+                    {leaderSmsTarget.displayName.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="saas-sms-recipient-details">
+                    <div className="saas-sms-recipient-name-row">
+                      <span className="saas-sms-recipient-name">{leaderSmsTarget.displayName}</span>
+                      <span className="role-tag-saas subleader">{leaderSmsTarget.roleLabel}</span>
+                    </div>
+                    <div className="saas-sms-recipient-meta">
+                      <span>Brgy. {leaderSmsTarget.barangay}</span>
+                      {leaderSmsTarget.purok ? <span> · {leaderSmsTarget.purok}</span> : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="saas-sms-phone-pill">
+                  <Phone size={12} strokeWidth={2.2} className="saas-sms-phone-icon" />
+                  <span className="saas-sms-phone-num">{leaderSmsTarget.contact}</span>
+                </div>
+              </div>
+
+              {/* Message Composer Area */}
+              <div className="saas-sms-composer-wrap">
+                <div className="saas-sms-composer-header">
+                  <label className="saas-sms-label">Message Content</label>
+                  <span className={`saas-sms-char-counter ${leaderSmsMessage.length > 160 ? 'multi-part' : ''}`}>
+                    {leaderSmsMessage.length} characters ({Math.max(1, Math.ceil((leaderSmsMessage.length || 1) / 160))} SMS credit{Math.ceil((leaderSmsMessage.length || 1) / 160) > 1 ? 's' : ''})
+                  </span>
+                </div>
+                <textarea
+                  className="saas-sms-textarea"
+                  rows={5}
+                  value={leaderSmsMessage}
+                  onChange={(e) => setLeaderSmsMessage(e.target.value)}
+                  placeholder={`Type your official SMS message to ${leaderSmsTarget.displayName} here...`}
+                  disabled={leaderSmsSending}
+                  autoFocus
+                />
+              </div>
+
+              {/* Gateway Channel Info */}
+              <div className="saas-sms-gateway-bar">
+                <div className="saas-sms-gateway-bar-left">
+                  <CheckCircle size={13} strokeWidth={2.5} style={{ color: '#059669' }} />
+                  <span>Sender ID: <strong>EMcard</strong> (Semaphore Cellular Route)</span>
+                </div>
+                <span className="saas-sms-gateway-bar-right">Direct Telecom Delivery</span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="saas-sms-modal-footer">
+              <div className="saas-sms-footer-left">
+                <button
+                  type="button"
+                  className="btn-saas-secondary"
+                  onClick={() => setShowLeaderSmsModal(false)}
+                  disabled={leaderSmsSending}
+                >
+                  <X size={13} strokeWidth={2} />
+                  <span>Cancel</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-saas-ghost"
+                  onClick={() => {
+                    window.open(`sms:${leaderSmsTarget.contact}?body=${encodeURIComponent(leaderSmsMessage)}`);
+                  }}
+                  title="Open in native mobile phone SMS app"
+                >
+                  <ExternalLink size={12} strokeWidth={2} />
+                  <span>Device App</span>
+                </button>
+              </div>
+
+              <div className="saas-sms-footer-right">
+                <button
+                  type="button"
+                  className="btn-saas-send-sms"
+                  onClick={handleSendLeaderSms}
+                  disabled={leaderSmsSending || !leaderSmsMessage.trim()}
+                >
+                  {leaderSmsSending ? (
+                    <>
+                      <RefreshCw size={13} className="spin-icon" />
+                      <span>Sending SMS...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send size={13} strokeWidth={2.2} />
+                      <span>Send Official SMS</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EXCLUSIVE NETWORK HIERARCHY TREE DRAWER - FULL 5-TIER CAMPAIGN STRUCTURE */}
+      {showHierarchyTreeModal && hierarchyTreeLeader && (() => {
+        const lName = (hierarchyTreeLeader.name || '').trim();
+        const brgy = hierarchyTreeLeader.barangay || 'Santol';
+        const brgyConfig = BARANGAY_VOTER_DATA[brgy] || BARANGAY_VOTER_DATA['Santol'] || {
+          subLeaderTarget: 18,
+          coordinatorQuota: 20,
+          memberQuota: 9,
+          recruitQuota: 1
+        };
+
+        const coordQuota = hierarchyTreeLeader.directTarget || brgyConfig.coordinatorQuota || 20;
+        const memberQuota = brgyConfig.memberQuota || 9;
+        const recruitQuota = brgyConfig.recruitQuota || 1;
+
+        // Tier 2: Sub-Leader
+        const subLeaderName = lName;
+
+        // Tier 3: Coordinators (Direct approved downlines of this Sub-Leader)
+        const coordinatorsList = (allRegs || []).filter(r => 
+          r.status === 'Approved' && 
+          (r.referral_name || '').trim().toLowerCase() === subLeaderName.toLowerCase()
+        );
+
+        // Build full 5-tier recursive tree
+        const full5TierTree = coordinatorsList.map(c => {
+          const cName = getResidentName(c);
+          // Tier 4: Members under this Coordinator
+          const membersList = (allRegs || []).filter(r => 
+            r.status === 'Approved' && 
+            (r.referral_name || '').trim().toLowerCase() === cName.toLowerCase()
+          );
+
+          // Tier 5: +1 Recruits under each Member
+          const membersTree = membersList.map(m => {
+            const mName = getResidentName(m);
+            const plus1List = (allRegs || []).filter(r => 
+              r.status === 'Approved' && 
+              (r.referral_name || '').trim().toLowerCase() === mName.toLowerCase()
+            );
+
+            return {
+              member: m,
+              memberName: mName,
+              plus1Recruits: plus1List,
+              plus1Count: plus1List.length
+            };
+          });
+
+          const totalMembers = membersTree.length;
+          const totalPlus1 = membersTree.reduce((sum, m) => sum + m.plus1Count, 0);
+
+          return {
+            coordinator: c,
+            coordName: cName,
+            members: membersTree,
+            membersCount: totalMembers,
+            plus1Count: totalPlus1,
+            clusterYield: 1 + totalMembers + totalPlus1
+          };
+        });
+
+        const actualCoordCount = full5TierTree.length;
+        const actualMemberCount = full5TierTree.reduce((sum, c) => sum + c.membersCount, 0);
+        const actualPlus1Count = full5TierTree.reduce((sum, c) => sum + c.plus1Count, 0);
+        const actualTotalClusterVotes = 1 + actualCoordCount + actualMemberCount + actualPlus1Count; // 1 for the Sub-Leader
+
+        // Dynamic Active Quotas: based on appointed leaders & coordinators
+        const targetCoords = coordQuota;
+
+        // Cluster capacity when fully deployed (e.g. 20 coords * 9 members = 180)
+        const clusterMaxMembers = coordQuota * memberQuota;
+        const clusterMaxPlus1 = clusterMaxMembers * recruitQuota;
+        const clusterMaxTotalVotes = 1 + targetCoords + clusterMaxMembers + clusterMaxPlus1;
+        const appointedApexName = (appointedBarangayLeaders && appointedBarangayLeaders[brgy]) || '';
+        const brgyCoordQuota = brgyConfig.coordinatorQuota || coordQuota;
+        const brgySubLeaders = brgyConfig.subLeaderTarget || 0;
+        const brgyMemberTotal = brgySubLeaders * brgyCoordQuota * memberQuota;
+        const brgyFullTree = 1 + brgySubLeaders + (brgySubLeaders * brgyCoordQuota) + brgyMemberTotal + (brgyMemberTotal * recruitQuota);
+        const brgyTarget60 = brgyConfig.target60 || 0;
+        const slotLabel = hierarchyTreeLeader.slotNumber ? `Slot #${hierarchyTreeLeader.slotNumber}` : 'Sub-Leader';
+        const clusterPct = clusterMaxTotalVotes > 0 ? Math.round((actualTotalClusterVotes / clusterMaxTotalVotes) * 100) : 0;
+        const coordPct = targetCoords > 0 ? Math.round((actualCoordCount / targetCoords) * 100) : 0;
+
+        return (
+          <>
+            <div className="saas-tree-drawer-backdrop" onClick={() => setShowHierarchyTreeModal(false)} />
+            <aside className="saas-tree-drawer" aria-label="Network Hierarchy Tree" onClick={e => e.stopPropagation()}>
+              {/* Drawer Header */}
+              <div className="saas-tree-drawer-header">
+                <div className="saas-tree-drawer-header-left">
+                  <div className="saas-tree-header-badge">
+                    <Network size={11} strokeWidth={2.5} />
+                    <span>FULL 5-TIER NETWORK HIERARCHY</span>
+                  </div>
+                  <h3 className="saas-tree-modal-title">{lName}</h3>
+                  <p className="saas-tree-modal-subtitle">
+                    Brgy. {brgy} · {slotLabel} · Apex: {appointedApexName || 'Not appointed'} · 60% target {brgyTarget60.toLocaleString()} · Full tree {brgyFullTree.toLocaleString()}
+                  </p>
+                </div>
+                <div className="saas-tree-header-controls">
+                  <button
+                    type="button"
+                    className="saas-tree-drawer-close"
+                    onClick={() => setShowHierarchyTreeModal(false)}
+                    title="Close drawer (Esc)"
+                  >
+                    <X size={16} strokeWidth={2.2} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="saas-tree-metrics-bar">
+                <div className="saas-tree-metric-item is-primary">
+                  <span className="saas-tree-metric-lbl">This cluster</span>
+                  <span className="saas-tree-metric-val">{actualTotalClusterVotes.toLocaleString()} / {clusterMaxTotalVotes.toLocaleString()}</span>
+                  <span className="saas-tree-metric-sub">{clusterPct}% of slot capacity</span>
+                </div>
+                <div className="saas-tree-metric-item">
+                  <span className="saas-tree-metric-lbl">Coordinators</span>
+                  <span className="saas-tree-metric-val">{actualCoordCount} / {targetCoords}</span>
+                  <span className="saas-tree-metric-sub">{coordPct}% appointed</span>
+                </div>
+                <div className="saas-tree-metric-item">
+                  <span className="saas-tree-metric-lbl">Members</span>
+                  <span className="saas-tree-metric-val">{actualMemberCount} / {clusterMaxMembers}</span>
+                  <span className="saas-tree-metric-sub">{memberQuota} per coordinator</span>
+                </div>
+                <div className="saas-tree-metric-item">
+                  <span className="saas-tree-metric-lbl">+1 recruits</span>
+                  <span className="saas-tree-metric-val">{actualPlus1Count} / {clusterMaxPlus1}</span>
+                  <span className="saas-tree-metric-sub">1 per member</span>
+                </div>
+              </div>
+
+              <div className="saas-tree-modal-body" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Cluster head */}
+                {/* ─────────────────────────────────────────────────────────── */}
+                <div className="saas-5tier-section t2-box">
+                  <div className="saas-5tier-header">
+                    <div className="saas-5tier-title-wrap">
+                      <span className="saas-5tier-badge t2">Cluster head</span>
+                      <h4 className="saas-5tier-title">{slotLabel}</h4>
+                    </div>
+                    <span className="saas-5tier-quota-pill" style={{ color: '#047857', background: '#ecfdf5', borderColor: '#a7f3d0' }}>
+                      Quota: {targetCoords} Coordinators
+                    </span>
+                  </div>
+
+                  <div className="saas-5tier-card active-focus">
+                    <div className="saas-5tier-avatar t2">
+                      {subLeaderName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="saas-5tier-info">
+                      <div className="saas-5tier-name">{subLeaderName}</div>
+                      <div className="saas-5tier-meta">
+                        <span>Brgy. {brgy}</span>
+                        {hierarchyTreeLeader.purok && <span>· {hierarchyTreeLeader.purok}</span>}
+                        <span>· Contact: <strong>{hierarchyTreeLeader.contact || 'No phone recorded'}</strong></span>
+                      </div>
+                      <div style={{ marginTop: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', fontWeight: 600, color: '#475569', marginBottom: 2 }}>
+                          <span>Coordinator Fulfillment ({actualCoordCount} of {targetCoords})</span>
+                          <span>{targetCoords > 0 ? Math.round((actualCoordCount / targetCoords) * 100) : 0}%</span>
+                        </div>
+                        <div style={{ width: '100%', height: 6, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.min(100, targetCoords > 0 ? Math.round((actualCoordCount / targetCoords) * 100) : 0)}%`, height: '100%', background: '#059669', borderRadius: 999 }} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="saas-5tier-right">
+                      <span className="role-tag-saas subleader" style={{ fontSize: '0.66rem' }}>
+                        Slot #{hierarchyTreeLeader.slotNumber || 1}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Connecting Line T2 -> T3 */}
+                <div className="saas-5tier-connector">
+                  <div className="saas-5tier-line" />
+                  <ChevronDown size={14} className="saas-5tier-arrow" />
+                </div>
+
+                {/* ─────────────────────────────────────────────────────────── */}
+                {/* TIER 3: COORDINATORS */}
+                {/* ─────────────────────────────────────────────────────────── */}
+                <div className="saas-5tier-section t3-box">
+                  <div className="saas-5tier-header">
+                    <div className="saas-5tier-title-wrap">
+                      <span className="saas-5tier-badge t3">Tier 3 · Coordinator</span>
+                      <h4 className="saas-5tier-title">Field Coordinators</h4>
+                    </div>
+                    <span className="saas-5tier-quota-pill" style={{ color: '#0369a1', background: '#e0f2fe', borderColor: '#bae6fd' }}>
+                      {actualCoordCount} of {targetCoords} Appointed
+                    </span>
+                  </div>
+
+                  {actualCoordCount === 0 ? (
+                    <div className="saas-tree-empty-card" style={{ padding: '16px 14px' }}>
+                      <div className="saas-tree-empty-icon" style={{ width: 36, height: 36, background: '#e0f2fe', color: '#0284c7' }}>
+                        <Users size={18} strokeWidth={2} />
+                      </div>
+                      <h5 style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0f172a', margin: '0 0 4px 0' }}>
+                        {targetCoords} coordinator slots open
+                      </h5>
+                      <p style={{ fontSize: '0.72rem', color: '#64748b', maxWidth: 460, margin: '0 auto 12px auto', lineHeight: 1.4 }}>
+                        Residents who register with <strong>{subLeaderName}</strong> as their referral fill these coordinator slots. Copy the name or send an SMS from the footer.
+                      </p>
+                      
+                      <div className="saas-tree-slot-preview" style={{ marginBottom: 0 }}>
+                        {Array.from({ length: targetCoords }).map((_, i) => (
+                          <div 
+                            key={i} 
+                            className={`saas-tree-slot-dot ${i === 0 ? 'next-open' : ''}`}
+                            title={`Coordinator Slot #${i + 1} (Target Quota)`}
+                          >
+                            <span>C{i + 1}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {full5TierTree.map((cNode, cIdx) => (
+                        <div key={cNode.coordinator.id} className="saas-5tier-card">
+                          <div className="saas-5tier-avatar t3">
+                            C{cIdx + 1}
+                          </div>
+                          <div className="saas-5tier-info">
+                            <div className="saas-5tier-name">{cNode.coordName}</div>
+                            <div className="saas-5tier-meta">
+                              <span>Brgy. {cNode.coordinator.barangay || brgy}</span>
+                              {cNode.coordinator.contact && <span>· {cNode.coordinator.contact}</span>}
+                              <span>· Members Mobilized: <strong>{cNode.membersCount} / {memberQuota}</strong></span>
+                            </div>
+                          </div>
+                          <div className="saas-5tier-right">
+                            <span className="saas-tree-card-chip">EM-{cNode.coordinator.id.slice(0, 8).toUpperCase()}</span>
+                            <button
+                              type="button"
+                              className="action-btn-saas"
+                              onClick={() => setSelectedRegDetail(cNode.coordinator)}
+                              title="View Coordinator Dossier"
+                            >
+                              <UserCheck size={11} />
+                              <span>View</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Connecting Line T3 -> T4 */}
+                <div className="saas-5tier-connector">
+                  <div className="saas-5tier-line" />
+                  <ChevronDown size={14} className="saas-5tier-arrow" />
+                </div>
+
+                {/* ─────────────────────────────────────────────────────────── */}
+                {/* TIER 4: MEMBERS */}
+                {/* ─────────────────────────────────────────────────────────── */}
+                <div className="saas-5tier-section t4-box">
+                  <div className="saas-5tier-header">
+                    <div className="saas-5tier-title-wrap">
+                      <span className="saas-5tier-badge t4">Tier 4 · Members</span>
+                      <h4 className="saas-5tier-title">Household members</h4>
+                    </div>
+                    <span className="saas-5tier-quota-pill" style={{ color: '#b45309', background: '#fffbeb', borderColor: '#fde68a' }}>
+                      {actualMemberCount} / {clusterMaxMembers}
+                    </span>
+                  </div>
+
+                  {actualMemberCount === 0 ? (
+                    <div className="saas-blueprint-banner">
+                      <div style={{ color: '#d97706', marginTop: 1 }}>
+                        <Users size={16} strokeWidth={2.2} />
+                      </div>
+                      <div className="saas-blueprint-desc">
+                        Each coordinator recruits {memberQuota} members. This cluster’s member target is {clusterMaxMembers} ({targetCoords} × {memberQuota}).
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {full5TierTree.flatMap(c => c.members).map((mNode, mIdx) => (
+                        <div key={mNode.member.id} className="saas-5tier-card">
+                          <div className="saas-5tier-avatar t4">
+                            M{mIdx + 1}
+                          </div>
+                          <div className="saas-5tier-info">
+                            <div className="saas-5tier-name">{mNode.memberName}</div>
+                            <div className="saas-5tier-meta">
+                              <span>Recruited under Coordinator</span>
+                              {mNode.member.contact && <span>· {mNode.member.contact}</span>}
+                              <span>· +1 Status: <strong>{mNode.plus1Count >= 1 ? '✓ +1 Secured' : 'Pending +1'}</strong></span>
+                            </div>
+                          </div>
+                          <div className="saas-5tier-right">
+                            <span className="saas-tree-card-chip">EM-{mNode.member.id.slice(0, 8).toUpperCase()}</span>
+                            <button
+                              type="button"
+                              className="action-btn-saas"
+                              onClick={() => setSelectedRegDetail(mNode.member)}
+                              title="View Member Dossier"
+                            >
+                              <UserCheck size={11} />
+                              <span>View</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Connecting Line T4 -> T5 */}
+                <div className="saas-5tier-connector">
+                  <div className="saas-5tier-line" />
+                  <ChevronDown size={14} className="saas-5tier-arrow" />
+                </div>
+
+                {/* ─────────────────────────────────────────────────────────── */}
+                {/* TIER 5: +1 BY MEMBER (HOUSEHOLD MULTIPLIER) */}
+                {/* ─────────────────────────────────────────────────────────── */}
+                <div className="saas-5tier-section t5-box">
+                  <div className="saas-5tier-header">
+                    <div className="saas-5tier-title-wrap">
+                      <span className="saas-5tier-badge t5">Tier 5 · +1 by Member</span>
+                      <h4 className="saas-5tier-title">Household +1 recruits</h4>
+                    </div>
+                    <span className="saas-5tier-quota-pill" style={{ color: '#be185d', background: '#fdf2f8', borderColor: '#fbcfe8' }}>
+                      {actualPlus1Count} / {clusterMaxPlus1}
+                    </span>
+                  </div>
+
+                  {actualPlus1Count === 0 ? (
+                    <div className="saas-blueprint-banner" style={{ background: '#fff5f9', borderColor: '#fbcfe8' }}>
+                      <div style={{ color: '#db2777', marginTop: 1 }}>
+                        <HeartHandshake size={16} strokeWidth={2.2} />
+                      </div>
+                      <div className="saas-blueprint-desc">
+                        Each member brings 1 household recruit. This cluster’s +1 target is {clusterMaxPlus1}.
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {full5TierTree.flatMap(c => c.members).flatMap(m => m.plus1Recruits).map((rNode, rIdx) => {
+                        const rName = getResidentName(rNode);
+                        return (
+                          <div key={rNode.id} className="saas-5tier-card">
+                            <div className="saas-5tier-avatar t5">
+                              +1
+                            </div>
+                            <div className="saas-5tier-info">
+                              <div className="saas-5tier-name">{rName}</div>
+                              <div className="saas-5tier-meta">
+                                <span>Recruited by Family Member</span>
+                                {rNode.contact && <span>· {rNode.contact}</span>}
+                                <span>· Status: <strong>Voter Mobilized</strong></span>
+                              </div>
+                            </div>
+                            <div className="saas-tier-right">
+                              <span className="saas-tree-card-chip" style={{ background: '#fdf2f8', color: '#9d174d', borderColor: '#fbcfe8' }}>
+                                +1 SECURED
+                              </span>
+                              <button
+                                type="button"
+                                className="action-btn-saas"
+                                onClick={() => setSelectedRegDetail(rNode)}
+                                title="View Recruit Dossier"
+                              >
+                                <UserCheck size={11} />
+                                <span>View</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Drawer Fixed Footer */}
+              <div className="saas-tree-drawer-footer">
+                <div className="saas-tree-footer-left">
+                  <button
+                    type="button"
+                    className="btn-saas-secondary"
+                    onClick={() => setShowHierarchyTreeModal(false)}
+                  >
+                    <X size={12} strokeWidth={2} />
+                    <span>Close</span>
+                    <kbd className="saas-tree-kbd-hint">Esc</kbd>
+                  </button>
+                </div>
+                <div className="saas-tree-footer-right">
+                  <button
+                    type="button"
+                    className="btn-saas-secondary"
+                    onClick={() => {
+                      navigator.clipboard.writeText(lName);
+                      setToast({ message: `Copied "${lName}" referral name to clipboard!`, type: 'success' });
+                    }}
+                  >
+                    <Copy size={12} strokeWidth={2} />
+                    <span>Copy Name</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-saas-send-sms"
+                    onClick={() => {
+                      const target = hierarchyTreeLeader;
+                      setShowHierarchyTreeModal(false);
+                      openLeaderSmsModal(target);
+                    }}
+                  >
+                    <MessageSquare size={12} strokeWidth={2.2} />
+                    <span>Send SMS</span>
+                  </button>
+                </div>
+              </div>
+            </aside>
+          </>
+        );
+      })()}
 
       {/* ALL TOP BENEFICIARIES MODAL */}
       {showAllTopBeneficiariesModal && (
@@ -17425,42 +21977,15 @@ export default function AdminPage() {
                               clearTimeout(editReferralDebounceRef.current);
                               const trimmedVal = val.trim();
                               if (trimmedVal.length >= 2) {
-                                editReferralDebounceRef.current = setTimeout(async () => { // 250ms debounce
+                                editReferralDebounceRef.current = setTimeout(async () => {
                                   try {
-                                    // Search approved members
-                                    const { data: members } = await supabase
-                                      .from('registrations')
-                                      .select('id, first_name, middle_name, last_name, suffix')
-                                      .eq('status', 'Approved')
-                                      .or(`first_name.ilike.%${trimmedVal}%,last_name.ilike.%${trimmedVal}%`)
-                                      .limit(10);
-                                    // Search registered voters
-                                    const { data: voters } = await supabase
-                                      .from('ValidResidents')
-                                      .select('id, first_name, middle_name, last_name, suffix')
-                                      .or(`first_name.ilike.%${trimmedVal}%,last_name.ilike.%${trimmedVal}%`)
-                                      .limit(10);
-                                    const memberNames = (members || []).map(p => ({
-                                      id: `m-${p.id}`,
-                                      name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
-                                    }));
-                                    const voterNames = (voters || []).map(p => ({
-                                      id: `v-${p.id}`,
-                                      name: `${p.first_name || ''} ${p.middle_name ? p.middle_name + ' ' : ''}${p.last_name || ''}${p.suffix ? ' ' + p.suffix : ''}`.trim()
-                                    }));
-                                    // Merge and deduplicate by name
-                                    const all = [...memberNames, ...voterNames];
-                                    const seen = new Set();
-                                    const unique = all.filter(item => {
-                                      if (seen.has(item.name)) return false;
-                                      seen.add(item.name);
-                                      return true;
-                                    });
-                                    setEditReferralResults(unique.slice(0, 10));
+                                    const excludeId = editingMember?.id || editingMember?.resident_id;
+                                    const results = await searchApprovedMembers(trimmedVal, excludeId);
+                                    setEditReferralResults(results);
                                   } catch (err) {
                                     setEditReferralResults([]);
                                   }
-                                }, 250);
+                                }, 200);
                               } else {
                                 setEditReferralResults([]);
                               }

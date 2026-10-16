@@ -403,13 +403,24 @@ export async function POST(request) {
 
     const regSelectCols = 'id, resident_id, contact, barangay, sector_category, birthday, first_name, last_name, middle_name, suffix, ValidResidents(first_name, last_name, middle_name, suffix)';
 
-    if (targetType === 'test' && targetValue) {
-      // Test mode: send to single phone number
-      const phone = targetValue.replace(/\D/g, '');
+    if ((targetType === 'direct' || targetType === 'test') && targetValue) {
+      // Direct / Test mode: send to single phone number or leader object
+      let phone = '';
+      let directName = 'Resident Leader';
+      let regId = null;
+      if (typeof targetValue === 'object') {
+        phone = (targetValue.phone || '').replace(/\D/g, '');
+        directName = targetValue.name || 'Resident Leader';
+        regId = targetValue.registrationId || null;
+      } else {
+        phone = String(targetValue).replace(/\D/g, '');
+        directName = targetType === 'test' ? 'Test' : 'Resident Leader';
+      }
+
       if (phone.length < 10) {
         return Response.json({ error: 'Invalid phone number. Use format: 09171234567' }, { status: 400 });
       }
-      validRecipients = [{ contact: phone, id: null, resident_id: null, first_name: 'Test', ValidResidents: null }];
+      validRecipients = [{ contact: phone, id: regId, resident_id: null, first_name: directName, ValidResidents: null }];
     } else if (targetType === 'specific' && targetValue) {
       // Specific user: lookup by registration ID
       const { data: reg, error: regError } = await supabase
@@ -476,7 +487,7 @@ export async function POST(request) {
         type,
         status: 'sending',
         target_type: targetType || 'all',
-        target_value: targetValue,
+        target_value: typeof targetValue === 'object' ? (targetValue.phone || JSON.stringify(targetValue)) : (targetValue || null),
         total_recipients: validRecipients.length,
         sent_count: 0,
         failed_count: 0,
