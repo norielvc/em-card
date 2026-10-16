@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '../../../lib/auth';
-import { getClientIP } from '../../../lib/security';
+import { getClientIP, requireStaffOrAdmin } from '../../../lib/security';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -54,9 +54,8 @@ const DISTRIBUTION_CATEGORIES = {
 export async function POST(request) {
   try {
     const user = await requireAuth(request);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireStaffOrAdmin(user);
+    if (forbidden) return forbidden;
 
     const body = await request.json();
     const { rawToken, event_id, scanned_by, household_mode } = body;

@@ -25,7 +25,7 @@ export async function GET(request) {
 
     const { data: reg, error: regErr } = await supabaseAdmin
       .from('registrations')
-      .select('id, purok, contact, photo_url, photo_base64, birthday, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
+      .select('id, purok, contact, photo_url, birthday, scan_count, last_scanned_at, ValidResidents(first_name, last_name, middle_name, suffix, barangay, precinct)')
       .eq('qr_token', cleanToken)
       .eq('status', 'Approved')
       .maybeSingle();
@@ -42,7 +42,7 @@ export async function GET(request) {
     try {
       const { data: distData } = await supabaseAdmin
         .from('aid_distributions')
-        .select('id, category, category_name, distributed_at, claim_number, scanned_by')
+        .select('id, category, category_name, distributed_at, claim_number')
         .eq('registration_id', reg.id)
         .order('distributed_at', { ascending: false });
       aidDistributions = distData || [];
@@ -50,13 +50,19 @@ export async function GET(request) {
       // Non-blocking if table not ready
     }
 
+    // Mask contact for public card page (show last 4 digits only)
+    const rawContact = (reg.contact || '').replace(/\D/g, '');
+    const maskedContact = rawContact.length >= 4
+      ? `${'*'.repeat(Math.max(0, rawContact.length - 4))}${rawContact.slice(-4)}`
+      : '-';
+
     return Response.json({
       id: reg.id,
       name: fullName,
       barangay: person.barangay || '-',
       purok: reg.purok || '-',
-      contact: reg.contact || '-',
-      photo: reg.photo_url || reg.photo_base64,
+      contact: maskedContact,
+      photo: reg.photo_url || null,
       birthDate: reg.birthday,
       scanCount: reg.scan_count || 0,
       lastScanned: reg.last_scanned_at,

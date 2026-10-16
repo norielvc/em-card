@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireAuth } from '../../../lib/auth';
-import { getClientIP } from '../../../lib/security';
+import { getClientIP, requireStaffOrAdmin } from '../../../lib/security';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -56,9 +56,8 @@ async function logAdminAction(action_type, target_table, target_id, target_name,
 export async function GET(request) {
   try {
     const user = await requireAuth(request);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireStaffOrAdmin(user);
+    if (forbidden) return forbidden;
 
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
@@ -273,9 +272,8 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const user = await requireAuth(request);
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const forbidden = requireStaffOrAdmin(user);
+    if (forbidden) return forbidden;
 
     const body = await request.json();
     const { rawToken, registrationId, category, scanned_by, notes } = body;

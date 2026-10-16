@@ -8,6 +8,8 @@ import {
   HybridBinarizer,
   GlobalHistogramBinarizer,
 } from "@zxing/library";
+import { requireAuth } from "../../../lib/auth";
+import { rateLimit, requireStaffOrAdmin } from "../../../lib/security";
 
 // Server-side High-Performance QR Decoder (Fast jsQR + ZXing QRCodeReader + Sharp)
 // 800px resolution for ultra-fast (sub-50ms) decoding with maximum accuracy.
@@ -70,6 +72,15 @@ function fastDualDecode(rgbaBuffer, width, height, label, debugList) {
 export async function POST(request) {
   const debug = [];
   try {
+    const user = await requireAuth(request);
+    const forbidden = requireStaffOrAdmin(user);
+    if (forbidden) return forbidden;
+
+    const limit = rateLimit(request, { windowMs: 60 * 1000, max: 30 });
+    if (!limit.allowed) {
+      return NextResponse.json({ qrText: null, debug: "rate_limited", error: "Too many requests" }, { status: 429 });
+    }
+
     const formData = await request.formData();
     const file = formData.get("photo");
     if (!file || typeof file === "string") {

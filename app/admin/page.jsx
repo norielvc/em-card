@@ -108,7 +108,7 @@ export default function AdminPage() {
   const [lang, setLang] = useState('en');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
-  const [userRole, setUserRole] = useState('admin'); // 'admin' | 'staff'
+  const [userRole, setUserRole] = useState(null); // 'admin' | 'staff' | 'finance' | null
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -1475,7 +1475,10 @@ export default function AdminPage() {
         if (data.session) {
           setIsLoggedIn(true);
           setUsername(data.session.user.email);
-          const role = data.session.user.user_metadata?.role || 'admin';
+          const role =
+            data.session.user.app_metadata?.role ||
+            data.session.user.user_metadata?.role ||
+            null;
           setUserRole(role);
           if (role === 'staff') {
             setActiveTab(prev => (STAFF_ALLOWED_TABS.has(prev) ? prev : 'eventScanner'));
@@ -1493,14 +1496,17 @@ export default function AdminPage() {
       setIsLoggedIn(!!session);
       if (session) {
         setUsername(session.user.email);
-        const role = session.user.user_metadata?.role || 'admin';
+        const role =
+          session.user.app_metadata?.role ||
+          session.user.user_metadata?.role ||
+          null;
         setUserRole(role);
         if (role === 'staff') {
           setActiveTab(prev => (STAFF_ALLOWED_TABS.has(prev) ? prev : 'eventScanner'));
         }
       } else {
         setUsername('');
-        setUserRole('admin');
+        setUserRole(null);
         setRecentRegistrations([]);
       }
     });
@@ -3194,7 +3200,7 @@ export default function AdminPage() {
       let photoUrl = editMemberForm.photo_url || null;
       if (photoUrl && photoUrl.startsWith('data:image')) {
         try {
-          const uploadRes = await fetch('/api/upload-member-photo', {
+          const uploadRes = await authFetch('/api/upload-member-photo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ base64: photoUrl, residentId: selectedMember.id }),
@@ -3639,8 +3645,8 @@ export default function AdminPage() {
       showToast('Passwords do not match', 'error');
       return;
     }
-    if (createAccountForm.password.length < 6) {
-      showToast('Password must be at least 6 characters', 'error');
+    if (createAccountForm.password.length < 10) {
+      showToast('Password must be at least 10 characters', 'error');
       return;
     }
     setCreateAccountLoading(true);
@@ -3693,8 +3699,8 @@ export default function AdminPage() {
       showToast('Passwords do not match', 'error');
       return;
     }
-    if (editAccountForm.password && editAccountForm.password.length < 6) {
-      showToast('Password must be at least 6 characters', 'error');
+    if (editAccountForm.password && editAccountForm.password.length < 10) {
+      showToast('Password must be at least 10 characters', 'error');
       return;
     }
     setEditAccountLoading(true);
@@ -4111,8 +4117,13 @@ export default function AdminPage() {
     if (!deleteResidentId) return;
     setDeleteResidentLoading(true);
     try {
-      const { error } = await supabase.from('ValidResidents').delete().eq('id', deleteResidentId);
-      if (error) throw error;
+      const res = await authFetch('/api/residents/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deleteResidentId }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Delete failed');
       showToast('Resident deleted successfully!', 'success');
       logAdminAction('delete_resident', 'ValidResidents', deleteResidentId, deleteResidentName, {});
       fetchAllResidents();
@@ -23199,7 +23210,7 @@ export default function AdminPage() {
                     required 
                     value={createAccountForm.password} 
                     onChange={e => setCreateAccountForm(f => ({ ...f, password: e.target.value }))} 
-                    placeholder="Minimum 6 characters" 
+                    placeholder="Minimum 10 characters" 
                     className="acc-styled-input with-icon"
                   />
                   {createAccountForm.password && (

@@ -20,10 +20,11 @@ CREATE TABLE IF NOT EXISTS "ValidResidents" (
 
 ALTER TABLE "ValidResidents" ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow public select residents"
+-- No anon SELECT/UPDATE on ValidResidents (PII). Use authenticated or server APIs.
+CREATE POLICY "Allow authenticated select residents"
   ON "ValidResidents"
   FOR SELECT
-  TO anon, authenticated
+  TO authenticated
   USING (true);
 
 CREATE POLICY "Allow authenticated insert residents"
@@ -36,13 +37,6 @@ CREATE POLICY "Allow authenticated update residents"
   ON "ValidResidents"
   FOR UPDATE
   TO authenticated
-  USING (true)
-  WITH CHECK (true);
-
-CREATE POLICY "Allow public update resident status"
-  ON "ValidResidents"
-  FOR UPDATE
-  TO anon
   USING (true)
   WITH CHECK (true);
 

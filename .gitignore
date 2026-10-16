@@ -34,6 +34,11 @@ __pycache__/
 *.pdf
 *.xlsx
 
+# Voter / PII CSVs must never be committed
+*.csv
+voters/
+borol2nd_voters.csv
+
 # IDE
 # Database Backups
 backups/

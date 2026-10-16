@@ -528,8 +528,6 @@ export default function RegisterForm({ embedded = false }) {
     });
   };
 
-  const detectFace = async () => true;
-
   const handleSearchInputChange = (e) => {
     const value = e.target.value;
     setSearchQuery(value);
@@ -708,40 +706,37 @@ export default function RegisterForm({ embedded = false }) {
     setIsSubmitting(true);
     try {
       if (!isNonValidResident) {
-        // Check: by resident_id (prevent same person from registering twice)
-        const { data: existingById, error: errById } = await supabase
-          .from('registrations')
-          .select('id, status')
-          .eq('resident_id', selectedPerson.id)
-          .in('status', ['Pending', 'Approved'])
-          .maybeSingle();
-
-        if (errById) {
-          // silent
-        }
-
-        if (existingById) {
-          alert(t.duplicateRegistration || 'You already have an existing registration request. Duplicate submissions are not allowed.');
-          setIsSubmitting(false);
-          return;
+        // Duplicate check via secure server helper (works after RLS hardening)
+        try {
+          const dupRes = await fetch('/api/registration/helpers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'check_duplicate', residentId: selectedPerson.id }),
+          });
+          const dupJson = await dupRes.json();
+          if (dupJson.exists) {
+            alert(t.duplicateRegistration || 'You already have an existing registration request. Duplicate submissions are not allowed.');
+            setIsSubmitting(false);
+            return;
+          }
+        } catch {
+          // If helper fails, continue — DB unique constraints still protect
         }
       }
 
-      // Look up parent registration by referral name
+      // Look up parent registration by referral name (server-side)
       let parentId = null;
       if (referral) {
-        const { data: parentCandidates } = await supabase
-          .from('registrations')
-          .select('id, resident_id, ValidResidents(first_name, last_name, middle_name)')
-          .neq('id', selectedPerson.id);
-        if (parentCandidates) {
-          const match = parentCandidates.find(p => {
-            const vr = p.ValidResidents;
-            if (!vr) return false;
-            const pname = `${vr.first_name || ''} ${vr.middle_name ? vr.middle_name + ' ' : ''}${vr.last_name || ''}${vr.suffix ? ' ' + vr.suffix : ''}`.trim();
-            return pname.toLowerCase() === referral.toLowerCase();
+        try {
+          const parentRes = await fetch('/api/registration/helpers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'resolve_parent', referralName: referral }),
           });
-          if (match) parentId = match.id;
+          const parentJson = await parentRes.json();
+          parentId = parentJson.parentId || null;
+        } catch {
+          parentId = null;
         }
       }
 
@@ -813,11 +808,15 @@ export default function RegisterForm({ embedded = false }) {
       }
 
       if (!isNonValidResident) {
-        await supabase
-          .from('ValidResidents')
-          .update({ status: 'Registered' })
-          .eq('id', selectedPerson.id);
-
+        try {
+          await fetch('/api/registration/helpers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'mark_registered', residentId: selectedPerson.id }),
+          });
+        } catch {
+          // Non-blocking: registration already saved
+        }
         markAsRegistered(selectedPerson.id);
       }
 

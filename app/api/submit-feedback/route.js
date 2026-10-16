@@ -37,17 +37,19 @@ export async function POST(req) {
       return Response.json({ error: 'You can only send 2 messages per day. Please try again tomorrow.' }, { status: 429 });
     }
 
-    // Security: verify the token actually belongs to the registration_id
-    if (token) {
-      const { data: regCheck, error: regErr } = await supabaseAdmin
-        .from('registrations')
-        .select('qr_token')
-        .eq('id', registration_id)
-        .maybeSingle();
+    // Security: QR token is required and must match the registration
+    if (!token || typeof token !== 'string') {
+      return Response.json({ error: 'Card token is required' }, { status: 400 });
+    }
 
-      if (regErr || !regCheck || regCheck.qr_token !== token) {
-        return Response.json({ error: 'Invalid token for this registration' }, { status: 403 });
-      }
+    const { data: regCheck, error: regErr } = await supabaseAdmin
+      .from('registrations')
+      .select('qr_token')
+      .eq('id', registration_id)
+      .maybeSingle();
+
+    if (regErr || !regCheck || regCheck.qr_token !== token.trim()) {
+      return Response.json({ error: 'Invalid token for this registration' }, { status: 403 });
     }
 
     const { data, error } = await supabaseAdmin

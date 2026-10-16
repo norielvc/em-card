@@ -7,9 +7,28 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const PUBLIC_FIELDS = [
+  'id',
+  'first_name',
+  'middle_name',
+  'last_name',
+  'suffix',
+  'barangay',
+  'precinct',
+  'hasExistingRegistration',
+];
+
+function pickPublicFields(row) {
+  const out = {};
+  for (const key of PUBLIC_FIELDS) {
+    if (row[key] !== undefined) out[key] = row[key];
+  }
+  return out;
+}
+
 export async function GET(request) {
-  // Rate limit: 120 requests per minute per IP
-  const limit = rateLimit(request, { windowMs: 60 * 1000, max: 120 });
+  // Rate limit: 40 requests per minute per IP (registration search)
+  const limit = rateLimit(request, { windowMs: 60 * 1000, max: 40 });
   if (!limit.allowed) {
     return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
   }
@@ -68,5 +87,5 @@ export async function GET(request) {
     results = results.map((r) => ({ ...r, hasExistingRegistration: false }));
   }
 
-  return NextResponse.json({ data: results });
+  return NextResponse.json({ data: results.map(pickPublicFields) });
 }
