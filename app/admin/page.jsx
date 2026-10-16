@@ -13638,9 +13638,12 @@ export default function AdminPage() {
                                           <Users size={10} strokeWidth={2} /> {directCount} Recruits
                                         </span>
                                       )}
-                                      {member.purok && (
+                                      {(member.barangay || member.purok) && (
                                         <span className="candidate-tag meta-item">
-                                          <MapPin size={10} strokeWidth={1.8} /> Purok {member.purok}
+                                          <MapPin size={10} strokeWidth={1.8} />
+                                          {member.barangay ? `Brgy. ${member.barangay}` : ''}
+                                          {member.barangay && member.purok ? ' · ' : ''}
+                                          {member.purok ? `Purok ${member.purok}` : ''}
                                         </span>
                                       )}
                                       {member.contact && (
@@ -13847,9 +13850,12 @@ export default function AdminPage() {
                                           <Users size={10} strokeWidth={2} /> {directCount} Recruits
                                         </span>
                                       )}
-                                      {member.purok && (
+                                      {(member.barangay || member.purok) && (
                                         <span className="candidate-tag meta-item">
-                                          <MapPin size={10} strokeWidth={1.8} /> Purok {member.purok}
+                                          <MapPin size={10} strokeWidth={1.8} />
+                                          {member.barangay ? `Brgy. ${member.barangay}` : ''}
+                                          {member.barangay && member.purok ? ' · ' : ''}
+                                          {member.purok ? `Purok ${member.purok}` : ''}
                                         </span>
                                       )}
                                       {member.contact && (
